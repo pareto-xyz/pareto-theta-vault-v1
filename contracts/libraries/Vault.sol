@@ -10,10 +10,12 @@ library Vault {
 
     /**
      * @param decimals is the decimals for vault shares
+     * @param asset is the 
      * @param underlying is the underlying asset of options sold by vault
      */
     struct VaultParams {
         uint8 decimals;
+        address asset;
         address underlying;
     }
 
