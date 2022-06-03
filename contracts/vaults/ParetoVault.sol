@@ -25,6 +25,10 @@ import {VaultLifecycle} from "../libraries/VaultLifecycle.sol";
 import {VaultMath} from "../libraries/VaultMath.sol";
 import {IWETH} from "../interfaces/IWETH.sol";
 
+/**
+ * Based on RibbonVault.sol
+ * See https://docs.ribbon.finance/developers/ribbon-v2 
+ */
 contract ParetoVault is 
     ReentrancyGuardUpgradeable,
     OwnableUpgradeable,
@@ -100,11 +104,20 @@ contract ParetoVault is
 
     event DepositEvent(address indexed account, uint256 amount, uint256 round);
 
-    event ManagementFeeEvent(uint256 managementFee, uint256 newManagementFee);
+    event RedeemEvent(uint256 indexed account, uint256 share, uint256 round);
 
-    event PerformanceFeeEvent(uint256 performanceFee, uint256 newPerformanceFee); 
+    event WithdrawRequestEvent(
+        address indexed account, uint256 shares, uint256 round);
 
     event WithdrawEvent(address indexed account, uint256 amount, uint256 shares);
+
+    event ManagementFeeEvent(uint256 managementFee, uint256 newManagementFee);
+
+    event PerformanceFeeEvent(
+        uint256 performanceFee, uint256 newPerformanceFee); 
+
+    event WithdrawEvent(
+        address indexed account, uint256 amount, uint256 shares);
 
     /************************************************
      * Constructor and Initialization
@@ -187,7 +200,7 @@ contract ParetoVault is
     }
 
     /************************************************
-     * Permissions and Roles
+     * Permissions and Roles (Owner only)
      ***********************************************/
 
     /**
@@ -261,6 +274,254 @@ contract ParetoVault is
     }
 
     /************************************************
-     * Deposits and Withdrawals
+     * Deposits and Withdrawals (User Facing)
      ***********************************************/
+
+    /**
+     * Deposits ETH into contract and mints vault shares. 
+     * Does nothing if asset is not WETH.
+     */
+    function depositETH() external payable nonReentrant {
+        require(vaultParams.asset == WETH, "Must be WETH");
+        require(msg.value > 0, "Invalid value passed");
+
+        _mintShares(msg.value, msg.sender);
+
+        // Make the deposit
+        IWETH(WETH).deposit{value: msg.value}();
+    }
+
+    /**
+     * Deposits asset from msg.sender. Must be the asset 
+     * specified in VaultParams
+     * --
+    * @param amount is the amount of `asset` to deposit
+     */
+    function deposit(uint256 amount) external nonReentrant {
+        require(amount > 0, "Invalid `amount` passed");
+
+        _mintShares(amount, msg.sender);
+
+        // Requires approve() call by msg.sender
+        IERC20(vaultParams.asset).safeTransferFrom(
+            msg.sender,
+            address(this),
+            amount
+        );
+    }
+
+    /**
+     * Redeems shares owed to account 
+     * This is useful for users (e.g. Protocols) who may wish to 
+     * own the the shares rather than Pareto
+     * --
+     * @param numShares is the number of shares to redeem
+     */
+    function redeem(uint256 numShares) external nonReentrant {
+        require(numShares > 0, "Invalid `numShares` passed");
+        _redeemShares(numShares, false);
+    }
+
+    /**
+     * Rdeems all shares owned to account
+     * This is useful for users (e.g. Protocols) who may wish to 
+     * own the the shares rather than Pareto
+     */
+    function redeemMax() external nonReentrant {
+        _redeemShares(0, true);
+    }
+
+    /************************************************
+     * Deposits and Withdrawals (Internal Logic)
+     ***********************************************/
+
+    /**
+     * Mints the vault shares to the creditor
+     * --
+     * @param amount is the amount of asset deposited
+     * @param creditor is the address to receive the deposit
+     */
+    function _mintShares(uint256 amount, address creditor) private {
+        uint256 currentRound = vaultState.round;
+        uint256 balanceWithDeposit = getBalance().add(amount);
+
+        require(balanceWithDeposit <= vaultParams.maxSupply, "Exceeds cap");
+        require(
+            balanceWithDeposit >= vaultParams.minSupply,
+            "Insufficient balance"
+        );
+
+        // Emit to log
+        emit DepositEvent(creditor, amount, currentRound);
+
+        Vault.DepositReceipt memory receipt = depositReceipts[creditor];
+
+        // Check if there are pending deposits from previous rounds
+        uint256 unredeemedShares = receipt.getSharesFromReceipt(
+            currentRound,
+            roundPricePerShare[receipt.round],
+            vaultParams.decimals
+        );
+
+        uint256 depositAmount = amount;
+
+        // If another pending deposit exists for current round, add to it
+        // This effectively rolls two deposits into one
+        if (receipt.round == currentRound) {
+            depositAmount = uint256(receipt.amount).add(amount);
+        }
+
+        VaultMath.assertUint104(depositAmount);
+
+        depositReceipts[creditor] = Vault.DepositReceipt({
+            round: uint16(currentRound),
+            amount: uint104(depositAmount),
+            // total number of pTHETA tokens owned by user 
+            unredeemedShares: uint128(unredeemedShares);
+        });
+
+        // Ignore any receipt logic - focus only on `amount`
+        uint256 newTotalPending = uint256(vaultState.totalPending).add(amount);
+        VaultMath.assertUint128(newTotalPending);
+
+        vaultState.totalPending = uint128(newTotalPending);
+    }
+
+    /**
+     * Redeems shares owned to account by transfering pTHETA tokens from 
+     * vault to user address. This is useful for protocols.
+     * --
+     * @param numShares is the number of shares to redeem, could be 0 when isMax=true
+     * @param isMax is flag for when callers do a max redemption
+     */
+    function _redeemShares(uint256 numShares, bool isMax) internal {
+        Vault.DepositReceipt memory receipt = depositReceipts[msg.sender];
+
+        uint256 currentRound = vaultState.round;
+        uint256 unredeemedShares = receipt.getSharesFromReceipt(
+            currentRound,
+            roundPricePerShare[receipt.round],
+            vaultParams.decimals
+        );
+
+        numShares = isMax ? unredeemedShares : numShares;
+
+        if (numShares == 0) {
+            return;  // nothing to do
+        }
+        requires(numShares <= unredeemedShares, "Exceeds available");
+
+        if (receipt.round < currentRound) {
+            depositReceipts[msg.sender].amount = 0;  // mark as redeemed
+        }
+
+        VaultMath.assertUint128(numShares);
+        depositReceipts[msg.sender].unredeemedShares = uint128(
+            unredeemedShares.sub(numShares)
+        );
+
+        // Log that shares have been redeemed
+        emit Redeem(msg.sender, numShares, receipt.round);
+
+        // user will own the shares
+        _transfer(address(this), msg.sender, numShares);
+    }
+
+    /**
+     * Initiates a withdraw that can be processed after round completes
+     * A user is not allowed to withdraw within a round
+     *
+     * TODO: allow immediate withdraw?
+     */
+    function _requestWithdraw(uint256 numShares) internal {
+        require(numShares > 0, "Invalid `numShares` passed");
+
+        Vault.DepositReceipt memory receipt = depositReceipts[msg.sender];
+
+        // Perform a max redeem before withdrawing
+        // After this statement, all shares are in user wallet
+
+        if (receipt.amount > 0 || receipt.unredeemedShares > 0) {
+            _redeemShares(0, true);
+        }
+
+        uint256 currentRound = vaultState.round;
+        Vault.Withdrawal storage withdrawal = withdrawals[msg.sender];
+
+        emit WithdrawRequestEvent(msg.sender, numShares, currentRound);
+
+        uint256 withdrawnShares;
+
+        if (withdrawal.round == currentRound) {
+            withdrawnShares = uint256(withdrawal.shares).add(numShares);
+        } else {
+            require(uint256(withdrawal.shares) == 0, "Found unprocessed withdraw");
+            withdrawnShares = numShares;
+            // Update round to be current round
+            withdrawals[msg.sender].round = uint16(currentRound);
+        }
+
+        VaultMath.assertUint128(withdrawnShares);
+        withdrawals[msg.sender].shares = uint128(withdrawnShares);
+
+        // transfers shares back to contract (for burning)
+        _transfer(msg.sender, address(this), numShares);
+    }
+
+    /** 
+     * Complete a scheduled withdrawal from past round
+     * --
+     * @return withdrawAmount is the current withdrawal amount
+     */
+    function _completeWithdraw() internal returns (uint256) {
+        Vault.Withdrawal storage withdrawal = withdrawals[msg.sender];
+
+        uint256 withdrawShares = withdrawal.shares;
+        uint256 withdrawRound = withdrawal.round;
+
+        // Check that `_requestWithdraw` has been called
+        require(withdrawShares > 0, "Withdrawal not requested");
+        // Check that the withdraw request was made in a previous round
+        require(withdrawRound < vaultState.round, "Round not complete");
+
+        // Reset params back to 0
+        withdrawal[msg.sender].shares = 0;
+        withdrawal[msg.sender].round = 0; 
+
+        uint256 withdrawAmount = VaultMath.sharesToAsset(
+            withdrawShares,
+            roundPricePerShare[withdrawRound],
+            vaultParams.decimals
+        );
+
+        // Log withdraw event
+        emit Withdraw(msg.sender, withdrawAmount, withdrawShares);
+
+        // Burn the shares
+        _burn(address(this), withdrawShares);
+
+        require(withdrawAmount > 0, "Invalid `withdrawAmount`");
+        _transferAsset(msg.sender, withdrawAmount);
+
+        return withdrawAmount;
+    }
+
+    /**
+     * Transfer ETH or ERC20 token to recipient
+     * -- 
+
+     */
+
+    /************************************************
+     * Helper and Getter functions
+     ***********************************************/
+    
+    /** 
+     * Return vault's total balance, including amounts locked into 
+     * third party protocols
+     */
+    function getBalance() public view returns (uint256) {
+        return uint256(vaultState.lockedAmount)
+            .add(IERC20(vaultParams.asset).balanceOf(address(this)));
+    }
 }

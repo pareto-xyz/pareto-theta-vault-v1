@@ -10,13 +10,17 @@ library Vault {
 
     /**
      * @param decimals is the decimals for vault shares
-     * @param asset is the 
-     * @param underlying is the underlying asset of options sold by vault
+     * @param asset is the asset used in Theta Vault
+     * @param minSupply is the minimum supply of vault shares issued 
+     *  For ETH, it is 10**10
+     * @param maxSupply is the maximum supply of vault shares issued
+     *  Consider removing this later
      */
     struct VaultParams {
         uint8 decimals;
         address asset;
-        address underlying;
+        uint56 minSupply;
+        uint104 maxSupply;
     }
 
     /**
@@ -39,16 +43,17 @@ library Vault {
      * @param round is the round number with a maximum of 65535 rounds
      *  Assuming round is 1 week, max is 1256 yrs
      * @param amount is the deposit amount with a max of 20 trillion ETH
+     * @param unredeemedShares is the amount of unredeemed shares
      */
     struct DepositReceipt {
         uint16 round;
         uint104 amount;
-        uint128 totalPending;
+        uint128 unredeemedShares;
     }
 
     /**
      * @param round is the round number with a maximum of 65535 rounds
-     * @param shares is the number of withdrawn shares
+     * @param shares is the number of withdrawn shares (pTHETA tokens)
      */
     struct Withdrawal {
         uint16 round;

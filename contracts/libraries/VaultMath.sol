@@ -46,6 +46,36 @@ library VaultMath {
         return shares.mul(assetPerShare).div(10**decimals);
     }
 
+    /** 
+     * Returns the shares unredeemed by the user
+     * These shares must roll over to the next vault
+     * --
+     * @param depositReceipt is the user's deposit receipt
+     * @param currentRound is the `round` stored on the vault
+     * @param assetPerShare is the price in asset per share
+     * @param decimals is the number of decimals the asset/shares use
+     * --
+     * @return unredeemedShares is the user's virtual balance of shares that are owed
+     */
+    function getSharesFromReceipt(
+        Vault.DepositReceipt memory depositReceipt,
+        uint256 currentRound,
+        uint256 assetPerShare,
+        uint256 decimals
+    ) internal pure returns (uint256 unredeemedShares) {
+        if (depositReceipt.round > 0 && depositReceipt.round < currentRound) {
+            // If receipt is from earlier round, compute shares value 
+            // This will be done using price from earlier round (not current price)
+            uint256 currentShares = 
+                assetToShares(depositReceipt.amount, assetPerShare, decimals);
+            // added with shares from current round
+            return uint256(depositReceipt.unredeemedShares).add(currentShares);
+        } else {
+            // If receipt is from current round, return attribute
+            return depositReceipt.unredeemedShares;
+        }
+    }
+
     /**
      * Helper function to assert number is uint104
      */
@@ -56,7 +86,6 @@ library VaultMath {
     /**
      * Helper function to assert number is uint128
      */
-    function assertUint256(uint256 num) internal pure {
+    function assertUint128(uint256 num) internal pure {
         require(num <= type(uint128).max, "Overflow uint128");
     }
-}
