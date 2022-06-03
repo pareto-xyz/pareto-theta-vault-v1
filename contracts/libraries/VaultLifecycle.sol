@@ -21,7 +21,7 @@ library VaultLifecycle {
      * @param managementFee is the management fee percent
      * --
      * @return newLockedAmount is the amount of funds to allocate for new round
-     * @return newPricePerShare is the price per share of the new round
+     * @return newSharePrice is the price per share of the new round
      * @return mintShares is the amount of shares to mint from deposits
      * @return performanceFeeInAsset is the performance fee charged by vault
      * @return totalVaultFee is the total amount of fee charged by vault
@@ -46,7 +46,7 @@ library VaultLifecycle {
         view
         returns (
             uint256 newLockedAmount,
-            uint256 newPricePerShare,
+            uint256 newSharePrice,
             uint256 mintShares,
             uint256 performanceFeeInAsset,
             uint256 totalVaultFee

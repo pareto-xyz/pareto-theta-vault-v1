@@ -45,10 +45,10 @@ contract ParetoVault is
     // User's pending deposit for the round
     mapping(address => Vault.DepositReceipt) public depositReceipts;
 
-    // When round closes, the pricePerShare value of an pTHETA token is stored
+    // When round closes, the share price of an pTHETA token is stored
     // This is used to determine the numebr of shares to be returned to a user 
     // with their DepositReceipt.depositAmount
-    mapping(uint256 => uint256) public roundPricePerShare;
+    mapping(uint256 => uint256) public roundSharePrice;
 
     // Pending user withdrawals
     maping(address Vault.Withdrawal) public withdrawals;
@@ -343,7 +343,7 @@ contract ParetoVault is
      */
     function _mintShares(uint256 amount, address creditor) private {
         uint256 currentRound = vaultState.round;
-        uint256 balanceWithDeposit = getBalance().add(amount);
+        uint256 balanceWithDeposit = totalBalance().add(amount);
 
         require(balanceWithDeposit <= vaultParams.maxSupply, "Exceeds cap");
         require(
@@ -359,7 +359,7 @@ contract ParetoVault is
         // Check if there are pending deposits from previous rounds
         uint256 unredeemedShares = receipt.getSharesFromReceipt(
             currentRound,
-            roundPricePerShare[receipt.round],
+            roundSharePrice[receipt.round],
             vaultParams.decimals
         );
 
@@ -400,7 +400,7 @@ contract ParetoVault is
         uint256 currentRound = vaultState.round;
         uint256 unredeemedShares = receipt.getSharesFromReceipt(
             currentRound,
-            roundPricePerShare[receipt.round],
+            roundSharePrice[receipt.round],
             vaultParams.decimals
         );
 
@@ -484,13 +484,12 @@ contract ParetoVault is
         // Check that the withdraw request was made in a previous round
         require(withdrawRound < vaultState.round, "Round not complete");
 
-        // Reset params back to 0
+        // Reset params back to 0 (leave round untouched for gas)
         withdrawal[msg.sender].shares = 0;
-        withdrawal[msg.sender].round = 0; 
 
         uint256 withdrawAmount = VaultMath.sharesToAsset(
             withdrawShares,
-            roundPricePerShare[withdrawRound],
+            roundSharePrice[withdrawRound],
             vaultParams.decimals
         );
 
@@ -509,18 +508,126 @@ contract ParetoVault is
     /**
      * Transfer ETH or ERC20 token to recipient
      * -- 
-
+     * @param recipient is the receiving address
+     * @param amount is the transfer amount
      */
+    function _transferAsset(address recipient, int256 amount) internal {
+        if (vaultParams.asset == WETH) {
+            // Custom logic for wrapped ETH
+            IWETH(WETH).withdraw(amount);
+            (bool success, ) = recipient.call{value: amount}("");
+            require(success, "Transfer failed");
+        } else {
+            IERC20(asset).safeTransfer(recipient, amount);
+        }
+    }
 
     /************************************************
-     * Helper and Getter functions
+     * Vault Operations
      ***********************************************/
     
+    /**
+     * Hack to save gas by writing `1` into the round price map, which 
+     * prevents cold writes. Ribbon documents gas savings from 20k-5k.
+     * Requires you to specify number of rounds before hand.
+     *
+     * TODO This is to be called by the user? Who calls this?
+     */
+    function initRounds(uint256 numRounds) external nonReentrant {
+        require(numRounds > 0, "!numRounds");
+        uint256 _round = vaultState.round;
+        for (uint256 i = 0; i < numRounds; i++) {
+            uint256 index = _round + i;
+            // AVOID OVERWRITING ACTUAL VALUES
+            require(roundSharePrice[index] == 0, "Already initialized");
+            roundSharePrice[index] = VaultMath.PLACEHOLDER_UINT;
+        }
+    }
+
+
+
+    /************************************************
+     * Helper and Getter functions (frontend)
+     ***********************************************/
+    
+    /**
+     * Returns the asset balance held in the vault for one account
+     * --
+     * @param account is the address to lookup balance for
+     * --
+     * @return the amount of `asset` owned by the vault for the user
+     */
+    function getAccountBalance(address account) 
+        external view returns (uint256)
+    {
+        uint256 _decimals = vaultParams.decimals;
+        uint256 assetPerShare = VaultMath.sharePrice(
+            totalSupply(),
+            totalBalance(),
+            vaultState.totalPending,
+            _decimals
+        );
+        return VaultMath.sharesToAsset(
+            getAccountShares(account), assetPerShare, _decimals);
+    }
+
+    /**
+     * Returns the number of shares (including unredeemed shares) for 
+     * one account
+     * --
+     * @param account is the address to lookup balance for
+     * --
+     * @return the share balance
+     */
+    function getAccountShares(address account) public view returns (uint256) {
+        (uint256 heldByAccount, heldByVault) = getShareSplit(account);
+        return heldByAccount.add(heldByVault);
+    }
+
+    /**
+     * Returns the number of shares held by account versus held within vault
+     * --
+     * @param account is the account to lookup share balance for
+     * --
+     * @return heldByAccount is the shares held by account
+     * @return heldByVault is the shares held on the vault (unredeemedShares)
+     */
+    function getShareSplit(address account)
+        public view returns (uint256 heldByAccount, uint256 heldByVault)
+    {
+        Vault.DepositReceipt memory receipt = depositReceipts[account];
+
+        if (receipt.round < VaultMath.PLACEHOLDER_UINT) {
+            // Vault is empty - just return account shares
+            return (balanceof(account), 0);
+        }
+
+        uint256 unredeemedShares = receipt.getSharesFromReceipt(
+            vaultState.round,
+            roundSharePrice[receipt.round],
+            vaultParams.decimals
+        );
+
+        return(balanceOf(account), unredeemedShares);
+    }
+
+    /**
+     * The share price in the asset
+     */
+    function getSharePrice() external view returns (uint256) {
+        return VaultMath.getSharePrice(
+            totalSupply(),
+            totalBalance(),
+            vaultState.totalPending,
+            vaultParams.decimals
+        );
+    }
+
     /** 
      * Return vault's total balance, including amounts locked into 
      * third party protocols
      */
-    function getBalance() public view returns (uint256) {
+    function totalBalance() public view returns (uint256) {
         return uint256(vaultState.lockedAmount)
             .add(IERC20(vaultParams.asset).balanceOf(address(this)));
     }

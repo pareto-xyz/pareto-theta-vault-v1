@@ -77,6 +77,31 @@ library VaultMath {
     }
 
     /**
+     * Returns the price of a single share in asset
+     * --
+     * @param totalSupply is the total supply of asset
+     * @param totalBalance is the total supply of pTHETA
+     * @param pendingAmount is the amount of asset promised for minting
+     * @param decimals is the number of decimals the asset/shares use
+     * --
+     * @return the price of shares
+     */
+    function getSharePrice(
+        uint256 totalSupply,
+        uint256 totalBalance,
+        uint256 pendingAmount,
+        uint256 decimals
+    ) internal pure returns (uint256) {
+        uint256 oneShare = 10**decimals;  // TODO: ???
+        // 10**decimals * (balance - pending) / supply
+        return totalSupply > 0
+            ? oneShare
+                .mul(totalBalance.sub(pendingAmount))
+                .div(totalSupply)
+            : oneShare;
+    }
+
+    /**
      * Helper function to assert number is uint104
      */
     function assertUint104(uint256 num) internal pure {
