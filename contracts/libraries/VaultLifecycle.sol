@@ -12,10 +12,122 @@ library VaultLifecycle {
     using SafeMath for uint256
 
     /**
+     * Parameters for rollover
+     * --
+     * @param decimals is the decimals of the asset
+     * @param totalBalance is the vaults total balance of the asset
+     * @param shareSupply is the supply of the shares invoked with 
+     *  totalSupply()
+     * @param lastQueuedWithdrawAmount is the total amount queued for 
+     *  withdrawals
+     * @param performanceFee is the perf fee percent to charge on premiums
+     * @param managementFee is the management fee percent to charge on the AUM
+     * @param queuedWithdrawShares is amount of queued withdrawals from the 
+     *  current round
+     */
+    struct RolloverParams {
+        uint256 decimals;
+        uint256 totalBalance;
+        uint256 shareSupply;
+        uint256 lastQueuedWithdrawAmount;
+        uint256 performanceFee;
+        uint256 managementFee;
+        uint256 queuedWithdrawShares;
+    }
+
+    /**
      * Calculate the shares to mint, new price per share, and amount of 
      * funds to re-allocate as collateral for the new round
+     * --
+     * @param vaultState is the storage variable
+     * @param params is the rollover parameters passed to compute the next 
+     *  state
+     * @return newLockedAmount is the amount of funds to allocate for the 
+     *  new round
+     * @return queuedWithdrawAmount is the amount of funds set aside for 
+     *  withdrawal
+     * @return newPricePerShare is the price per share of the new round
+     * @return mintShares is the amount of shares to mint from deposits
+     * @return performanceFeeInAsset is the performance fee charged by vault
+     * @return totalVaultFee is the total amount of fee charged by vault
+     * --
+     * @note totalVaultFee is only > 0 if TODO
      */
-    function rollover() {}
+    function rollover(
+        Vault.VaultState storage vaultState,
+        RolloverParams calldata params
+    ) 
+        external view returns (
+            uint256 newLockedAmount,
+            uint256 queuedWithdrawAmount,
+            uint256 newSharePrice,
+            uint256 mintShares,
+            uint256 performanceFeeInAsset,
+            uint256 totalVaultFee
+        )
+    {
+        uint256 currentBalance = params.totalBalance;
+        uint256 pendingAmount = vaultState.totalPending;
+
+        // Total amount of queued withdrawal shares from previous rounds
+        uint256 lastQueuedWithdrawShares = vaultState.queuedWithdrawShares;
+
+        // Deduct older queued withdraws so we don't charge fees on them
+        uint256 balanceForVaultFees = currentBalance
+            .sub(params.lastQueuedWithdrawAmount);
+
+        {
+            (performanceFeeInAsset, , totalVaultFee) = VaultLifecycle
+                .getVaultFees(
+                    balanceForVaultFees,
+                    vaultState.lastLockedAmount,
+                    vaultState.totalPending,
+                    params.performanceFee,
+                    params.managementFee
+                );
+        }
+
+        // Update the currentBalance minus computed fees
+        currentBalance = currentBalance.sub(totalVaultFee);
+
+        {
+            // Compute share price post-withdraws
+            newSharePrice = VaultMath.getSharePrice(
+                params.shareSupply.sub(lastQueuedWithdrawShares),
+                currentBalance.sub(params.lastQueuedWithdrawAmount),
+                pendingAmount,
+                params.decimals
+            );
+
+            queuedWithdrawAmount = params.lastQueuedWithdrawAmount
+                .add(
+                    VaultMath.sharesToAsset(
+                        params.queuedWithdrawShares,
+                        newSharePrice,
+                        params.decimals
+                    )
+                );
+            
+            // Mint shares using pending amount with the new share price so
+            // we do not penalize the new shares if last week's option expired
+            // in the money
+            mintShares = VaultMath.assetToShares(
+                pendingAmount,
+                newSharePrice,
+                params.decimals
+            );
+        }
+
+        return (
+            // locked balance ignore queued withdrawals
+            currentBalance.sub(queuedWithdrawAmount),
+            queuedWithdrawAmount,
+            newSharePrice,
+            mintShares,
+            performanceFeeInAsset,
+            totalVaultFee
+        );
+    }
 
     /**
      * Opens a short position

@@ -24,6 +24,19 @@ library Vault {
     }
 
     /**
+     * @param nextOption is the address of the option the vault is shorting 
+     *  in the next cycle
+     * @param currentOption is the address of the current option
+     * @param nextOptionReadyAt is the timestamp when the `nextOption` can be
+     *  used by the vault
+     */
+    struct OptionState {
+        address nextOption;
+        address currentOption;
+        uint32 nextOptionReadyAt;
+    }
+
+    /**
      * @param round is the current round number
      * @param lockedAmount is the amount locked away for selling options
      * @param lastLockedAmount is the amount locked for selling options in
@@ -31,12 +44,15 @@ library Vault {
      *  Used for calculating performance fee deduction
      * @param totalPending is the amount of asset to be used to mint 
      *  pTHETA tokens
+     * @param queuedWithdrawShares is the total amount of queued withdrawal 
+     *  shares from previous rounds (doesn't include the current round)
      */
     struct VaultState {
         uint16 round;
         uint104 lockedAmount;
         uint104 lastLockedAmount;
         uint128 totalPending;
+        uint128 queuedWithdrawShares;
     }
 
     /**

@@ -114,3 +114,4 @@ library VaultMath {
     function assertUint128(uint256 num) internal pure {
         require(num <= type(uint128).max, "Overflow uint128");
     }
+}

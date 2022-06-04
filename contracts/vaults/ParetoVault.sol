@@ -28,6 +28,11 @@ import {IWETH} from "../interfaces/IWETH.sol";
 /**
  * Based on RibbonVault.sol
  * See https://docs.ribbon.finance/developers/ribbon-v2 
+ * --
+ * @note This is a token! You might see it tagged as pTHETA.
+ *  Special functions include `_mint` and `_burn` to increase 
+ *  and decrease the supply. 
+ * @note See https://docs.openzeppelin.com/contracts/2.x/api/token/erc20
  */
 contract ParetoVault is 
     ReentrancyGuardUpgradeable,
@@ -58,6 +63,9 @@ contract ParetoVault is
 
     // Vault's lifecycle state
     Vault.VaultState public vaultState;
+
+    // State of the option in the Vault
+    Vault.OptionState public optionState;
 
     // Fee ecipient for the performance and management fees
     address public feeRecipient;
@@ -111,13 +119,20 @@ contract ParetoVault is
 
     event WithdrawEvent(address indexed account, uint256 amount, uint256 shares);
 
-    event ManagementFeeEvent(uint256 managementFee, uint256 newManagementFee);
+    event ManagementFeeSetEvent(uint256 managementFee, uint256 newManagementFee);
 
-    event PerformanceFeeEvent(
+    event PerformanceFeeSetEvent(
         uint256 performanceFee, uint256 newPerformanceFee); 
 
     event WithdrawEvent(
         address indexed account, uint256 amount, uint256 shares);
+
+    event VaultFeesCollectionEvent(
+        uint256 performanceFee,
+        uint256 vaultFee,
+        uint256 round,
+        address indexed feeRecipient
+    );
 
     /************************************************
      *  Constructor and Initialization
@@ -250,7 +265,7 @@ contract ParetoVault is
             newManagementFee.mul(Vault.FEE_MULTIPLIER).div(WEEKS_PER_YEAR);
         
         // Log event
-        emit ManagementFeeEvent(managementFee, newManagementFee);
+        emit ManagementFeeSetEvent(managementFee, newManagementFee);
 
         // Note we use the weekly fee
         managementFee = weekManagementFee;
@@ -268,7 +283,7 @@ contract ParetoVault is
             "Invalid performance fee"
         );
 
-        emit PerformanceFeeEvent(performanceFee, newPerformanceFee);
+        emit PerformanceFeeSetEvent(performanceFee, newPerformanceFee);
 
         performanceFee = newPerformanceFee;
     }
@@ -542,6 +557,101 @@ contract ParetoVault is
             require(roundSharePrice[index] == 0, "Already initialized");
             roundSharePrice[index] = VaultMath.PLACEHOLDER_UINT;
         }
+    }
+
+    /**
+     * Pipeline for rolling to the next option, such as calling 
+     * `VaultLifecycle`, minting new shares, getting vault fees 
+     * -- 
+     * @param lastQueuedWithdrawAmount is an old queued withdraw amount
+     *  This is needed to compute vault fees
+     * @param queuedWithdrawShares is the queued withdraw shares for current 
+     *  round
+     * --
+     * @return newOption is the new option's address
+     * @return lockedBalance is the new balance used to calculate next option 
+     *  purchase size 
+     * @return queuedWithdrawAmount is the new queued withdraw amount for this
+     *  round
+     */
+    function _rollToNextOption(
+        uint256 lastQueuedWithdrawAmount,
+        uint256 queuedWithdrawShares
+    ) 
+        internal returns (
+            address newOption,
+            uint256 lockedBalance,
+            uint256 queuedWithdrawAmount
+        )
+    {
+        require(
+            block.timestamp >= optionState.nextOptionReadyAt,
+            "Too early to roll over"
+        );
+
+        newOptions = optionState.nextOption;
+        require(newOption != address(0), "Invalid next option");
+
+        address recipient = feeRecipient;
+        uint256 mintShares;
+        uint256 performanceFeeInAsset;
+        uint256 totalVaultFee;
+
+        // Begin new scope
+        {
+            uint256 newSharePrice;
+
+            // Punt to VaultLifecycle to do a lot of the heavy lifting
+            (
+                lockedBalance,
+                queuedWithdrawAmount,
+                newSharePrice,
+                mintShares,
+                performanceFeeInAsset,
+                totalVaultFee
+            ) = VaultLifecycle.rollover(
+                vaultState,
+                // Direct usage avoids saving variable 
+                VaultLifecycle.RolloverParams(
+                    vaultParams.decimals,
+                    IERC20(vaultParams.asset).balanceOf(address(this)),
+                    totalSupply(),
+                    lastQueuedWithdrawAmount,
+                    performanceFee,
+                    managementFee,
+                    currentQueuedWithdrawShares
+                )
+            );
+
+            // Overwrite current option with new option
+            optionState.currentOption = newOption;
+
+            // Reset new option to be empty
+            optionState.nextOption = address(0);
+
+            uint256 currentRound = vaultState.round;
+            roundSharePrice[currentRound] = newSharePrice;
+
+            // Log that vault fees are being collected
+            emit VaultFeesCollectionEvent(
+                performanceFeeInAsset,
+                totalVaultFee,
+                currentRound,
+                recipient
+            );
+            
+            // `totalPending` dictates how much to mint
+            vaultState.totalPending = 0;
+            vaultState.round = uint16(currentRound + 1);
+        }
+
+        _mint(address(this), mintShares);
+
+        if (totalVaultFee > 0) {
+            _transferAsset(payable(recipient), totalVaultFee);
+        }
+
+        return (newOption, lockedBalance, queuedWithdrawAmount);
     }
 
     /************************************************
