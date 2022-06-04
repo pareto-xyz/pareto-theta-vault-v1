@@ -12,56 +12,31 @@ library VaultLifecycle {
     using SafeMath for uint256
 
     /**
-     * Struct passed as argument to roller function
-     * --
-     * @param decimals is the decimals for options asset
-     * @param totalBalance is the vaults total balance of asset
-     * @param shareSupply is the supply of shares
-     * @param performanceFee is the perf fee percent to charge on premiums
-     * @param managementFee is the management fee percent
-     * --
-     * @return newLockedAmount is the amount of funds to allocate for new round
-     * @return newSharePrice is the price per share of the new round
-     * @return mintShares is the amount of shares to mint from deposits
-     * @return performanceFeeInAsset is the performance fee charged by vault
-     * @return totalVaultFee is the total amount of fee charged by vault
-     */
-    struct RolloverParams {
-        uint256 decimals;
-        uint256 totalBalance;
-        uint256 shareSupply;
-        uint256 performanceFee;
-        uint256 managementFee;
-    }
-
-    /**
      * Calculate the shares to mint, new price per share, and amount of 
      * funds to re-allocate as collateral for the new round
      */
-    function rollover(
-        Vault.VaultState storage vaultState,
-        RolloverParams calldata params,
-    )
-        external
-        view
-        returns (
-            uint256 newLockedAmount,
-            uint256 newSharePrice,
-            uint256 mintShares,
-            uint256 performanceFeeInAsset,
-            uint256 totalVaultFee
-        )
-    {
-        uint256 currentBalance = params.totalBalance;
-        uint256 pendingAmount = vaultState.totalPending;
+    function rollover() {}
 
-        // TODO: why do we need lastQueuedWithdrawAmount
-        uint256 balanceForVaultFees = currentBalance; 
+    /**
+     * Opens a short position
+     * Sells a covered call through a replicating market maker
+     * --
+     * @param assetAmount is the amount of asset to deposit
+     * @param numeraireAmount is the amount of numeraire to deposit
+     -- 
+     * @return the LP token mint amount
+     */
+    function createShort(
+        uint256 assetAmount,
+        uint256 numeraireAmount,
+    ) external returns (uint256) {
+    }
 
-        // Start a new scope
-        {
-
-        }
+    /**
+     * Closes a short position
+     * Burns LP token through a replicating market maker
+     */
+    function settleShort() external returns (uint256) {
     }
 
     /** 
@@ -126,16 +101,63 @@ library VaultLifecycle {
         return (_performanceFeeInAsset, _managementFeeInAsset, _vaultFee);
     }
 
+    /************************************************
+     *  Primitive Bindings
+     ***********************************************/
+
     /**
-     * Either retrieves the option token if it already exists, or deploy it
+     * Retrieve Primitives LP token
      * --
+     * --
+     @return lpToken is a address of an LP token
      */
-    function getOrDeployPrimitiveToken(
+    function getLPToken(
     ) internal returns (address) {
     }
 
+    /** 
+     * Deposits liquidity in exchange for a Primitive LP token. 
+     * --
+     * @param assetAmount is the amount of asset to deposit
+     * @param numeraireAmount is the amount of numeraire to deposit
+     */
+    function deployLPToken(
+        uint256 assetAmount,
+        uint256 numeraireAmount,
+    ) internal returns (uint256) {
+    }
+
     /**
-     * Verify the constructor params to satisfy requirements
+     * Burns an LP token in exchange for an amount of risky asset and 
+     * numeraire.
+     */
+    function burnLPToken() internal returns (uint256, uint256)
+    {
+    }
+
+    /**
+     * Verify that the LP token has the correct parameters to prevent 
+     * vulnerability to primitive contract changes
+     * --
+     * @param tokenAddress is the address of the Primitive LP token
+     * @param vaultParams is the struct with info about the vault
+     * @param USDC is the address of the usdc
+     * @param delay is the delay between `commitAndClose` and `rollToNextOption`
+     */
+    function verifyLPToken(
+        address tokenAddress,
+        Vault.VaultParams storage vaultParams,
+        address USDC,
+        uint256 delay
+    ) private view {
+    }
+
+    /************************************************
+     *  Utilities
+     ***********************************************/
+
+    /**
+     * Verify the params passed to ParetoVault.baseInitialize
      * --
      * @param owner is the owner of the vault with critical permissions
      * @param keeper is the keeper of the vault 
@@ -165,11 +187,22 @@ library VaultLifecycle {
         verifyVaultParams(_vaultParams);
     }
 
-    function verifyVaultParams(
-        Vault.VaultParams calldata _vaultParams
-    ) external pure {
-        require(_vaultParams.underlying != address(0), "Empty underlying");
-        require(_vaultParams.minimumSupply > 0, "Empty minimumSupply");
+    /**
+     * Helper function to verify vault params
+     */
+    function verifyVaultParams(Vault.VaultParams calldata _vaultParams) 
+        external pure 
+    {
+        require(_vaultParams.minSupply > 0, "Empty minSupply");
+        require(_vaultParams.maxSupply > 0, "Empty maxSupply");
+    }
+
+    /** 
+     * Gets the next option expiry timestamp
+     */
+    function getNextExpiry(address currentOption) 
+        internal view returns (uint256)
+    {
     }
 
     /**

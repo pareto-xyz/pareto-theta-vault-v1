@@ -39,7 +39,7 @@ contract ParetoVault is
     using VaultMath for Vault.DepositReceipt;
 
     /************************************************
-     * Non-upgradeable storage
+     *  Non-upgradeable storage
      ***********************************************/
 
     // User's pending deposit for the round
@@ -82,7 +82,7 @@ contract ParetoVault is
     // appended to `ParetoThetaVaultStorage` instead.
 
     /************************************************
-     * Immutables and Constants
+     *  Immutables and Constants
      ***********************************************/
 
     // WETH9 token contract - 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2
@@ -99,7 +99,7 @@ contract ParetoVault is
     uint256 private constant WEEKS_PER_YEAR = 52142857;
 
     /************************************************
-     * Events (store info in tx logs)
+     *  Events (store info in tx logs)
      ***********************************************/
 
     event DepositEvent(address indexed account, uint256 amount, uint256 round);
@@ -120,7 +120,7 @@ contract ParetoVault is
         address indexed account, uint256 amount, uint256 shares);
 
     /************************************************
-     * Constructor and Initialization
+     *  Constructor and Initialization
      ***********************************************/
     
     /**
@@ -200,7 +200,7 @@ contract ParetoVault is
     }
 
     /************************************************
-     * Permissions and Roles (Owner only)
+     *  Permissions and Roles (Owner only)
      ***********************************************/
 
     /**
@@ -274,7 +274,7 @@ contract ParetoVault is
     }
 
     /************************************************
-     * Deposits and Withdrawals (User Facing)
+     *  Deposits and Withdrawals (User Facing)
      ***********************************************/
 
     /**
@@ -332,7 +332,7 @@ contract ParetoVault is
     }
 
     /************************************************
-     * Deposits and Withdrawals (Internal Logic)
+     *  Deposits and Withdrawals (Internal Logic)
      ***********************************************/
 
     /**
@@ -523,7 +523,7 @@ contract ParetoVault is
     }
 
     /************************************************
-     * Vault Operations
+     *  Vault Operations
      ***********************************************/
     
     /**
@@ -544,10 +544,8 @@ contract ParetoVault is
         }
     }
 
-
-
     /************************************************
-     * Helper and Getter functions (frontend)
+     *  Helper and Getter functions (frontend)
      ***********************************************/
     
     /**
