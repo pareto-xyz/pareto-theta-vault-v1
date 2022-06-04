@@ -51,7 +51,8 @@ library VaultLifecycle {
      * @return performanceFeeInAsset is the performance fee charged by vault
      * @return totalVaultFee is the total amount of fee charged by vault
      * --
-     * @note totalVaultFee is only > 0 if TODO
+     * @note totalVaultFee is only > 0 if the difference between last 
+     * week's and this week's vault > 0
      */
     function rollover(
         Vault.VaultState storage vaultState,
