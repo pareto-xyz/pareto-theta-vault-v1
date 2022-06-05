@@ -1,0 +1,23 @@
+{
+  "name": "pareto-theta-vault-v1",
+  "version": "1.0.0",
+  "description": "Pareto Theta Vault v1 is the first version of Pareto's Theta Vault built on top of Primitive's RMM-01 pools.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pareto-xyz/pareto-theta-vault-v1.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/pareto-xyz/pareto-theta-vault-v1/issues"
+  },
+  "homepage": "https://github.com/pareto-xyz/pareto-theta-vault-v1#readme",
+  "devDependencies": {
+    "hardhat": "^2.9.7"
+  }
+}
