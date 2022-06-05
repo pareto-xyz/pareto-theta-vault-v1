@@ -10,8 +10,8 @@ library VaultMath {
     // minimum amount of assets per share- prevents cold writes
     uint256 internal constant PLACEHOLDER_UINT = 1;
 
-    /** 
-     * Convert assets to shares 
+    /**
+     * Convert assets to shares
      * --
      * @param assets is the amount of assets
      * @param assetPerShare is the price of one share in assets
@@ -46,7 +46,7 @@ library VaultMath {
         return shares.mul(assetPerShare).div(10**decimals);
     }
 
-    /** 
+    /**
      * Returns the shares unredeemed by the user
      * These shares must roll over to the next vault
      * --
@@ -64,10 +64,13 @@ library VaultMath {
         uint256 decimals
     ) internal pure returns (uint256 unredeemedShares) {
         if (depositReceipt.round > 0 && depositReceipt.round < currentRound) {
-            // If receipt is from earlier round, compute shares value 
+            // If receipt is from earlier round, compute shares value
             // This will be done using price from earlier round (not current price)
-            uint256 currentShares = 
-                assetToShares(depositReceipt.amount, assetPerShare, decimals);
+            uint256 currentShares = assetToShares(
+                depositReceipt.amount,
+                assetPerShare,
+                decimals
+            );
             // added with shares from current round
             return uint256(depositReceipt.unredeemedShares).add(currentShares);
         } else {
@@ -92,13 +95,12 @@ library VaultMath {
         uint256 pendingAmount,
         uint256 decimals
     ) internal pure returns (uint256) {
-        uint256 oneShare = 10**decimals;  // TODO: ???
+        uint256 oneShare = 10**decimals; // TODO: ???
         // 10**decimals * (balance - pending) / supply
-        return totalSupply > 0
-            ? oneShare
-                .mul(totalBalance.sub(pendingAmount))
-                .div(totalSupply)
-            : oneShare;
+        return
+            totalSupply > 0
+                ? oneShare.mul(totalBalance.sub(pendingAmount)).div(totalSupply)
+                : oneShare;
     }
 
     /**

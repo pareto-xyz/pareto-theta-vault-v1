@@ -13,8 +13,9 @@ interface IWETH {
     function balanceOf(address account) external view returns (uint256);
 
     // transfers to recipient
-    function transfer(address recipient, uint256 amount) 
-        external returns (bool);
+    function transfer(address recipient, uint256 amount)
+        external
+        returns (bool);
 
     // transfers from sender to recipient
     function transferFrom(

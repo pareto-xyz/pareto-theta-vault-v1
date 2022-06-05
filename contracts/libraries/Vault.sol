@@ -11,7 +11,7 @@ library Vault {
     /**
      * @param decimals is the decimals for vault shares
      * @param asset is the asset used in Theta Vault
-     * @param minSupply is the minimum supply of vault shares issued 
+     * @param minSupply is the minimum supply of vault shares issued
      *  For ETH, it is 10**10
      * @param maxSupply is the maximum supply of vault shares issued
      *  Consider removing this later
@@ -24,7 +24,7 @@ library Vault {
     }
 
     /**
-     * @param nextOption is the address of the option the vault is shorting 
+     * @param nextOption is the address of the option the vault is shorting
      *  in the next cycle
      * @param currentOption is the address of the current option
      * @param nextOptionReadyAt is the timestamp when the `nextOption` can be
@@ -42,9 +42,9 @@ library Vault {
      * @param lastLockedAmount is the amount locked for selling options in
      *  in the previous round
      *  Used for calculating performance fee deduction
-     * @param totalPending is the amount of asset to be used to mint 
+     * @param totalPending is the amount of asset to be used to mint
      *  pTHETA tokens
-     * @param queuedWithdrawShares is the total amount of queued withdrawal 
+     * @param queuedWithdrawShares is the total amount of queued withdrawal
      *  shares from previous rounds (doesn't include the current round)
      */
     struct VaultState {
