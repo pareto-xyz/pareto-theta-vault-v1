@@ -56,7 +56,7 @@ contract ParetoVault is
     mapping(uint256 => uint256) public roundSharePrice;
 
     // Pending user withdrawals
-    mapping(address Vault.Withdrawal) public withdrawals;
+    mapping(address => Vault.Withdrawal) public withdrawals;
 
     // Vault's parameters
     Vault.VaultParams public vaultParams;
