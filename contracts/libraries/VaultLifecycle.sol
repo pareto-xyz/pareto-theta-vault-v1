@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0
-pragma solidity >=0.7.0 <0.9.0;
+pragma solidity =0.8.4;
 
 // Standard imports from OpenZeppelin
 import {SafeMath} from "@openzeppelin/contracts/utils/math/SafeMath.sol";
@@ -9,20 +9,20 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Vault} from "./Vault.sol";
 
 library VaultLifecycle {
-    using SafeMath for uint256
+    using SafeMath for uint256;
 
     /**
      * Parameters for rollover
      * --
      * @param decimals is the decimals of the asset
      * @param totalBalance is the vaults total balance of the asset
-     * @param shareSupply is the supply of the shares invoked with 
+     * @param shareSupply is the supply of the shares invoked with
      *  totalSupply()
-     * @param lastQueuedWithdrawAmount is the total amount queued for 
+     * @param lastQueuedWithdrawAmount is the total amount queued for
      *  withdrawals
      * @param performanceFee is the perf fee percent to charge on premiums
      * @param managementFee is the management fee percent to charge on the AUM
-     * @param queuedWithdrawShares is amount of queued withdrawals from the 
+     * @param queuedWithdrawShares is amount of queued withdrawals from the
      *  current round
      */
     struct RolloverParams {
@@ -36,29 +36,31 @@ library VaultLifecycle {
     }
 
     /**
-     * Calculate the shares to mint, new price per share, and amount of 
+     * Calculate the shares to mint, new price per share, and amount of
      * funds to re-allocate as collateral for the new round
      * --
      * @param vaultState is the storage variable
-     * @param params is the rollover parameters passed to compute the next 
+     * @param params is the rollover parameters passed to compute the next
      *  state
-     * @return newLockedAmount is the amount of funds to allocate for the 
+     * @return newLockedAmount is the amount of funds to allocate for the
      *  new round
-     * @return queuedWithdrawAmount is the amount of funds set aside for 
+     * @return queuedWithdrawAmount is the amount of funds set aside for
      *  withdrawal
      * @return newPricePerShare is the price per share of the new round
      * @return mintShares is the amount of shares to mint from deposits
      * @return performanceFeeInAsset is the performance fee charged by vault
      * @return totalVaultFee is the total amount of fee charged by vault
      * --
-     * @note totalVaultFee is only > 0 if the difference between last 
+     * @note totalVaultFee is only > 0 if the difference between last
      * week's and this week's vault > 0
      */
     function rollover(
         Vault.VaultState storage vaultState,
         RolloverParams calldata params
-    ) 
-        external view returns (
+    )
+        external
+        view
+        returns (
             uint256 newLockedAmount,
             uint256 queuedWithdrawAmount,
             uint256 newSharePrice,
@@ -74,8 +76,9 @@ library VaultLifecycle {
         uint256 lastQueuedWithdrawShares = vaultState.queuedWithdrawShares;
 
         // Deduct older queued withdraws so we don't charge fees on them
-        uint256 balanceForVaultFees = currentBalance
-            .sub(params.lastQueuedWithdrawAmount);
+        uint256 balanceForVaultFees = currentBalance.sub(
+            params.lastQueuedWithdrawAmount
+        );
 
         {
             (performanceFeeInAsset, , totalVaultFee) = VaultLifecycle
@@ -100,15 +103,14 @@ library VaultLifecycle {
                 params.decimals
             );
 
-            queuedWithdrawAmount = params.lastQueuedWithdrawAmount
-                .add(
-                    VaultMath.sharesToAsset(
-                        params.queuedWithdrawShares,
-                        newSharePrice,
-                        params.decimals
-                    )
-                );
-            
+            queuedWithdrawAmount = params.lastQueuedWithdrawAmount.add(
+                VaultMath.sharesToAsset(
+                    params.queuedWithdrawShares,
+                    newSharePrice,
+                    params.decimals
+                )
+            );
+
             // Mint shares using pending amount with the new share price so
             // we do not penalize the new shares if last week's option expired
             // in the money
@@ -139,20 +141,12 @@ library VaultLifecycle {
      -- 
      * @return the LP token mint amount
      */
-    function createShort(
-        uint256 assetAmount,
-        uint256 numeraireAmount,
-    ) external returns (uint256) {
-    }
+    function createShort(uint256 assetAmount, uint256 numeraireAmount)
+        external
+        returns (uint256)
+    {}
 
     /**
-     * Closes a short position
-     * Burns LP token through a replicating market maker
-     */
-    function settleShort() external returns (uint256) {
-    }
-
-    /** 
      * Calculates performance and management fee for this week's round
      * --
      * @param currentBalance is the balance of funds in vault
@@ -172,7 +166,7 @@ library VaultLifecycle {
         uint256 performanceFeePercent,
         uint256 managementFeePercent
     )
-        internal 
+        internal
         pure
         returns (
             uint256 performanceFeeInAsset,
@@ -182,19 +176,18 @@ library VaultLifecycle {
     {
         // In the first rount, currentBalance = 0 and pendingAmount > 0
         // In this case, do not charge anything
-        uint256 balanceMinusPending = 
-            currentBalance > pendingAmount
-                ? currentBalance.sub(pendingAmount)
-                : 0;
+        uint256 balanceMinusPending = currentBalance > pendingAmount
+            ? currentBalance.sub(pendingAmount)
+            : 0;
 
         // Placeholder variables to return (default to 0)
         uint256 _performanceFeeInAsset;
         uint256 _managementFeeInAsset;
         uint256 _vaultFee;
 
-        // Compute difference between last week's and this week's vault 
+        // Compute difference between last week's and this week's vault
         // deposits (taking pending deposits and withdrawals into account)
-        // If this difference is positive, fee > 0. If it is negative, 
+        // If this difference is positive, fee > 0. If it is negative,
         // that means the vault took a loss (option expired ITM)
         if (balanceMinusPending > lastLockedAmount) {
             _performanceFeeInAsset = performanceFeePercent > 0
@@ -204,9 +197,9 @@ library VaultLifecycle {
                     .div(100 * Vault.FEE_MULTIPLIER)
                 : 0;
             _managementFeeInAsset = managementFeePercent > 0
-                ? balanceMinusPending
-                    .mul(managementFeePercent)
-                    .div(100 * Vault.FEE_MULTIPLIER)
+                ? balanceMinusPending.mul(managementFeePercent).div(
+                    100 * Vault.FEE_MULTIPLIER
+                )
                 : 0;
             _vaultFee = _performanceFeeInAsset.add(_managementFeeInAsset);
         }
@@ -224,32 +217,27 @@ library VaultLifecycle {
      * --
      @return lpToken is a address of an LP token
      */
-    function getLPToken(
-    ) internal returns (address) {
-    }
+    function getLPToken() internal returns (address) {}
 
-    /** 
-     * Deposits liquidity in exchange for a Primitive LP token. 
+    /**
+     * Deposits liquidity in exchange for a Primitive LP token.
      * --
      * @param assetAmount is the amount of asset to deposit
      * @param numeraireAmount is the amount of numeraire to deposit
      */
-    function deployLPToken(
-        uint256 assetAmount,
-        uint256 numeraireAmount,
-    ) internal returns (uint256) {
-    }
+    function deployLPToken(uint256 assetAmount, uint256 numeraireAmount)
+        internal
+        returns (uint256)
+    {}
 
     /**
-     * Burns an LP token in exchange for an amount of risky asset and 
+     * Burns an LP token in exchange for an amount of risky asset and
      * numeraire.
      */
-    function burnLPToken() internal returns (uint256, uint256)
-    {
-    }
+    function burnLPToken() internal returns (uint256, uint256) {}
 
     /**
-     * Verify that the LP token has the correct parameters to prevent 
+     * Verify that the LP token has the correct parameters to prevent
      * vulnerability to primitive contract changes
      * --
      * @param tokenAddress is the address of the Primitive LP token
@@ -262,8 +250,7 @@ library VaultLifecycle {
         Vault.VaultParams storage vaultParams,
         address USDC,
         uint256 delay
-    ) private view {
-    }
+    ) private view {}
 
     /************************************************
      *  Utilities
@@ -273,7 +260,7 @@ library VaultLifecycle {
      * Verify the params passed to ParetoVault.baseInitialize
      * --
      * @param owner is the owner of the vault with critical permissions
-     * @param keeper is the keeper of the vault 
+     * @param keeper is the keeper of the vault
      * @param feeRecipient is the address to recieve vault performance and management fees
      * @param performanceFee is the perfomance fee percent
      * @param tokenName is the name of the token
@@ -293,8 +280,14 @@ library VaultLifecycle {
         require(owner != address(0), "Empty owner address");
         require(keeper != address(0), "Empty keeper address");
         require(feeRecipient != address(0), "Empty feeRecipient address");
-        require(performanceFee < 100 * Vault.FEE_MULTIPLIER, "performanceFee >= 100%");
-        require(managementFee < 100 * Vault.FEE_MULTIPLIER, "managementFee >= 100%");
+        require(
+            performanceFee < 100 * Vault.FEE_MULTIPLIER,
+            "performanceFee >= 100%"
+        );
+        require(
+            managementFee < 100 * Vault.FEE_MULTIPLIER,
+            "managementFee >= 100%"
+        );
         require(bytes(tokenName).length > 0, "Empty tokenName");
         require(bytes(tokenSymbol).length > 0, "Empty tokenSymbol");
         verifyVaultParams(_vaultParams);
@@ -303,20 +296,22 @@ library VaultLifecycle {
     /**
      * Helper function to verify vault params
      */
-    function verifyVaultParams(Vault.VaultParams calldata _vaultParams) 
-        external pure 
+    function verifyVaultParams(Vault.VaultParams calldata _vaultParams)
+        external
+        pure
     {
         require(_vaultParams.minSupply > 0, "Empty minSupply");
         require(_vaultParams.maxSupply > 0, "Empty maxSupply");
     }
 
-    /** 
+    /**
      * Gets the next option expiry timestamp
      */
-    function getNextExpiry(address currentOption) 
-        internal view returns (uint256)
-    {
-    }
+    function getNextExpiry(address currentOption)
+        internal
+        view
+        returns (uint256)
+    {}
 
     /**
      * Get date of next friday

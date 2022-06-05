@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0
-pragma solidity >=0.7.0 <0.9.0;
+pragma solidity =0.8.4;
 
 // Standard imports from OpenZeppelin
 import {SafeMath} from "@openzeppelin/contracts/utils/math/SafeMath.sol";
@@ -56,7 +56,7 @@ contract ParetoVault is
     mapping(uint256 => uint256) public roundSharePrice;
 
     // Pending user withdrawals
-    maping(address Vault.Withdrawal) public withdrawals;
+    mapping(address Vault.Withdrawal) public withdrawals;
 
     // Vault's parameters
     Vault.VaultParams public vaultParams;
@@ -67,74 +67,7 @@ contract ParetoVault is
     // State of the option in the Vault
     Vault.OptionState public optionState;
 
-    // Fee ecipient for the performance and management fees
-    address public feeRecipient;
-
-    // Role in charge of weekly vault operations including `rollToNextOption`
-    // and `burnRemainingOTokens`. Cannot access critical vault changes. 
-    address public keeper;
-
-    // Performance fee charged on premiums earned in `rollToNextOption`.
-    // Only charged when there is no loss.
-    uint256 public performanceFee;
-
-    // Management fee charged on entire assets under management (AUM) in 
-    // `rollToNextOption`. Only charged when there is no loss.
-    uint256 public managementFee;
-
-    // Gap in memory to avoid storage collisions. Safety measure. 
-    uint256[30] private ____gap;
-
-    // *IMPORTANT* NO NEW STORAGE VARIABLES SHOULD BE ADDED HERE
-    // This is to prevent storage collisions. All storage variables should be 
-    // appended to `ParetoThetaVaultStorage` instead.
-
-    /************************************************
-     *  Immutables and Constants
-     ***********************************************/
-
-    // WETH9 token contract - 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2
-    address public immutable WETH;
-
-    // USDC token contract - 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48
-    address public immutable USDC;
-
-    // length of options sale
-    uint256 public constant PERIOD = 7 days;
-
-    // Number of weeks per year = 52.142857 weeks * FEE_MULTIPLIER = 52142857
-    // Dividing by weeks per year: num.mul(FEE_MULTIPLIER).div(WEEKS_PER_YEAR)
-    uint256 private constant WEEKS_PER_YEAR = 52142857;
-
-    /************************************************
-     *  Events (store info in tx logs)
-     ***********************************************/
-
-    event DepositEvent(address indexed account, uint256 amount, uint256 round);
-
-    event RedeemEvent(uint256 indexed account, uint256 share, uint256 round);
-
-    event WithdrawRequestEvent(
-        address indexed account, uint256 shares, uint256 round);
-
-    event WithdrawEvent(address indexed account, uint256 amount, uint256 shares);
-
-    event ManagementFeeSetEvent(uint256 managementFee, uint256 newManagementFee);
-
-    event PerformanceFeeSetEvent(
-        uint256 performanceFee, uint256 newPerformanceFee); 
-
-    event WithdrawEvent(
-        address indexed account, uint256 amount, uint256 shares);
-
-    event VaultFeesCollectionEvent(
-        uint256 performanceFee,
-        uint256 vaultFee,
-        uint256 round,
-        address indexed feeRecipient
-    );
-
-    /************************************************
+        /************************************************
      *  Constructor and Initialization
      ***********************************************/
     
@@ -392,7 +325,7 @@ contract ParetoVault is
             round: uint16(currentRound),
             amount: uint104(depositAmount),
             // total number of pTHETA tokens owned by user 
-            unredeemedShares: uint128(unredeemedShares);
+            unredeemedShares: uint128(unredeemedShares)
         });
 
         // Ignore any receipt logic - focus only on `amount`
@@ -424,7 +357,7 @@ contract ParetoVault is
         if (numShares == 0) {
             return;  // nothing to do
         }
-        requires(numShares <= unredeemedShares, "Exceeds available");
+        require(numShares <= unredeemedShares, "Exceeds available");
 
         if (receipt.round < currentRound) {
             depositReceipts[msg.sender].amount = 0;  // mark as redeemed
@@ -688,7 +621,7 @@ contract ParetoVault is
      * @return the share balance
      */
     function getAccountShares(address account) public view returns (uint256) {
-        (uint256 heldByAccount, heldByVault) = getShareSplit(account);
+        (uint256 heldByAccount, uint256 heldByVault) = getShareSplit(account);
         return heldByAccount.add(heldByVault);
     }
 

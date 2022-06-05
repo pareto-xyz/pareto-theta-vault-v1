@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0
-pragma solidity >=0.7.0 <0.9.0;
+pragma solidity =0.8.4;
 
 // Standard imports from OpenZeppelin
 import {SafeMath} from "@openzeppelin/contracts/utils/math/SafeMath.sol";
@@ -24,7 +24,7 @@ import {ParetoVault} from "./ParetoVault.sol";
  * ParetoThetaVault should not inherit from any other contract aside from ParetoVault, 
  * ParetoThetaVaultStorage.
  */
-contract ParetoThetaVault in ParetoVault, ParetoThetaVaultStorage {
+contract ParetoThetaVault is ParetoVault, ParetoThetaVaultStorage {
     using SafeERC20 for IERC20;
     using SafeMath for uint256;
     using VaultMath for Vault.DepositReceipt;
@@ -71,48 +71,5 @@ contract ParetoThetaVault in ParetoVault, ParetoThetaVaultStorage {
         ParetoVault(_weth, _udsc)
     {
         // TODO - do something
-    }
-
-    /**
-     * Initalizes the vault contract
-     * --
-     * @param _owner is the owner of the vault with critical permissions
-     * @param _feeRecipient is the address to recieve vault performance and management fees
-     * @param _managementFee is the management fee pct.
-     * @param _performanceFee is the perfomance fee pct.
-     * @param _tokenName is the name of the token
-     * @param _tokenSymbol is the symbol of the token
-     * @param _vaultParams is the struct with vault general data
-     */
-
-     address _owner,
-        address _keeper,
-        address _feeRecipient,
-        uint256 _managementFee,
-        uint256 _performanceFee,
-        string memory _tokenName,
-        string memory _tokenSymbol,
-        Vault.VaultParams calldata _vaultParams
-
-     function initialize(
-        address _owner,
-        address _keeper,
-        address _feeRecipient,
-        uint256 _managementFee,
-        uint256 _performanceFee,
-        string memory _tokenName,
-        string memory _tokenSymbol,
-        Vault.VaultParams calldata _vaultParams
-    ) external initializer {
-        baseInitialize(
-            _owner,
-            _keeper,
-            _feeRecipient,
-            _managementFee,
-            _performanceFee,
-            _tokenName,
-            _tokenSymbol,
-            _vaultParams
-        );
     }
 }
