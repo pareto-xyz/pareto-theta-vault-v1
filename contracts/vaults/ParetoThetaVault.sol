@@ -61,9 +61,9 @@ contract ParetoThetaVault is ParetoVault, ParetoThetaVaultStorage {
      * @param _weth is the Wrapped Ether contract
      * @param _usdc is the USDC contract
      * --
-     * @note see https://securitygrind.com/solidity-constructors-and-inheritance
+     * See https://securitygrind.com/solidity-constructors-and-inheritance
      */
-    constructor(address _weth, address _usdc) ParetoVault(_weth, _udsc) {
+    constructor(address _weth, address _usdc) ParetoVault(_weth, _usdc) {
         // TODO - do something
     }
 }

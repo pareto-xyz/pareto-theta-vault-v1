@@ -7,6 +7,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 // Relative imports
 import {Vault} from "./Vault.sol";
+import {VaultMath} from "./VaultMath.sol";
 
 library VaultLifecycle {
     using SafeMath for uint256;
@@ -46,12 +47,12 @@ library VaultLifecycle {
      *  new round
      * @return queuedWithdrawAmount is the amount of funds set aside for
      *  withdrawal
-     * @return newPricePerShare is the price per share of the new round
+     * @return newSharePrice is the price per share of the new round
      * @return mintShares is the amount of shares to mint from deposits
      * @return performanceFeeInAsset is the performance fee charged by vault
      * @return totalVaultFee is the total amount of fee charged by vault
      * --
-     * @note totalVaultFee is only > 0 if the difference between last
+     * totalVaultFee is only > 0 if the difference between last
      * week's and this week's vault > 0
      */
     function rollover(
@@ -290,6 +291,7 @@ library VaultLifecycle {
         );
         require(bytes(tokenName).length > 0, "Empty tokenName");
         require(bytes(tokenSymbol).length > 0, "Empty tokenSymbol");
+
         verifyVaultParams(_vaultParams);
     }
 
@@ -297,7 +299,7 @@ library VaultLifecycle {
      * Helper function to verify vault params
      */
     function verifyVaultParams(Vault.VaultParams calldata _vaultParams)
-        external
+        internal
         pure
     {
         require(_vaultParams.minSupply > 0, "Empty minSupply");
@@ -319,9 +321,9 @@ library VaultLifecycle {
      * @param timestamp is the expiry timestamp of the current option
      * Reference: https://codereview.stackexchange.com/a/33532
      * --
-     * @example getNextFriday(week 1 thursday) -> week 1 friday
-     * @example getNextFriday(week 1 friday) -> week 2 friday
-     * @example getNextFriday(week 1 saturday) -> week 2 friday
+     * getNextFriday(week 1 thursday) -> week 1 friday
+     * getNextFriday(week 1 friday) -> week 2 friday
+     * getNextFriday(week 1 saturday) -> week 2 friday
      */
     function getNextFriday(uint256 timestamp) internal pure returns (uint256) {
         // dayOfWeek = 0 (sunday) - 6 (saturday)

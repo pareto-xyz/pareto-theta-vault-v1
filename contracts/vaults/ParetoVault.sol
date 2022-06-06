@@ -23,10 +23,11 @@ import {IWETH} from "../interfaces/IWETH.sol";
  * Based on RibbonVault.sol
  * See https://docs.ribbon.finance/developers/ribbon-v2
  * --
- * @note This is a token! You might see it tagged as pTHETA.
- *  Special functions include `_mint` and `_burn` to increase
- *  and decrease the supply.
- * @note See https://docs.openzeppelin.com/contracts/2.x/api/token/erc20
+ * This is a token! You might see it tagged as pTHETA.
+ * Special functions include `_mint` and `_burn` to increase
+ * and decrease the supply.
+ * 
+ * See https://docs.openzeppelin.com/contracts/2.x/api/token/erc20
  */
 contract ParetoVault is
     ReentrancyGuardUpgradeable,
@@ -60,6 +61,65 @@ contract ParetoVault is
 
     // State of the option in the Vault
     Vault.OptionState public optionState;
+
+    // Recipient of performance and management fees
+    address public feeRecipient;
+
+    // Role in charge of weekly vault operations 
+    // No access to critical vault changes
+    address public keeper;
+
+    /// Performance fee charged on premiums earned.
+    //  Only charged when there is no loss.
+    uint256 public performanceFee;
+
+    /// Management fee charged on entire AUM.
+    // Only charged when there is no loss.
+    uint256 public managementFee;
+
+    // Gap is left to avoid storage collisions
+    uint256[30] private ____gap;
+
+    /************************************************
+     *  Immutables and Constants
+     ***********************************************/
+
+    // WETH9 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2
+    address public immutable WETH;
+
+    // USDC 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48
+    address public immutable USDC;
+    
+    // Number of weeks per year = 52.142857 weeks * FEE_MULTIPLIER = 52142857
+    // Dividing by weeks per year requires doing num.mul(FEE_MULTIPLIER).div(WEEKS_PER_YEAR)
+    uint256 private constant WEEKS_PER_YEAR = 52142857;
+
+    /************************************************
+     * Events
+     ***********************************************/
+
+    event DepositEvent(address indexed account, uint256 amount, uint256 round);
+
+    event WithdrawRequestEvent(
+        address indexed account,
+        uint256 shares,
+        uint256 round
+    );
+
+    event RedeemEvent(address indexed account, uint256 share, uint256 round);
+
+    event ManagementFeeSetEvent(uint256 managementFee, uint256 newManagementFee);
+
+    event PerformanceFeeSetEvent(uint256 performanceFee, uint256 newPerformanceFee);
+
+    event WithdrawEvent(address indexed account, uint256 amount, uint256 shares);
+
+    event VaultFeesCollectionEvent(
+        uint256 performanceFee,
+        uint256 vaultFee,
+        uint256 round,
+        address indexed feeRecipient
+    );
 
     /************************************************
      *  Constructor and Initialization
@@ -363,7 +423,7 @@ contract ParetoVault is
         );
 
         // Log that shares have been redeemed
-        emit Redeem(msg.sender, numShares, receipt.round);
+        emit RedeemEvent(msg.sender, numShares, receipt.round);
 
         // user will own the shares
         _transfer(address(this), msg.sender, numShares);
@@ -430,7 +490,7 @@ contract ParetoVault is
         require(withdrawRound < vaultState.round, "Round not complete");
 
         // Reset params back to 0 (leave round untouched for gas)
-        withdrawal[msg.sender].shares = 0;
+        withdrawals[msg.sender].shares = 0;
 
         uint256 withdrawAmount = VaultMath.sharesToAsset(
             withdrawShares,
@@ -439,7 +499,7 @@ contract ParetoVault is
         );
 
         // Log withdraw event
-        emit Withdraw(msg.sender, withdrawAmount, withdrawShares);
+        emit WithdrawEvent(msg.sender, withdrawAmount, withdrawShares);
 
         // Burn the shares
         _burn(address(this), withdrawShares);
@@ -463,7 +523,7 @@ contract ParetoVault is
             (bool success, ) = recipient.call{value: amount}("");
             require(success, "Transfer failed");
         } else {
-            IERC20(asset).safeTransfer(recipient, amount);
+            IERC20(vaultParams.asset).safeTransfer(recipient, amount);
         }
     }
 
@@ -520,7 +580,7 @@ contract ParetoVault is
             "Too early to roll over"
         );
 
-        newOptions = optionState.nextOption;
+        newOption = optionState.nextOption;
         require(newOption != address(0), "Invalid next option");
 
         address recipient = feeRecipient;
@@ -646,7 +706,7 @@ contract ParetoVault is
 
         if (receipt.round < VaultMath.PLACEHOLDER_UINT) {
             // Vault is empty - just return account shares
-            return (balanceof(account), 0);
+            return (balanceOf(account), 0);
         }
 
         uint256 unredeemedShares = receipt.getSharesFromReceipt(
