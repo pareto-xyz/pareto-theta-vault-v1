@@ -6,20 +6,14 @@ import {SafeMath} from "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 // Helps prevent reentract calls to a function
-import {
-    ReentrancyGuardUpgradeable
-} from "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
+import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
 // Basic access control mechanism where there is an account (an owner) that an be
 // granted exclusive access to specific functions
-import {
-    OwnableUpgradeable
-} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 // implementation of ERC20 token
-import {
-    ERC20Upgradeable
-} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
+import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 
-// Relative imports 
+// Relative imports
 import {Vault} from "../libraries/Vault.sol";
 import {VaultLifecycle} from "../libraries/VaultLifecycle.sol";
 import {VaultMath} from "../libraries/VaultMath.sol";
@@ -27,14 +21,14 @@ import {IWETH} from "../interfaces/IWETH.sol";
 
 /**
  * Based on RibbonVault.sol
- * See https://docs.ribbon.finance/developers/ribbon-v2 
+ * See https://docs.ribbon.finance/developers/ribbon-v2
  * --
  * @note This is a token! You might see it tagged as pTHETA.
- *  Special functions include `_mint` and `_burn` to increase 
- *  and decrease the supply. 
+ *  Special functions include `_mint` and `_burn` to increase
+ *  and decrease the supply.
  * @note See https://docs.openzeppelin.com/contracts/2.x/api/token/erc20
  */
-contract ParetoVault is 
+contract ParetoVault is
     ReentrancyGuardUpgradeable,
     OwnableUpgradeable,
     ERC20Upgradeable
@@ -51,7 +45,7 @@ contract ParetoVault is
     mapping(address => Vault.DepositReceipt) public depositReceipts;
 
     // When round closes, the share price of an pTHETA token is stored
-    // This is used to determine the numebr of shares to be returned to a user 
+    // This is used to determine the numebr of shares to be returned to a user
     // with their DepositReceipt.depositAmount
     mapping(uint256 => uint256) public roundSharePrice;
 
@@ -67,27 +61,24 @@ contract ParetoVault is
     // State of the option in the Vault
     Vault.OptionState public optionState;
 
-        /************************************************
+    /************************************************
      *  Constructor and Initialization
      ***********************************************/
-    
+
     /**
      * Initializes contract with immutable variables
-     * -- 
+     * --
      * @param _weth is the Wrapped Ether contract
      * @param _usdc is the USDC contract
      */
-    constructor(
-        address _weth,
-        address _usdc
-    ) {
+    constructor(address _weth, address _usdc) {
         require(_weth != address(0), "Empty _weth");
         require(_usdc != address(0), "Empty _usdc");
-        WETH = _weth;  // Set global variables
+        WETH = _weth; // Set global variables
         USDC = _usdc;
     }
 
-    /** 
+    /**
      * Initializes the contract with storage variables
      * --
      * @param _owner is the Owner address
@@ -132,12 +123,14 @@ contract ParetoVault is
         keeper = _keeper;
         feeRecipient = _feeRecipient;
         performanceFee = _performanceFee;
-        managementFee = _managementFee
-            .mul(Vault.FEE_MULTIPLIER)
-            .div(WEEKS_PER_YEAR);
+        managementFee = _managementFee.mul(Vault.FEE_MULTIPLIER).div(
+            WEEKS_PER_YEAR
+        );
         vaultParams = _vaultParams;
 
-        uint256 assetBalance = IERC20(vaultParams.asset).balanceOf(address(this));
+        uint256 assetBalance = IERC20(vaultParams.asset).balanceOf(
+            address(this)
+        );
         VaultMath.assertUint104(assetBalance);
 
         // Why is this set to assetBalance?
@@ -172,7 +165,7 @@ contract ParetoVault is
     /**
      * Sets the fee recipient. Only accessible by owner
      * --
-     * @param newFeeRecipient is the address of the new fee recipient 
+     * @param newFeeRecipient is the address of the new fee recipient
      *  This must be different than the current `feeRecipient`
      */
     function setFeeRecipient(address newFeeRecipient) external onlyOwner {
@@ -194,9 +187,10 @@ contract ParetoVault is
         );
 
         // Divide annualized management fee by num weeks in a year
-        uint256 weekManagementFee = 
-            newManagementFee.mul(Vault.FEE_MULTIPLIER).div(WEEKS_PER_YEAR);
-        
+        uint256 weekManagementFee = newManagementFee
+            .mul(Vault.FEE_MULTIPLIER)
+            .div(WEEKS_PER_YEAR);
+
         // Log event
         emit ManagementFeeSetEvent(managementFee, newManagementFee);
 
@@ -204,7 +198,7 @@ contract ParetoVault is
         managementFee = weekManagementFee;
     }
 
-    /** 
+    /**
      * Sets the performance fee for the vault
      * --
      * @param newPerformanceFee is the performance fee (6 decimals)
@@ -226,7 +220,7 @@ contract ParetoVault is
      ***********************************************/
 
     /**
-     * Deposits ETH into contract and mints vault shares. 
+     * Deposits ETH into contract and mints vault shares.
      * Does nothing if asset is not WETH.
      */
     function depositETH() external payable nonReentrant {
@@ -240,10 +234,10 @@ contract ParetoVault is
     }
 
     /**
-     * Deposits asset from msg.sender. Must be the asset 
+     * Deposits asset from msg.sender. Must be the asset
      * specified in VaultParams
      * --
-    * @param amount is the amount of `asset` to deposit
+     * @param amount is the amount of `asset` to deposit
      */
     function deposit(uint256 amount) external nonReentrant {
         require(amount > 0, "Invalid `amount` passed");
@@ -259,8 +253,8 @@ contract ParetoVault is
     }
 
     /**
-     * Redeems shares owed to account 
-     * This is useful for users (e.g. Protocols) who may wish to 
+     * Redeems shares owed to account
+     * This is useful for users (e.g. Protocols) who may wish to
      * own the the shares rather than Pareto
      * --
      * @param numShares is the number of shares to redeem
@@ -272,7 +266,7 @@ contract ParetoVault is
 
     /**
      * Rdeems all shares owned to account
-     * This is useful for users (e.g. Protocols) who may wish to 
+     * This is useful for users (e.g. Protocols) who may wish to
      * own the the shares rather than Pareto
      */
     function redeemMax() external nonReentrant {
@@ -321,10 +315,10 @@ contract ParetoVault is
 
         VaultMath.assertUint104(depositAmount);
 
+        // total number of pTHETA tokens owned by user
         depositReceipts[creditor] = Vault.DepositReceipt({
             round: uint16(currentRound),
             amount: uint104(depositAmount),
-            // total number of pTHETA tokens owned by user 
             unredeemedShares: uint128(unredeemedShares)
         });
 
@@ -336,7 +330,7 @@ contract ParetoVault is
     }
 
     /**
-     * Redeems shares owned to account by transfering pTHETA tokens from 
+     * Redeems shares owned to account by transfering pTHETA tokens from
      * vault to user address. This is useful for protocols.
      * --
      * @param numShares is the number of shares to redeem, could be 0 when isMax=true
@@ -355,12 +349,12 @@ contract ParetoVault is
         numShares = isMax ? unredeemedShares : numShares;
 
         if (numShares == 0) {
-            return;  // nothing to do
+            return; // nothing to do
         }
         require(numShares <= unredeemedShares, "Exceeds available");
 
         if (receipt.round < currentRound) {
-            depositReceipts[msg.sender].amount = 0;  // mark as redeemed
+            depositReceipts[msg.sender].amount = 0; // mark as redeemed
         }
 
         VaultMath.assertUint128(numShares);
@@ -403,7 +397,10 @@ contract ParetoVault is
         if (withdrawal.round == currentRound) {
             withdrawnShares = uint256(withdrawal.shares).add(numShares);
         } else {
-            require(uint256(withdrawal.shares) == 0, "Found unprocessed withdraw");
+            require(
+                uint256(withdrawal.shares) == 0,
+                "Found unprocessed withdraw"
+            );
             withdrawnShares = numShares;
             // Update round to be current round
             withdrawals[msg.sender].round = uint16(currentRound);
@@ -416,7 +413,7 @@ contract ParetoVault is
         _transfer(msg.sender, address(this), numShares);
     }
 
-    /** 
+    /**
      * Complete a scheduled withdrawal from past round
      * --
      * @return withdrawAmount is the current withdrawal amount
@@ -455,7 +452,7 @@ contract ParetoVault is
 
     /**
      * Transfer ETH or ERC20 token to recipient
-     * -- 
+     * --
      * @param recipient is the receiving address
      * @param amount is the transfer amount
      */
@@ -473,9 +470,9 @@ contract ParetoVault is
     /************************************************
      *  Vault Operations
      ***********************************************/
-    
+
     /**
-     * Hack to save gas by writing `1` into the round price map, which 
+     * Hack to save gas by writing `1` into the round price map, which
      * prevents cold writes. Ribbon documents gas savings from 20k-5k.
      * Requires you to specify number of rounds before hand.
      *
@@ -493,25 +490,26 @@ contract ParetoVault is
     }
 
     /**
-     * Pipeline for rolling to the next option, such as calling 
-     * `VaultLifecycle`, minting new shares, getting vault fees 
-     * -- 
+     * Pipeline for rolling to the next option, such as calling
+     * `VaultLifecycle`, minting new shares, getting vault fees
+     * --
      * @param lastQueuedWithdrawAmount is an old queued withdraw amount
      *  This is needed to compute vault fees
-     * @param queuedWithdrawShares is the queued withdraw shares for current 
+     * @param queuedWithdrawShares is the queued withdraw shares for current
      *  round
      * --
      * @return newOption is the new option's address
-     * @return lockedBalance is the new balance used to calculate next option 
-     *  purchase size 
+     * @return lockedBalance is the new balance used to calculate next option
+     *  purchase size
      * @return queuedWithdrawAmount is the new queued withdraw amount for this
      *  round
      */
     function _rollToNextOption(
         uint256 lastQueuedWithdrawAmount,
         uint256 queuedWithdrawShares
-    ) 
-        internal returns (
+    )
+        internal
+        returns (
             address newOption,
             uint256 lockedBalance,
             uint256 queuedWithdrawAmount
@@ -544,7 +542,7 @@ contract ParetoVault is
                 totalVaultFee
             ) = VaultLifecycle.rollover(
                 vaultState,
-                // Direct usage avoids saving variable 
+                // Direct usage avoids saving variable
                 VaultLifecycle.RolloverParams(
                     vaultParams.decimals,
                     IERC20(vaultParams.asset).balanceOf(address(this)),
@@ -552,7 +550,7 @@ contract ParetoVault is
                     lastQueuedWithdrawAmount,
                     performanceFee,
                     managementFee,
-                    currentQueuedWithdrawShares
+                    queuedWithdrawShares
                 )
             );
 
@@ -572,7 +570,7 @@ contract ParetoVault is
                 currentRound,
                 recipient
             );
-            
+
             // `totalPending` dictates how much to mint
             vaultState.totalPending = 0;
             vaultState.round = uint16(currentRound + 1);
@@ -590,7 +588,7 @@ contract ParetoVault is
     /************************************************
      *  Helper and Getter functions (frontend)
      ***********************************************/
-    
+
     /**
      * Returns the asset balance held in the vault for one account
      * --
@@ -598,8 +596,10 @@ contract ParetoVault is
      * --
      * @return the amount of `asset` owned by the vault for the user
      */
-    function getAccountBalance(address account) 
-        external view returns (uint256)
+    function getAccountBalance(address account)
+        external
+        view
+        returns (uint256)
     {
         uint256 _decimals = vaultParams.decimals;
         uint256 assetPerShare = VaultMath.sharePrice(
@@ -608,12 +608,16 @@ contract ParetoVault is
             vaultState.totalPending,
             _decimals
         );
-        return VaultMath.sharesToAsset(
-            getAccountShares(account), assetPerShare, _decimals);
+        return
+            VaultMath.sharesToAsset(
+                getAccountShares(account),
+                assetPerShare,
+                _decimals
+            );
     }
 
     /**
-     * Returns the number of shares (including unredeemed shares) for 
+     * Returns the number of shares (including unredeemed shares) for
      * one account
      * --
      * @param account is the address to lookup balance for
@@ -634,7 +638,9 @@ contract ParetoVault is
      * @return heldByVault is the shares held on the vault (unredeemedShares)
      */
     function getShareSplit(address account)
-        public view returns (uint256 heldByAccount, uint256 heldByVault)
+        public
+        view
+        returns (uint256 heldByAccount, uint256 heldByVault)
     {
         Vault.DepositReceipt memory receipt = depositReceipts[account];
 
@@ -649,27 +655,30 @@ contract ParetoVault is
             vaultParams.decimals
         );
 
-        return(balanceOf(account), unredeemedShares);
+        return (balanceOf(account), unredeemedShares);
     }
 
     /**
      * The share price in the asset
      */
     function getSharePrice() external view returns (uint256) {
-        return VaultMath.getSharePrice(
-            totalSupply(),
-            totalBalance(),
-            vaultState.totalPending,
-            vaultParams.decimals
-        );
+        return
+            VaultMath.getSharePrice(
+                totalSupply(),
+                totalBalance(),
+                vaultState.totalPending,
+                vaultParams.decimals
+            );
     }
 
-    /** 
-     * Return vault's total balance, including amounts locked into 
+    /**
+     * Return vault's total balance, including amounts locked into
      * third party protocols
      */
     function totalBalance() public view returns (uint256) {
-        return uint256(vaultState.lockedAmount)
-            .add(IERC20(vaultParams.asset).balanceOf(address(this)));
+        return
+            uint256(vaultState.lockedAmount).add(
+                IERC20(vaultParams.asset).balanceOf(address(this))
+            );
     }
 }
