@@ -2,3 +2,4 @@ node_modules/
 artifacts/
 package-lock.json
 **.log
+cache/

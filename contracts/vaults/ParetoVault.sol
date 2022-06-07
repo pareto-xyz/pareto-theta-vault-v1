@@ -516,7 +516,7 @@ contract ParetoVault is
      * @param recipient is the receiving address
      * @param amount is the transfer amount
      */
-    function _transferAsset(address recipient, int256 amount) internal {
+    function _transferAsset(address recipient, uint256 amount) internal {
         if (vaultParams.asset == WETH) {
             // Custom logic for wrapped ETH
             IWETH(WETH).withdraw(amount);
@@ -662,7 +662,7 @@ contract ParetoVault is
         returns (uint256)
     {
         uint256 _decimals = vaultParams.decimals;
-        uint256 assetPerShare = VaultMath.sharePrice(
+        uint256 assetPerShare = VaultMath.getSharePrice(
             totalSupply(),
             totalBalance(),
             vaultState.totalPending,
