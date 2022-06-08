@@ -21,7 +21,7 @@ describe("VaultMath", () => {
 
       assert.bnEqual(
         await vaultMath.assetToShares(assets, sharePrice, decimals),
-        parseUnits("0.5", decimals);
+        parseUnits("0.5", decimals)
       );
     });
   });

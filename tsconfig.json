@@ -5,5 +5,7 @@
     "moduleResolution": "node",
     "resolveJsonModule": true
   },
-  "include": ["./hardhat.config.ts", "./test"]
+  "exclude": ["dist", "node_modules"],
+  "include": ["./hardhat.config.ts", "./scripts", "./test"],
+  "files": ["./hardhat.config.ts"]
 }
