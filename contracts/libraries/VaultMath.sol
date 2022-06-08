@@ -14,36 +14,36 @@ library VaultMath {
      * Convert assets to shares
      * --
      * @param assets is the amount of assets
-     * @param assetPerShare is the price of one share in assets
+     * @param sharePrice is the price of one share in assets
      * @param decimals is the decimals for vault shares
      * --
      * @return shares is the amount of shares
      */
     function assetToShares(
         uint256 assets,
-        uint256 assetPerShare,
+        uint256 sharePrice,
         uint256 decimals
     ) internal pure returns (uint256) {
-        require(assetPerShare > PLACEHOLDER_UINT, "Invalid assetPerShare");
-        return assets.mul(10**decimals).div(assetPerShare);
+        require(sharePrice > PLACEHOLDER_UINT, "Invalid sharePrice");
+        return assets.mul(10**decimals).div(sharePrice);
     }
 
     /**
      * Convert shares to assets
      * --
      * @param shares is the amount of shares
-     * @param assetPerShare is the price of one share in assets
+     * @param sharePrice is the price of one share in assets
      * @param decimals is the decimals for vault shares
      * --
      * @return assets is the amount of shares
      */
     function sharesToAsset(
         uint256 shares,
-        uint256 assetPerShare,
+        uint256 sharePrice,
         uint256 decimals
     ) internal pure returns (uint256) {
-        require(assetPerShare > PLACEHOLDER_UINT, "Invalid assetPerShare");
-        return shares.mul(assetPerShare).div(10**decimals);
+        require(sharePrice > PLACEHOLDER_UINT, "Invalid sharePrice");
+        return shares.mul(sharePrice).div(10**decimals);
     }
 
     /**
@@ -52,7 +52,7 @@ library VaultMath {
      * --
      * @param depositReceipt is the user's deposit receipt
      * @param currentRound is the `round` stored on the vault
-     * @param assetPerShare is the price in asset per share
+     * @param sharePrice is the price in asset per share
      * @param decimals is the number of decimals the asset/shares use
      * --
      * @return unredeemedShares is the user's virtual balance of shares that are owed
@@ -60,7 +60,7 @@ library VaultMath {
     function getSharesFromReceipt(
         Vault.DepositReceipt memory depositReceipt,
         uint256 currentRound,
-        uint256 assetPerShare,
+        uint256 sharePrice,
         uint256 decimals
     ) internal pure returns (uint256 unredeemedShares) {
         if (depositReceipt.round > 0 && depositReceipt.round < currentRound) {
@@ -68,7 +68,7 @@ library VaultMath {
             // This will be done using price from earlier round (not current price)
             uint256 currentShares = assetToShares(
                 depositReceipt.amount,
-                assetPerShare,
+                sharePrice,
                 decimals
             );
             // added with shares from current round
