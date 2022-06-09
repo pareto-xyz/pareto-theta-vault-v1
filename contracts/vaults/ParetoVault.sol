@@ -17,17 +17,14 @@ import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/
 import {Vault} from "../libraries/Vault.sol";
 import {VaultLifecycle} from "../libraries/VaultLifecycle.sol";
 import {VaultMath} from "../libraries/VaultMath.sol";
-import {IWETH} from "../interfaces/IWETH.sol";
 
 /**
- * Based on RibbonVault.sol
+ * @notice Based on RibbonVault.sol
  * See https://docs.ribbon.finance/developers/ribbon-v2
- * --
- * This is a token! You might see it tagged as pTHETA.
+ * @notice This is a token! You might see it tagged as pTHETA.
  * Special functions include `_mint` and `_burn` to increase
  * and decrease the supply.
- * 
- * See https://docs.openzeppelin.com/contracts/2.x/api/token/erc20
+ * @notice We expect to inherit from this class.
  */
 contract ParetoVault is
     ReentrancyGuardUpgradeable,
@@ -46,9 +43,9 @@ contract ParetoVault is
     mapping(address => Vault.DepositReceipt) public depositReceipts;
 
     // When round closes, the share price of an pTHETA token is stored
-    // This is used to determine the numebr of shares to be returned to a user
-    // with their DepositReceipt.depositAmount
-    mapping(uint256 => uint256) public roundSharePrice;
+    // This is used to determine the number of shares to be returned to a user
+    // with their DepositReceipt.{risky,stable}Amount
+    mapping(uint256 => Vault.SharePrice) public roundSharePrice;
 
     // Pending user withdrawals
     mapping(address => Vault.Withdrawal) public withdrawals;
@@ -83,12 +80,6 @@ contract ParetoVault is
     /************************************************
      *  Immutables and Constants
      ***********************************************/
-
-    // WETH9 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2
-    address public immutable WETH;
-
-    // USDC 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48
-    address public immutable USDC;
     
     // Number of weeks per year = 52.142857 weeks * FEE_MULTIPLIER = 52142857
     // Dividing by weeks per year requires doing num.mul(FEE_MULTIPLIER).div(WEEKS_PER_YEAR)
@@ -98,7 +89,12 @@ contract ParetoVault is
      * Events
      ***********************************************/
 
-    event DepositEvent(address indexed account, uint256 amount, uint256 round);
+    event DepositEvent(
+        address indexed account, 
+        uint256 risky, 
+        uint256 stable,
+        uint256 round
+    );
 
     event WithdrawRequestEvent(
         address indexed account,
@@ -106,13 +102,16 @@ contract ParetoVault is
         uint256 round
     );
 
-    event RedeemEvent(address indexed account, uint256 share, uint256 round);
-
     event ManagementFeeSetEvent(uint256 managementFee, uint256 newManagementFee);
 
     event PerformanceFeeSetEvent(uint256 performanceFee, uint256 newPerformanceFee);
 
-    event WithdrawEvent(address indexed account, uint256 amount, uint256 shares);
+    event WithdrawEvent(
+        address indexed account, 
+        uint256 risky, 
+        uint256 stable,
+        uint256 shares
+    );
 
     event VaultFeesCollectionEvent(
         uint256 performanceFee,
@@ -126,20 +125,7 @@ contract ParetoVault is
      ***********************************************/
 
     /**
-     * Initializes contract with immutable variables
-     * --
-     * @param _weth is the Wrapped Ether contract
-     * @param _usdc is the USDC contract
-     */
-    constructor(address _weth, address _usdc) {
-        require(_weth != address(0), "Empty _weth");
-        require(_usdc != address(0), "Empty _usdc");
-        WETH = _weth; // Set global variables
-        USDC = _usdc;
-    }
-
-    /**
-     * Initializes the contract with storage variables
+     * @notice Initializes the contract with storage variables
      * --
      * @param _owner is the Owner address
      * @param _keeper is the Keeper address
@@ -172,7 +158,6 @@ contract ParetoVault is
             _vaultParams
         );
 
-        // Setup code from inherited classes
         // Init calls are required for upgradeable contracts
         __ReentrancyGuard_init();
         __ERC20_init(_tokenName, _tokenSymbol);
@@ -183,20 +168,18 @@ contract ParetoVault is
         keeper = _keeper;
         feeRecipient = _feeRecipient;
         performanceFee = _performanceFee;
-        managementFee = _managementFee.mul(Vault.FEE_MULTIPLIER).div(
-            WEEKS_PER_YEAR
-        );
+        managementFee = _managementFee
+            .mul(Vault.FEE_MULTIPLIER)
+            .div(WEEKS_PER_YEAR);
         vaultParams = _vaultParams;
 
-        uint256 assetBalance = IERC20(vaultParams.asset).balanceOf(
-            address(this)
-        );
-        VaultMath.assertUint104(assetBalance);
-
-        // Why is this set to assetBalance?
-        vaultState.lastLockedAmount = uint104(assetBalance);
-
-        // Initialize round to 1
+        // Initialize VaultState
+        uint256 riskyBalance = IERC20(vaultParams.risky).balanceOf(address(this));
+        uint256 stableBalance = IERC20(vaultParams.stable).balanceOf(address(this))
+        VaultMath.assertUint104(riskyBalance);
+        VaultMath.assertUint104(stableBalance);
+        vaultState.lastLockedRisky = uint104(riskyBalance);
+        vaultState.lastLockedStable = uint104(stableBalance);
         vaultState.round = 1;
     }
 
@@ -205,7 +188,7 @@ contract ParetoVault is
      ***********************************************/
 
     /**
-     * Throws if called by any account other than the keeper.
+     * @notice Throws if called by any account other than the keeper.
      */
     modifier onlyKeeper() {
         require(msg.sender == keeper, "Requires keeper");
@@ -213,7 +196,7 @@ contract ParetoVault is
     }
 
     /**
-     * Sets the keeper. Only accessible by owner
+     * @notice Sets the keeper. Only accessible by owner
      * --
      * @param newKeeper is the address of the new keeper
      */
@@ -276,255 +259,177 @@ contract ParetoVault is
     }
 
     /************************************************
-     *  Deposits and Withdrawals (User Facing)
+     *  Deposits and Withdrawals
      ***********************************************/
 
     /**
-     * Deposits ETH into contract and mints vault shares.
-     * Does nothing if asset is not WETH.
-     */
-    function depositETH() external payable nonReentrant {
-        require(vaultParams.asset == WETH, "Must be WETH");
-        require(msg.value > 0, "Invalid value passed");
-
-        _mintShares(msg.value, msg.sender);
-
-        // Make the deposit
-        IWETH(WETH).deposit{value: msg.value}();
-    }
-
-    /**
-     * Deposits asset from msg.sender. Must be the asset
-     * specified in VaultParams
+     * @notice Deposits risky asset from msg.sender. 
      * --
-     * @param amount is the amount of `asset` to deposit
+     * @param risky is the amount of risky asset to deposit
+     * @param stable is the amount of stable asset to deposit
+     *  in stable 
      */
-    function deposit(uint256 amount) external nonReentrant {
-        require(amount > 0, "Invalid `amount` passed");
+    function deposit(uint256 risky, uint256 stable) 
+        external 
+        nonReentrant 
+    {
+        require(risky > 0, "Invalid amount of risky tokens");
+        require(stable > 0, "Invalid amount of stable tokens");
 
-        _mintShares(amount, msg.sender);
+        _processDeposit(risky, stable, msg.sender);
 
-        // Requires approve() call by msg.sender
-        IERC20(vaultParams.asset).safeTransferFrom(
+        // Make transfers from tx caller to contract
+        IERC20(vaultParams.risky).safeTransferFrom(
             msg.sender,
             address(this),
-            amount
+            risky
+        );
+        IERC20(vaultParams.stable).safeTransferFrom(
+            msg.sender,
+            address(this),
+            stable
         );
     }
 
     /**
-     * Redeems shares owed to account
-     * This is useful for users (e.g. Protocols) who may wish to
-     * own the the shares rather than Pareto
+     * @notice Updates receipts and internal variables 
+     * @notice Minting will be done in the next rollover
      * --
-     * @param numShares is the number of shares to redeem
-     */
-    function redeem(uint256 numShares) external nonReentrant {
-        require(numShares > 0, "Invalid `numShares` passed");
-        _redeemShares(numShares, false);
-    }
-
-    /**
-     * Rdeems all shares owned to account
-     * This is useful for users (e.g. Protocols) who may wish to
-     * own the the shares rather than Pareto
-     */
-    function redeemMax() external nonReentrant {
-        _redeemShares(0, true);
-    }
-
-    /************************************************
-     *  Deposits and Withdrawals (Internal Logic)
-     ***********************************************/
-
-    /**
-     * Mints the vault shares to the creditor
-     * --
-     * @param amount is the amount of asset deposited
+     * @param risky is the amount of risky asset to be deposited
+     * @param stable is the amount of stable asset to be deposited
      * @param creditor is the address to receive the deposit
      */
-    function _mintShares(uint256 amount, address creditor) private {
+    function _processDeposit(
+        uint256 risky, 
+        uint256 stable,
+        address creditor
+    ) private {
         uint256 currentRound = vaultState.round;
-        uint256 balanceWithDeposit = totalBalance().add(amount);
-
-        require(balanceWithDeposit <= vaultParams.maxSupply, "Exceeds cap");
-        require(
-            balanceWithDeposit >= vaultParams.minSupply,
-            "Insufficient balance"
-        );
 
         // Emit to log
-        emit DepositEvent(creditor, amount, currentRound);
+        emit DepositEvent(creditor, risky, stable, currentRound);
 
+        // Find cached receipt for user & retrieve shares
         Vault.DepositReceipt memory receipt = depositReceipts[creditor];
-
-        // Check if there are pending deposits from previous rounds
-        uint256 unredeemedShares = receipt.getSharesFromReceipt(
+        uint256 shares = receipt.getSharesFromReceipt(
             currentRound,
             roundSharePrice[receipt.round],
             vaultParams.decimals
         );
 
-        uint256 depositAmount = amount;
+        uint256 depositRisky = risky;
+        uint256 depositStable = stable;
 
         // If another pending deposit exists for current round, add to it
         // This effectively rolls two deposits into one
         if (receipt.round == currentRound) {
-            depositAmount = uint256(receipt.amount).add(amount);
+            depositRisky = uint256(receipt.risky).add(risky);
+            depositStable = uint256(receipt.stable).add(stable);
         }
 
-        VaultMath.assertUint104(depositAmount);
+        // Sanity check type-casting prior to doing so
+        VaultMath.assertUint104(depositRisky);
+        VaultMath.assertUint104(depositStable);
 
-        // total number of pTHETA tokens owned by user
+        // Update the receipt
         depositReceipts[creditor] = Vault.DepositReceipt({
             round: uint16(currentRound),
-            amount: uint104(depositAmount),
-            unredeemedShares: uint128(unredeemedShares)
+            risky: uint104(depositRisky),
+            stable: uint104(depositStable),
+            shares: uint128(shares)
         });
 
-        // Ignore any receipt logic - focus only on `amount`
-        uint256 newTotalPending = uint256(vaultState.totalPending).add(amount);
-        VaultMath.assertUint128(newTotalPending);
+        // Pending = money waiting to be converted to shares
+        uint256 newPendingRisky = uint256(vaultState.pendingRisky).add(risky);
+        VaultMath.assertUint128(newPendingRisky);
+        vaultState.pendingRisky = uint128(newPendingRisky);
 
-        vaultState.totalPending = uint128(newTotalPending);
+        uint256 newPendingStable = uint256(vaultState.PendingStable).add(stable);
+        VaultMath.assertUint128(newPendingStable);
+        vaultState.PendingStable = uint128(newPendingStable);
     }
 
     /**
-     * Redeems shares owned to account by transfering pTHETA tokens from
-     * vault to user address. This is useful for protocols.
+     * @notice Initiates a withdraw to be processed after round completes
+     * @notice This function does not make the actual withdrawl
      * --
-     * @param numShares is the number of shares to redeem, could be 0 when isMax=true
-     * @param isMax is flag for when callers do a max redemption
+     * @param shares is the amount of shares to withdraw
      */
-    function _redeemShares(uint256 numShares, bool isMax) internal {
+    function _requestWithdraw(uint256 shares) internal {
+        require(shares > 0, "Invalid shares passed");
+
+        // Fetch caller's receipt
         Vault.DepositReceipt memory receipt = depositReceipts[msg.sender];
-
-        uint256 currentRound = vaultState.round;
-        uint256 unredeemedShares = receipt.getSharesFromReceipt(
-            currentRound,
-            roundSharePrice[receipt.round],
-            vaultParams.decimals
-        );
-
-        numShares = isMax ? unredeemedShares : numShares;
-
-        if (numShares == 0) {
-            return; // nothing to do
-        }
-        require(numShares <= unredeemedShares, "Exceeds available");
-
-        if (receipt.round < currentRound) {
-            depositReceipts[msg.sender].amount = 0; // mark as redeemed
-        }
-
-        VaultMath.assertUint128(numShares);
-        depositReceipts[msg.sender].unredeemedShares = uint128(
-            unredeemedShares.sub(numShares)
-        );
-
-        // Log that shares have been redeemed
-        emit RedeemEvent(msg.sender, numShares, receipt.round);
-
-        // user will own the shares
-        _transfer(address(this), msg.sender, numShares);
-    }
-
-    /**
-     * Initiates a withdraw that can be processed after round completes
-     * A user is not allowed to withdraw within a round
-     *
-     * TODO: allow immediate withdraw?
-     */
-    function _requestWithdraw(uint256 numShares) internal {
-        require(numShares > 0, "Invalid `numShares` passed");
-
-        Vault.DepositReceipt memory receipt = depositReceipts[msg.sender];
-
-        // Perform a max redeem before withdrawing
-        // After this statement, all shares are in user wallet
-
-        if (receipt.amount > 0 || receipt.unredeemedShares > 0) {
-            _redeemShares(0, true);
-        }
 
         uint256 currentRound = vaultState.round;
         Vault.Withdrawal storage withdrawal = withdrawals[msg.sender];
 
-        emit WithdrawRequestEvent(msg.sender, numShares, currentRound);
+        emit WithdrawRequestEvent(msg.sender, shares, currentRound);
 
         uint256 withdrawnShares;
 
         if (withdrawal.round == currentRound) {
-            withdrawnShares = uint256(withdrawal.shares).add(numShares);
+            // If the user requested a withdrawal recently, merge
+            withdrawnShares = uint256(withdrawal.shares).add(shares);
         } else {
-            require(
-                uint256(withdrawal.shares) == 0,
-                "Found unprocessed withdraw"
-            );
-            withdrawnShares = numShares;
-            // Update round to be current round
+            // If we find a withdrawal request from an old round, something
+            // bad has happened 
+            require(uint256(withdrawal.shares) == 0, "Abandoned withdraw");
+            withdrawnShares = shares;
+            // Update cached withdrawal request
             withdrawals[msg.sender].round = uint16(currentRound);
         }
-
-        VaultMath.assertUint128(withdrawnShares);
+        VaultMath.assertUint128(withdrawnShares);  // check typecasting
         withdrawals[msg.sender].shares = uint128(withdrawnShares);
-
-        // transfers shares back to contract (for burning)
-        _transfer(msg.sender, address(this), numShares);
     }
 
     /**
-     * Complete a scheduled withdrawal from past round
+     * @notice Complete a scheduled withdrawal from past round
      * --
-     * @return withdrawAmount is the current withdrawal amount
+     * @return withdrawRisky is the withdrawn amount of risky asset
+     * @return withdrawStable is the withdrawn amount of stable asset
      */
-    function _completeWithdraw() internal returns (uint256) {
+    function _completeWithdraw() internal returns (uint256, uint256) {
         Vault.Withdrawal storage withdrawal = withdrawals[msg.sender];
 
         uint256 withdrawShares = withdrawal.shares;
         uint256 withdrawRound = withdrawal.round;
 
-        // Check that `_requestWithdraw` has been called
+        // Check that a request to withdrawal has been made
         require(withdrawShares > 0, "Withdrawal not requested");
         // Check that the withdraw request was made in a previous round
         require(withdrawRound < vaultState.round, "Round not complete");
 
-        // Reset params back to 0 (leave round untouched for gas)
+        // Reset params back to 0
         withdrawals[msg.sender].shares = 0;
 
-        uint256 withdrawAmount = VaultMath.sharesToAsset(
+        (uint256 withdrawRisky, uint256 withdrawStable) = VaultMath.sharesToAsset(
             withdrawShares,
             roundSharePrice[withdrawRound],
             vaultParams.decimals
         );
 
         // Log withdraw event
-        emit WithdrawEvent(msg.sender, withdrawAmount, withdrawShares);
+        emit WithdrawEvent(
+            msg.sender, 
+            withdrawRisky, 
+            withdrawStable,
+            withdrawShares
+        );
 
         // Burn the shares
         _burn(address(this), withdrawShares);
 
-        require(withdrawAmount > 0, "Invalid `withdrawAmount`");
-        _transferAsset(msg.sender, withdrawAmount);
+        require(withdrawRisky > 0, 
+            "Invalid amount of risky asset to withdraw");
+        require(withdrawStable > 0,
+            "Invalid amount of stable asset to withdraw");
 
-        return withdrawAmount;
-    }
+        // Transfer tokens from contract to user
+        IERC20(vaultParams.risky).safeTransfer(msg.sender, withdrawRisky);
+        IERC20(vaultParams.stable).safeTransfer(msg.sender, withdrawStable);
 
-    /**
-     * Transfer ETH or ERC20 token to recipient
-     * --
-     * @param recipient is the receiving address
-     * @param amount is the transfer amount
-     */
-    function _transferAsset(address recipient, uint256 amount) internal {
-        if (vaultParams.asset == WETH) {
-            // Custom logic for wrapped ETH
-            IWETH(WETH).withdraw(amount);
-            (bool success, ) = recipient.call{value: amount}("");
-            require(success, "Transfer failed");
-        } else {
-            IERC20(vaultParams.asset).safeTransfer(recipient, amount);
-        }
+        return (withdrawRisky, withdrawStable);
     }
 
     /************************************************
@@ -532,40 +437,22 @@ contract ParetoVault is
      ***********************************************/
 
     /**
-     * Hack to save gas by writing `1` into the round price map, which
-     * prevents cold writes. Ribbon documents gas savings from 20k-5k.
-     * Requires you to specify number of rounds before hand.
-     *
-     * TODO This is to be called by the user? Who calls this?
-     */
-    function initRounds(uint256 numRounds) external nonReentrant {
-        require(numRounds > 0, "!numRounds");
-        uint256 _round = vaultState.round;
-        for (uint256 i = 0; i < numRounds; i++) {
-            uint256 index = _round + i;
-            // AVOID OVERWRITING ACTUAL VALUES
-            require(roundSharePrice[index] == 0, "Already initialized");
-            roundSharePrice[index] = VaultMath.PLACEHOLDER_UINT;
-        }
-    }
-
-    /**
-     * Pipeline for rolling to the next option, such as calling
-     * `VaultLifecycle`, minting new shares, getting vault fees
+     * @notice Pipeline for rolling to the next option, such as calling
+     *  minting new shares and getting vault fees
      * --
-     * @param lastQueuedWithdrawAmount is an old queued withdraw amount
+     * @param lastWithdrawRisky is the amount of risky assets withdrawn last
+     * @param lastWithdrawStable is the amount of risky assets withdrawn last
      *  This is needed to compute vault fees
      * @param queuedWithdrawShares is the queued withdraw shares for current
      *  round
      * --
      * @return newOption is the new option's address
-     * @return lockedBalance is the new balance used to calculate next option
-     *  purchase size
+     * @return lockedBalance is amount 
      * @return queuedWithdrawAmount is the new queued withdraw amount for this
      *  round
      */
     function _rollToNextOption(
-        uint256 lastQueuedWithdrawAmount,
+        uint256 lastWithdrawAmount,
         uint256 queuedWithdrawShares
     )
         internal
@@ -631,8 +518,9 @@ contract ParetoVault is
                 recipient
             );
 
-            // `totalPending` dictates how much to mint
-            vaultState.totalPending = 0;
+            // Reset pending to zero
+            vaultState.pendingRisky = 0;
+            vaultState.pendingStable = 0;
             vaultState.round = uint16(currentRound + 1);
         }
 
@@ -650,7 +538,7 @@ contract ParetoVault is
      ***********************************************/
 
     /**
-     * Returns the asset balance held in the vault for one account
+     * @notice Returns the asset balance held in the vault for one account
      * --
      * @param account is the address to lookup balance for
      * --
@@ -659,25 +547,27 @@ contract ParetoVault is
     function getAccountBalance(address account)
         external
         view
-        returns (uint256)
+        returns (uint256, uint256)
     {
         uint256 _decimals = vaultParams.decimals;
-        uint256 assetPerShare = VaultMath.getSharePrice(
+        Vault.SharePrice memory sharePrice = VaultMath.getSharePrice(
             totalSupply(),
-            totalBalance(),
-            vaultState.totalPending,
+            totalRisky(),
+            totalStable(),
+            vaultState.pendingRisky,
+            vaultState.pendingStable,
             _decimals
         );
         return
-            VaultMath.sharesToAsset(
+            VaultMath.sharesToAssets(
                 getAccountShares(account),
-                assetPerShare,
+                sharePrice,
                 _decimals
             );
     }
 
     /**
-     * Returns the number of shares (including unredeemed shares) for
+     * @notice Returns the number of shares (including unredeemed shares) for
      * one account
      * --
      * @param account is the address to lookup balance for
@@ -685,60 +575,33 @@ contract ParetoVault is
      * @return the share balance
      */
     function getAccountShares(address account) public view returns (uint256) {
-        (uint256 heldByAccount, uint256 heldByVault) = getShareSplit(account);
-        return heldByAccount.add(heldByVault);
-    }
-
-    /**
-     * Returns the number of shares held by account versus held within vault
-     * --
-     * @param account is the account to lookup share balance for
-     * --
-     * @return heldByAccount is the shares held by account
-     * @return heldByVault is the shares held on the vault (unredeemedShares)
-     */
-    function getShareSplit(address account)
-        public
-        view
-        returns (uint256 heldByAccount, uint256 heldByVault)
-    {
         Vault.DepositReceipt memory receipt = depositReceipts[account];
-
-        if (receipt.round < VaultMath.PLACEHOLDER_UINT) {
-            // Vault is empty - just return account shares
-            return (balanceOf(account), 0);
-        }
-
-        uint256 unredeemedShares = receipt.getSharesFromReceipt(
+        return receipt.getSharesFromReceipt(
             vaultState.round,
             roundSharePrice[receipt.round],
             vaultParams.decimals
         );
-
-        return (balanceOf(account), unredeemedShares);
     }
 
     /**
-     * The share price in the asset
+     * @notice Return vault's total balance of risky assets, including 
+     *  amounts locked into Primitive
      */
-    function getSharePrice() external view returns (uint256) {
+    function totalRisky() public view returns (uint256) {
         return
-            VaultMath.getSharePrice(
-                totalSupply(),
-                totalBalance(),
-                vaultState.totalPending,
-                vaultParams.decimals
+            uint256(vaultState.lockedRisky).add(
+                IERC20(vaultParams.risky).balanceOf(address(this))
             );
     }
 
     /**
-     * Return vault's total balance, including amounts locked into
-     * third party protocols
+     * @notice Return vault's total balance of stable assets, including
+     *  amounts locked into Primitive
      */
-    function totalBalance() public view returns (uint256) {
+    function totalStable() public view returns (uint256) {
         return
-            uint256(vaultState.lockedAmount).add(
-                IERC20(vaultParams.asset).balanceOf(address(this))
+            uint256(vaultState.lockedStable).add(
+                IERC20(vaultParams.stable).balanceOf(address(this))
             );
     }
 }

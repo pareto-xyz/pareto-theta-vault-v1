@@ -7,47 +7,50 @@ import {Vault} from "./Vault.sol";
 library VaultMath {
     using SafeMath for uint256;
 
-    // minimum amount of assets per share- prevents cold writes
-    uint256 internal constant PLACEHOLDER_UINT = 1;
-
     /**
-     * Convert assets to shares
+     * @notice Convert assets to shares. 
      * --
-     * @param assets is the amount of assets
+     * @param risky is the amount of risky assets
+     * @param stable is the amount of stable assets
      * @param sharePrice is the price of one share in assets
      * @param decimals is the decimals for vault shares
      * --
      * @return shares is the amount of shares
      */
-    function assetToShares(
-        uint256 assets,
-        uint256 sharePrice,
+    function assetsToShares(
+        uint256 risky,
+        uint256 stable,
+        Vault.SharePrice memory sharePrice,
         uint256 decimals
     ) internal pure returns (uint256) {
-        require(sharePrice > PLACEHOLDER_UINT, "Invalid sharePrice");
-        return assets.mul(10**decimals).div(sharePrice);
+        return SafeMath.min(
+            risky.mul(10**decimals).div(sharePrice.riskyPrice),
+            stable.mul(10**decimals).div(sharePrice.stablePrice)
+        );
     }
 
     /**
-     * Convert shares to assets
+     * @notice Convert shares to risky assets
      * --
      * @param shares is the amount of shares
      * @param sharePrice is the price of one share in assets
      * @param decimals is the decimals for vault shares
      * --
-     * @return assets is the amount of shares
+     * @return risky is the amount of risky assets
+     * @return stable is the amount of stable assets
      */
-    function sharesToAsset(
+    function sharesToAssets(
         uint256 shares,
-        uint256 sharePrice,
+        Vault.SharePrice memory sharePrice,
         uint256 decimals
-    ) internal pure returns (uint256) {
-        require(sharePrice > PLACEHOLDER_UINT, "Invalid sharePrice");
-        return shares.mul(sharePrice).div(10**decimals);
+    ) internal pure returns (uint256, uint256) {
+        uint256 risky = shares.mul(sharePrice.riskyPrice).div(10**decimals);
+        uint256 stable = shares.mul(sharePrice.riskyPrice).div(10**decimals);
+        return (risky, stable);
     }
 
     /**
-     * Returns the shares unredeemed by the user
+     * @notice Returns the shares unredeemed by the user
      * These shares must roll over to the next vault
      * --
      * @param depositReceipt is the user's deposit receipt
@@ -55,52 +58,66 @@ library VaultMath {
      * @param sharePrice is the price in asset per share
      * @param decimals is the number of decimals the asset/shares use
      * --
-     * @return unredeemedShares is the user's virtual balance of shares that are owed
+     * @return shares is the user's virtual balance of shares that are owed
      */
     function getSharesFromReceipt(
         Vault.DepositReceipt memory depositReceipt,
         uint256 currentRound,
-        uint256 sharePrice,
+        Vault.SharePrice memory sharePrice,
         uint256 decimals
-    ) internal pure returns (uint256 unredeemedShares) {
+    ) internal pure returns (uint256 shares) {
         if (depositReceipt.round > 0 && depositReceipt.round < currentRound) {
             // If receipt is from earlier round, compute shares value
-            // This will be done using price from earlier round (not current price)
-            uint256 currentShares = assetToShares(
-                depositReceipt.amount,
+            // At max only one of these as continuously updated
+            uint256 currentShares = assetsToShares(
+                depositReceipt.risky,
+                depositReceipt.stable,
                 sharePrice,
                 decimals
             );
             // added with shares from current round
-            return uint256(depositReceipt.unredeemedShares).add(currentShares);
+            return uint256(depositReceipt.shares).add(currentShares);
         } else {
-            // If receipt is from current round, return attribute
-            return depositReceipt.unredeemedShares;
+            // If receipt is from current round, return directly 
+            return depositReceipt.shares;
         }
     }
 
     /**
-     * Returns the price of a single share in asset
+     * @notice Returns the price of a single share in risky and stable asset
      * --
-     * @param totalSupply is the total supply of asset
-     * @param totalBalance is the total supply of pTHETA
-     * @param pendingAmount is the amount of asset promised for minting
+     * @param totalSupply is the total supply of the receipt tokens
+     * @param totalRisky is the total supply of risky assets
+     * @param totalStable is the total supply of stable assets
+     * @param pendingRisky is the amount of risky asset set for minting
+     * @param pendingStable is the amount of risky asset set for minting
      * @param decimals is the number of decimals the asset/shares use
      * --
-     * @return the price of shares
+     * @return riskyPrice is the price of shares in risky asset
+     * @return stablePrice is the price of shares in stable asset
      */
     function getSharePrice(
         uint256 totalSupply,
-        uint256 totalBalance,
-        uint256 pendingAmount,
+        uint256 totalRisky,
+        uint256 totalStable,
+        uint256 pendingRisky,
+        uint256 pendingStable,
         uint256 decimals
     ) internal pure returns (uint256) {
-        uint256 oneShare = 10**decimals; // TODO: ???
+        uint256 oneShare = 10**decimals;
         // 10**decimals * (balance - pending) / supply
-        return
+        uint256 riskyPrice = 
             totalSupply > 0
-                ? oneShare.mul(totalBalance.sub(pendingAmount)).div(totalSupply)
+                ? oneShare.mul(totalRisky.sub(pendingRisky)).div(totalSupply)
                 : oneShare;
+        uint256 stablePrice = 
+            totalSupply > 0
+                ? oneShare.mul(totalStable.sub(pendingStable)).div(totalSupply)
+                : oneShare;
+        return Vault.SharePrice({
+            riskyPrice: riskyPrice,
+            stablePrice: stablePrice
+        });
     }
 
     /**

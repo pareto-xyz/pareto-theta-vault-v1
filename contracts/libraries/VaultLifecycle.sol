@@ -13,14 +13,12 @@ library VaultLifecycle {
     using SafeMath for uint256;
 
     /**
-     * Parameters for rollover
+     * @notice Parameters for rollover
      * --
      * @param decimals is the decimals of the asset
-     * @param totalBalance is the vaults total balance of the asset
-     * @param shareSupply is the supply of the shares invoked with
-     *  totalSupply()
-     * @param lastQueuedWithdrawAmount is the total amount queued for
-     *  withdrawals
+     * @param totalRisky is the vault's total balance of risky
+     * @param totalStable is the vault's total balance of stable
+     * @param shareSupply is the vaults total balance of the receipt
      * @param performanceFee is the perf fee percent to charge on premiums
      * @param managementFee is the management fee percent to charge on the AUM
      * @param queuedWithdrawShares is amount of queued withdrawals from the
@@ -28,32 +26,33 @@ library VaultLifecycle {
      */
     struct RolloverParams {
         uint256 decimals;
-        uint256 totalBalance;
+        uint256 totalRisky;
+        uint256 totalStable;
         uint256 shareSupply;
-        uint256 lastQueuedWithdrawAmount;
-        uint256 performanceFee;
-        uint256 managementFee;
+        uint256 lastQueuedWithdrawRisky;
+        uint256 lastQueuedWithdrawStable;
+        uint256 managementFeeRisky;
+        uint256 managementFeeStable; 
         uint256 queuedWithdrawShares;
     }
 
     /**
-     * Calculate the shares to mint, new price per share, and amount of
+     * @notice Calculate the shares to mint, new price per share, and amount of
      * funds to re-allocate as collateral for the new round
+     * @notice totalVaultFee is only > 0 if the difference between last
+     * week's and this week's vault > 0
      * --
      * @param vaultState is the storage variable
      * @param params is the rollover parameters passed to compute the next
      *  state
-     * @return newLockedAmount is the amount of funds to allocate for the
-     *  new round
-     * @return queuedWithdrawAmount is the amount of funds set aside for
-     *  withdrawal
+     * @return queuedWithdrawRisky is the amount of risky funds set aside
+     *  for withdrawal
+     * @return queuedWithdrawStable is the amount of stable funds set aside
+     *  for withdrawal
      * @return newSharePrice is the price per share of the new round
      * @return mintShares is the amount of shares to mint from deposits
-     * @return performanceFeeInAsset is the performance fee charged by vault
-     * @return totalVaultFee is the total amount of fee charged by vault
-     * --
-     * totalVaultFee is only > 0 if the difference between last
-     * week's and this week's vault > 0
+     * @return vaultFeeRisky is the total fee on risky charged by vault
+     * @return vaultFeeStable is the total fee on stable charged by vault
      */
     function rollover(
         Vault.VaultState storage vaultState,
@@ -62,196 +61,129 @@ library VaultLifecycle {
         external
         view
         returns (
-            uint256 newLockedAmount,
-            uint256 queuedWithdrawAmount,
+            uint256 queuedWithdrawRisky,
+            uint256 queuedWithdrawStable,
             uint256 newSharePrice,
             uint256 mintShares,
-            uint256 performanceFeeInAsset,
-            uint256 totalVaultFee
+            uint256 vaultFeeRisky,
+            uint256 vaultFeeStable
         )
     {
-        uint256 currentBalance = params.totalBalance;
-        uint256 pendingAmount = vaultState.totalPending;
-
-        // Total amount of queued withdrawal shares from previous rounds
-        uint256 lastQueuedWithdrawShares = vaultState.queuedWithdrawShares;
-
-        // Deduct older queued withdraws so we don't charge fees on them
-        uint256 balanceForVaultFees = currentBalance.sub(
-            params.lastQueuedWithdrawAmount
-        );
-
+        uint256 currentRisky = params.totalRisky;
+        uint256 currentStable = params.totalStable;
+        uint256 riskyForVaultFees = 
+            currentRisky.sub(params.lastQueuedWithdrawRisky);
+        uint256 stableForVaultFees =
+            currentStable.sub(params.lastQueuedWithdrawStable);
         {
-            (performanceFeeInAsset, , totalVaultFee) = VaultLifecycle
-                .getVaultFees(
-                    balanceForVaultFees,
-                    vaultState.lastLockedAmount,
-                    vaultState.totalPending,
-                    params.performanceFee,
-                    params.managementFee
-                );
+            (vaultFeeRisky, vaultFeeStable) = VaultLifecycle.getVaultFees(
+                riskyForVaultFees,
+                stableForVaultFees,
+                vaultState.pendingRisky,
+                vaultState.pendingStable,
+                params.managementFeeRisky,
+                params.managementFeeStable
+            );
         }
 
-        // Update the currentBalance minus computed fees
-        currentBalance = currentBalance.sub(totalVaultFee);
+        // Remove fee from assets
+        currentRisky = currentRisky.sub(vaultFeeRisky);
+        currentStable = currentStable.sub(vaultFeeStable);
+
+        // Total amount of queued shares to withdraw from previous rounds
+        uint256 lastQueuedWithdrawShares = vaultState.queuedWithdrawShares;
 
         {
-            // Compute share price post-withdraws
-            newSharePrice = VaultMath.getSharePrice(
+            newRiskyPrice, newStablePrice = VaultMath.getSharePrice(
                 params.shareSupply.sub(lastQueuedWithdrawShares),
-                currentBalance.sub(params.lastQueuedWithdrawAmount),
-                pendingAmount,
+                currentRisky.sub(params.lastQueuedWithdrawRisky),
+                currentStable.sub(params.lastQueuedWithdrawStable),
+                vaultState.pendingRisky,
+                vaultState.pendingStable,
                 params.decimals
             );
-
-            queuedWithdrawAmount = params.lastQueuedWithdrawAmount.add(
-                VaultMath.sharesToAsset(
-                    params.queuedWithdrawShares,
-                    newSharePrice,
-                    params.decimals
-                )
+            Vault.SharePrice memory newSharePrice = Vault.SharePrice({
+                riskyPrice: newRiskyPrice,
+                stablePrice: newStablePrice
+            });
+            (uint256 newRisky, uint256 newStable) = VaultMath.sharesToAssets(
+                params.queuedWithdrawShares,
+                newSharePrice,
+                params.decimals
             );
-
-            // Mint shares using pending amount with the new share price so
-            // we do not penalize the new shares if last week's option expired
-            // in the money
-            mintShares = VaultMath.assetToShares(
-                pendingAmount,
+            queuedWithdrawRisky = 
+                params.lastQueuedWithdrawRisky.add(newRisky);
+            queuedWithdrawStable = 
+                params.lastQueuedWithdrawStable.add(newStable);
+            
+            mintShares = VaultMath.assetsToShares(
+                vaultState.pendingRisky,
+                vaultState.pendingStable,
                 newSharePrice,
                 params.decimals
             );
         }
 
         return (
-            // locked balance ignore queued withdrawals
-            currentBalance.sub(queuedWithdrawAmount),
-            queuedWithdrawAmount,
+            queuedWithdrawRisky,
+            queuedWithdrawStable,
             newSharePrice,
             mintShares,
-            performanceFeeInAsset,
-            totalVaultFee
+            vaultFeeRisky,
+            vaultFeeStable
         );
     }
 
     /**
-     * Opens a short position
-     * Sells a covered call through a replicating market maker
+     * @notice Calculates performance and management fee for this week's round
      * --
-     * @param assetAmount is the amount of asset to deposit
-     * @param numeraireAmount is the amount of numeraire to deposit
-     -- 
-     * @return the LP token mint amount
-     */
-    function createShort(uint256 assetAmount, uint256 numeraireAmount)
-        external
-        returns (uint256)
-    {}
-
-    /**
-     * Calculates performance and management fee for this week's round
+     * @param currentRisky is the balance of risky assets in vault
+     * @param currentStable is the balance of stable assets in vault
+     * @param pendingRisky is the pending deposit amount of risky asset
+     * @param pendingStable is the pending deposit amount of stable asset
+     * @param managementFeeRisky is the fee percent on the risky asset
+     * @param managementFeeStable is the fee percent on the stable asset
      * --
-     * @param currentBalance is the balance of funds in vault
-     * @param lastLockedAmount is the amount of funds locked from previous round
-     * @param pendingAmount is the pending deposit amount
-     * @param performanceFeePercent is the performance fee percent
-     * @param managementFeePercent is the management fee percent
-     * --
-     * @return performanceFeeInAsset is the performance fee
-     * @return managementFeeInAsset is the management fee
-     * @return vaultFee is the total fees (performance + management)
+     * @return vaultFeeRisky is the fees awarded to owner in risky
+     * @return vaultFeeStable is the fees awarded to owner in stable
      */
     function getVaultFees(
-        uint256 currentBalance,
-        uint256 lastLockedAmount,
-        uint256 pendingAmount,
-        uint256 performanceFeePercent,
-        uint256 managementFeePercent
+        uint256 currentRisky,
+        uint256 currentStable
+        uint256 pendingRisky,
+        uint256 pendingStable,
+        uint256 managementFeeRisky
+        uint256 managementFeeStable
     )
         internal
         pure
-        returns (
-            uint256 performanceFeeInAsset,
-            uint256 managementFeeInAsset,
-            uint256 vaultFee
-        )
+        returns (uint256, uint256)
     {
-        // In the first rount, currentBalance = 0 and pendingAmount > 0
-        // In this case, do not charge anything
-        uint256 balanceMinusPending = currentBalance > pendingAmount
-            ? currentBalance.sub(pendingAmount)
+        uint256 riskyMinusPending = currentRisky > pendingRisky
+            ? currentRisky.sub(pendingRisky)
+            : 0;
+        uint256 stableMinusPending = currentStable > pendingStable
+            ? currentStable.sub(pendingStable)
             : 0;
 
-        // Placeholder variables to return (default to 0)
-        uint256 _performanceFeeInAsset;
-        uint256 _managementFeeInAsset;
+        uint256 _vaultFeeRisky;
+        uint256 _vaultFeeStable;
         uint256 _vaultFee;
 
-        // Compute difference between last week's and this week's vault
-        // deposits (taking pending deposits and withdrawals into account)
-        // If this difference is positive, fee > 0. If it is negative,
-        // that means the vault took a loss (option expired ITM)
-        if (balanceMinusPending > lastLockedAmount) {
-            _performanceFeeInAsset = performanceFeePercent > 0
-                ? balanceMinusPending
-                    .sub(lastLockedAmount)
-                    .mul(performanceFeePercent)
-                    .div(100 * Vault.FEE_MULTIPLIER)
-                : 0;
-            _managementFeeInAsset = managementFeePercent > 0
-                ? balanceMinusPending.mul(managementFeePercent).div(
-                    100 * Vault.FEE_MULTIPLIER
-                )
-                : 0;
-            _vaultFee = _performanceFeeInAsset.add(_managementFeeInAsset);
-        }
-
-        return (_performanceFeeInAsset, _managementFeeInAsset, _vaultFee);
+        // TODO: For future versions, we should consider a price oracle to 
+        // compute performance w/ conditional fees
+        _vaultFeeRisky = managementFeeRisky > 0
+            ? riskyMinusPending.mul(managementFeeRisky).div(
+                100 * Vault.FEE_MULTIPLIER
+            )
+            : 0;
+        _vaultFeeStable = managementFeeStable > 0
+            ? stableMinusPending.mul(managementFeeStable).div(
+                100 * Vault.FEE_MULTIPLIER
+            )
+            : 0;
+        return (_vaultFeeRisky, _vaultFeeStable);
     }
-
-    /************************************************
-     *  Primitive Bindings
-     ***********************************************/
-
-    /**
-     * Retrieve Primitives LP token
-     * --
-     * --
-     @return lpToken is a address of an LP token
-     */
-    function getLPToken() internal returns (address) {}
-
-    /**
-     * Deposits liquidity in exchange for a Primitive LP token.
-     * --
-     * @param assetAmount is the amount of asset to deposit
-     * @param numeraireAmount is the amount of numeraire to deposit
-     */
-    function deployLPToken(uint256 assetAmount, uint256 numeraireAmount)
-        internal
-        returns (uint256)
-    {}
-
-    /**
-     * Burns an LP token in exchange for an amount of risky asset and
-     * numeraire.
-     */
-    function burnLPToken() internal returns (uint256, uint256) {}
-
-    /**
-     * Verify that the LP token has the correct parameters to prevent
-     * vulnerability to primitive contract changes
-     * --
-     * @param tokenAddress is the address of the Primitive LP token
-     * @param vaultParams is the struct with info about the vault
-     * @param USDC is the address of the usdc
-     * @param delay is the delay between `commitAndClose` and `rollToNextOption`
-     */
-    function verifyLPToken(
-        address tokenAddress,
-        Vault.VaultParams storage vaultParams,
-        address USDC,
-        uint256 delay
-    ) private view {}
 
     /************************************************
      *  Utilities
@@ -291,50 +223,5 @@ library VaultLifecycle {
         );
         require(bytes(tokenName).length > 0, "Empty tokenName");
         require(bytes(tokenSymbol).length > 0, "Empty tokenSymbol");
-
-        verifyVaultParams(_vaultParams);
-    }
-
-    /**
-     * Helper function to verify vault params
-     */
-    function verifyVaultParams(Vault.VaultParams calldata _vaultParams)
-        internal
-        pure
-    {
-        require(_vaultParams.minSupply > 0, "Empty minSupply");
-        require(_vaultParams.maxSupply > 0, "Empty maxSupply");
-    }
-
-    /**
-     * Gets the next option expiry timestamp
-     */
-    function getNextExpiry(address currentOption)
-        internal
-        view
-        returns (uint256)
-    {}
-
-    /**
-     * Get date of next friday
-     * --
-     * @param timestamp is the expiry timestamp of the current option
-     * Reference: https://codereview.stackexchange.com/a/33532
-     * --
-     * getNextFriday(week 1 thursday) -> week 1 friday
-     * getNextFriday(week 1 friday) -> week 2 friday
-     * getNextFriday(week 1 saturday) -> week 2 friday
-     */
-    function getNextFriday(uint256 timestamp) internal pure returns (uint256) {
-        // dayOfWeek = 0 (sunday) - 6 (saturday)
-        uint256 dayOfWeek = ((timestamp / 1 days) + 4) % 7;
-        uint256 nextFriday = timestamp + ((7 + 5 - dayOfWeek) % 7) * 1 days;
-        uint256 friday8am = nextFriday - (nextFriday % (24 hours)) + (8 hours);
-
-        // if the input `timestamp` is day=Friday, hour>8am, increment to next Friday
-        if (timestamp >= friday8am) {
-            friday8am += 7 days;
-        }
-        return friday8am;
     }
 }
