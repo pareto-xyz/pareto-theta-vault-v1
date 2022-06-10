@@ -52,10 +52,20 @@ contract ParetoThetaVault is ParetoVault {
      * @notice Roll's the vault's funds into the next vault
      */
     function rollToNextOption() external onlyKeeper nonReentrant {
-        _rollToNextOption(
-            lastQueuedWithdrawRisky,
-            lastQueuedWithdrawStable,
-            queuedWithdrawShares
-        )
+        (
+            uint256 lockedRisky,
+            uint256 lockedStable,
+            uint256 queuedWithdrawRisky,
+            uint256 queuedWithdrawStable
+        ) = 
+            _rollToNextOption(
+                lastQueuedWithdrawRisky,
+                lastQueuedWithdrawStable,
+                queuedWithdrawShares
+            );
+        
+        // Update global variables of queued withdrawal amounts
+        lastQueuedWithdrawRisky = queuedWithdrawRisky;
+        lastQueuedWithdrawStable = queuedWithdrawStable;
     }
 }

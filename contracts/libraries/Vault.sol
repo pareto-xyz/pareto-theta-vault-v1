@@ -35,17 +35,6 @@ library Vault {
     }
 
     /**
-     * @notice bundles together price of a share in both risky and stable
-     * --
-     * @param riskyPrice is the amount of risky asset for one unit of share
-     * @param stablePrice is the amount of stable asset for one unit of share
-     */
-    struct SharePrice {
-        uint256 riskyPrice;
-        uint256 stablePrice;
-    }
-
-    /**
      * @param round is the current round number
      * @param lockedRisky is the amount of risky asset locked away in
      *  a covered call short position

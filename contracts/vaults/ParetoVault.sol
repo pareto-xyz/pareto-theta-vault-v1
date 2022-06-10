@@ -36,28 +36,28 @@ contract ParetoVault is
     using VaultMath for Vault.DepositReceipt;
 
     /************************************************
-     *  Non-upgradeable storage
+     * Non-upgradeable storage
+     * TODO: some of these should probably be made upgradeable!
      ***********************************************/
-    // TODO: some of these should probably be made upgradeable!
 
     // User's pending deposit for the round
     mapping(address => Vault.DepositReceipt) public depositReceipts;
 
-    // When round closes, the share price of an pTHETA token is stored
+    // When round closes, the share price of a receipt token is stored
     // This is used to determine the number of shares to be returned to a user
-    // with their DepositReceipt.{risky,stable}Amount
-    mapping(uint256 => Vault.SharePrice) public roundSharePrice;
+    mapping(uint256 => uint256) public roundSharePriceRisky;
+    mapping(uint256 => uint256) public roundSharePriceStable;
 
     // Pending user withdrawals
     mapping(address => Vault.Withdrawal) public withdrawals;
 
     // Amount of risky/stable asset locked for withdrawals last vault
-    // Usedful for accurately computing fees
+    // Used for accurately computing fees
     uint256 public lastQueuedWithdrawRisky;
     uint256 public lastQueuedWithdrawStable;
 
     // Amount of shares locked for withdraw currently
-    uint256 public queuedWithdrawShares;
+    uint256 public currQueuedWithdrawShares;
 
     // Vault's parameters
     Vault.VaultParams public vaultParams;
@@ -83,7 +83,7 @@ contract ParetoVault is
     uint256[30] private ____gap;
 
     /************************************************
-     *  Immutables and Constants
+     * Immutables and Constants
      ***********************************************/
 
     // Number of weeks per year = 52.142857 weeks * FEE_MULTIPLIER = 52142857
@@ -129,7 +129,7 @@ contract ParetoVault is
     );
 
     /************************************************
-     *  Constructor and Initialization
+     * Constructor and Initialization
      ***********************************************/
 
     /**
@@ -260,7 +260,7 @@ contract ParetoVault is
     }
 
     /************************************************
-     *  Deposits and Withdrawals
+     * Deposits and Withdrawals
      ***********************************************/
 
     /**
@@ -302,16 +302,17 @@ contract ParetoVault is
         uint256 stable,
         address creditor
     ) private {
-        uint256 currentRound = vaultState.round;
+        uint256 currRound = vaultState.round;
 
         // Emit to log
-        emit DepositEvent(creditor, risky, stable, currentRound);
+        emit DepositEvent(creditor, risky, stable, currRound);
 
         // Find cached receipt for user & retrieve shares
         Vault.DepositReceipt memory receipt = depositReceipts[creditor];
         uint256 shares = receipt.getSharesFromReceipt(
-            currentRound,
-            roundSharePrice[receipt.round],
+            currRound,
+            roundSharePriceRisky[receipt.round],
+            roundSharePriceStable[receipt.round],
             vaultParams.decimals
         );
 
@@ -320,7 +321,7 @@ contract ParetoVault is
 
         // If another pending deposit exists for current round, add to it
         // This effectively rolls two deposits into one
-        if (receipt.round == currentRound) {
+        if (receipt.round == currRound) {
             depositRisky = uint256(receipt.risky).add(risky);
             depositStable = uint256(receipt.stable).add(stable);
         }
@@ -331,7 +332,7 @@ contract ParetoVault is
 
         // Update the receipt
         depositReceipts[creditor] = Vault.DepositReceipt({
-            round: uint16(currentRound),
+            round: uint16(currRound),
             risky: uint104(depositRisky),
             stable: uint104(depositStable),
             shares: uint128(shares)
@@ -361,14 +362,14 @@ contract ParetoVault is
         // Fetch caller's receipt
         Vault.DepositReceipt memory receipt = depositReceipts[msg.sender];
 
-        uint256 currentRound = vaultState.round;
+        uint256 currRound = vaultState.round;
         Vault.Withdrawal storage withdrawal = withdrawals[msg.sender];
 
-        emit WithdrawRequestEvent(msg.sender, shares, currentRound);
+        emit WithdrawRequestEvent(msg.sender, shares, currRound);
 
         uint256 withdrawnShares;
 
-        if (withdrawal.round == currentRound) {
+        if (withdrawal.round == currRound) {
             // If the user requested a withdrawal recently, merge
             withdrawnShares = uint256(withdrawal.shares).add(shares);
         } else {
@@ -377,7 +378,7 @@ contract ParetoVault is
             require(uint256(withdrawal.shares) == 0, "Abandoned withdraw");
             withdrawnShares = shares;
             // Update cached withdrawal request
-            withdrawals[msg.sender].round = uint16(currentRound);
+            withdrawals[msg.sender].round = uint16(currRound);
         }
         VaultMath.assertUint128(withdrawnShares); // check typecasting
         withdrawals[msg.sender].shares = uint128(withdrawnShares);
@@ -406,7 +407,8 @@ contract ParetoVault is
         (uint256 withdrawRisky, uint256 withdrawStable) = VaultMath
             .sharesToAssets(
                 withdrawShares,
-                roundSharePrice[withdrawRound],
+                roundSharePriceRisky[withdrawRound],
+                roundSharePriceStable[withdrawRound],
                 vaultParams.decimals
             );
 
@@ -445,8 +447,9 @@ contract ParetoVault is
      * @param lastWithdrawRisky is the amount of risky assets withdrawn last
      * @param lastWithdrawStable is the amount of risky assets withdrawn last
      *  This is needed to compute vault fees
-     * @param queuedWithdrawShares is the queued withdraw shares for current
-     *  round
+     * @param currQueuedWithdrawShares is the queued withdraw shares for 
+     *  current round. This is a distinct object from 
+     *  VaultState.queuedWithdrawShares
      * --
      * @return queuedWithdrawRisky is the new queued withdraw amount of risky
      *  asset for this round
@@ -456,7 +459,7 @@ contract ParetoVault is
     function _rollToNextOption(
         uint256 lastWithdrawRisky,
         uint256 lastWithdrawStable,
-        uint256 queuedWithdrawShares
+        uint256 currQueuedWithdrawShares
     )
         internal
         returns (
@@ -504,24 +507,20 @@ contract ParetoVault is
                     lastQueuedWithdrawStable,
                     managementFeeRisky,
                     managementFeeStable,
-                    queuedWithdrawShares
+                    currQueuedWithdrawShares
                 )
             );
 
-            Vault.SharePrice memory newSharePrice = Vault.SharePrice({
-                riskyPrice: newRiskyPrice,
-                stablePrice: newStablePrice
-            });
-
             // record the share price
-            uint256 currentRound = vaultState.round;
-            roundSharePrice[currentRound] = newSharePrice;
+            uint256 currRound = vaultState.round;
+            roundSharePriceRisky[currRound] = newRiskyPrice;
+            roundSharePriceStable[currRound] = newStablePrice;
 
             // Log that vault fees are being collected
             emit VaultFeesCollectionEvent(
                 vaultFeeRisky,
                 vaultFeeStable,
-                currentRound,
+                currRound,
                 feeRecipient
             );
 
@@ -533,7 +532,7 @@ contract ParetoVault is
             VaultMath.assertUint128(unusedStable);
             vaultState.unusedRisky = uint128(unusedRisky);
             vaultState.unusedStable = uint128(unusedStable);
-            vaultState.round = uint16(currentRound + 1);
+            vaultState.round = uint16(currRound + 1);
         }
 
         _mint(address(this), mintShares);
@@ -556,7 +555,7 @@ contract ParetoVault is
     }
 
     /************************************************
-     *  Helper and Getter functions (frontend)
+     * Helper and Getter functions (frontend)
      ***********************************************/
 
     /**
@@ -580,14 +579,11 @@ contract ParetoVault is
             vaultState.pendingStable,
             _decimals
         );
-        Vault.SharePrice memory sharePrice = Vault.SharePrice({
-            riskyPrice: riskyPrice,
-            stablePrice: stablePrice
-        });
         return
             VaultMath.sharesToAssets(
                 getAccountShares(account),
-                sharePrice,
+                riskyPrice,
+                stablePrice,
                 _decimals
             );
     }
@@ -605,7 +601,8 @@ contract ParetoVault is
         return
             receipt.getSharesFromReceipt(
                 vaultState.round,
-                roundSharePrice[receipt.round],
+                roundSharePriceRisky[receipt.round],
+                roundSharePriceStable[receipt.round],
                 vaultParams.decimals
             );
     }

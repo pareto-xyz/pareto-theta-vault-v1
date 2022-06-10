@@ -115,13 +115,10 @@ library VaultLifecycle {
                 pendingStable,
                 params.decimals
             );
-            Vault.SharePrice memory newSharePrice = Vault.SharePrice({
-                riskyPrice: newRiskyPrice,
-                stablePrice: newStablePrice
-            });
             (uint256 newRisky, uint256 newStable) = VaultMath.sharesToAssets(
                 params.queuedWithdrawShares,
-                newSharePrice,
+                newRiskyPrice,
+                newStablePrice,
                 params.decimals
             );
             queuedWithdrawRisky = params.lastQueuedWithdrawRisky.add(newRisky);

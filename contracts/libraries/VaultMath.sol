@@ -13,7 +13,8 @@ library VaultMath {
      * --
      * @param risky is the amount of risky assets
      * @param stable is the amount of stable assets
-     * @param sharePrice is the price of one share in assets
+     * @param riskyPrice is the price of one share in risky assets
+     * @param stablePrice is the price of one share in stable assets
      * @param decimals is the decimals for vault shares
      * --
      * @return shares is the amount of shares
@@ -21,13 +22,14 @@ library VaultMath {
     function assetsToShares(
         uint256 risky,
         uint256 stable,
-        Vault.SharePrice memory sharePrice,
+        uint256 riskyPrice,
+        uint256 stablePrice,
         uint256 decimals
     ) internal pure returns (uint256) {
         return
             Math.min(
-                risky.mul(10**decimals).div(sharePrice.riskyPrice),
-                stable.mul(10**decimals).div(sharePrice.stablePrice)
+                risky.mul(10**decimals).div(riskyPrice),
+                stable.mul(10**decimals).div(stablePrice)
             );
     }
 
@@ -43,11 +45,12 @@ library VaultMath {
      */
     function sharesToAssets(
         uint256 shares,
-        Vault.SharePrice memory sharePrice,
+        uint256 riskyPrice,
+        uint256 stablePrice,
         uint256 decimals
     ) internal pure returns (uint256, uint256) {
-        uint256 risky = shares.mul(sharePrice.riskyPrice).div(10**decimals);
-        uint256 stable = shares.mul(sharePrice.riskyPrice).div(10**decimals);
+        uint256 risky = shares.mul(riskyPrice).div(10**decimals);
+        uint256 stable = shares.mul(stablePrice).div(10**decimals);
         return (risky, stable);
     }
 
@@ -65,20 +68,22 @@ library VaultMath {
     function getSharesFromReceipt(
         Vault.DepositReceipt memory depositReceipt,
         uint256 currentRound,
-        Vault.SharePrice memory sharePrice,
+        uint256 riskyPrice,
+        uint256 stablePrice,
         uint256 decimals
     ) internal pure returns (uint256 shares) {
         if (depositReceipt.round > 0 && depositReceipt.round < currentRound) {
             // If receipt is from earlier round, compute shares value
             // At max only one of these as continuously updated
-            uint256 currentShares = assetsToShares(
+            uint256 currShares = assetsToShares(
                 depositReceipt.risky,
                 depositReceipt.stable,
-                sharePrice,
+                riskyPrice,
+                stablePrice,
                 decimals
             );
             // added with shares from current round
-            return uint256(depositReceipt.shares).add(currentShares);
+            return uint256(depositReceipt.shares).add(currShares);
         } else {
             // If receipt is from current round, return directly
             return depositReceipt.shares;
