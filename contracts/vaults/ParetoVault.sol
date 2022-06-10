@@ -38,6 +38,7 @@ contract ParetoVault is
     /************************************************
      *  Non-upgradeable storage
      ***********************************************/
+    // TODO: some of these should probably be made upgradeable!
 
     // User's pending deposit for the round
     mapping(address => Vault.DepositReceipt) public depositReceipts;
@@ -50,11 +51,13 @@ contract ParetoVault is
     // Pending user withdrawals
     mapping(address => Vault.Withdrawal) public withdrawals;
 
-    // Amount of risky asset lcoked for scheduled withdrawals last vault
+    // Amount of risky/stable asset locked for withdrawals last vault
+    // Usedful for accurately computing fees
     uint256 public lastQueuedWithdrawRisky;
-
-    // Amount of stable asset lcoked for scheduled withdrawals last vault
     uint256 public lastQueuedWithdrawStable;
+
+    // Amount of shares locked for withdraw currently
+    uint256 public queuedWithdrawShares;
 
     // Vault's parameters
     Vault.VaultParams public vaultParams;

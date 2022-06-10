@@ -14,3 +14,6 @@ This code is heavily based on Ribbon v2's [implementation](https://github.com/ri
 - Prevent cold writes by initializing round prices
 - Support redeeming shares? 
 - Lending unused risky/stable to Compound
+- Implement `createPosition` and `settlePosition` in `VaultLifecycle.sol` using Primitive manager functions
+- Separate storage to be upgradeable from `ParetoVault.sol`
+- Fix stack limit bug on compilation

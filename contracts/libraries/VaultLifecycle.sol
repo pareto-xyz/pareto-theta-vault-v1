@@ -204,7 +204,31 @@ library VaultLifecycle {
     }
 
     /************************************************
-     *  Utilities
+     * Primitive Bindings
+     ***********************************************/
+    
+    /**
+     * @notice Creates a Primitive RMM-01 pool on the risky and stable assets
+     * @notice Deposits liquidity to mint Primitive LP tokens
+     * --
+     * --
+     * @return mint is the amount of LP token
+     */
+    function createPosition() external returns (uint256) {
+    }
+
+    /**
+     * @notice Burns Primitives LP tokens in exchange for risky and stable 
+     * assets. This should include any premium earned by Primitive fees
+     * --
+     * @return risky is the amount of risky token retrieved
+     * @return stable is the amount of risky token retrieved
+     */
+    function settlePosition() external returns (uint256) {
+    }
+
+    /************************************************
+     * Utilities
      ***********************************************/
 
     /**
