@@ -19,21 +19,18 @@ library VaultLifecycle {
      * @param totalRisky is the vault's total balance of risky
      * @param totalStable is the vault's total balance of stable
      * @param shareSupply is the vaults total balance of the receipt
-     * @param performanceFee is the perf fee percent to charge on premiums
-     * @param managementFee is the management fee percent to charge on the AUM
-     * @param queuedWithdrawShares is amount of queued withdrawals from the
-     *  current round
+     * @param managementFeeRisky is the management fee percent to charge 
+     * on the AUM for the risky asset
+     * @param managementFeeStable is the management fee percent to charge 
+     * on the AUM for the stable asset
      */
     struct RolloverParams {
         uint256 decimals;
         uint256 totalRisky;
         uint256 totalStable;
         uint256 shareSupply;
-        uint256 lastQueuedWithdrawRisky;
-        uint256 lastQueuedWithdrawStable;
         uint256 managementFeeRisky;
         uint256 managementFeeStable;
-        uint256 queuedWithdrawShares;
     }
 
     /**
@@ -82,10 +79,10 @@ library VaultLifecycle {
         uint256 currentRisky = params.totalRisky;
         uint256 currentStable = params.totalStable;
         uint256 riskyForVaultFees = currentRisky.sub(
-            params.lastQueuedWithdrawRisky
+            vaultState.lastQueuedWithdrawRisky
         );
         uint256 stableForVaultFees = currentStable.sub(
-            params.lastQueuedWithdrawStable
+            vaultState.lastQueuedWithdrawStable
         );
         uint256 pendingRisky = vaultState.pendingRisky;
         uint256 pendingStable = vaultState.pendingStable;
@@ -103,26 +100,25 @@ library VaultLifecycle {
         currentRisky = currentRisky.sub(vaultFeeRisky);
         currentStable = currentStable.sub(vaultFeeStable);
 
-        // Total amount of queued shares to withdraw from previous rounds
-        uint256 lastQueuedWithdrawShares = vaultState.queuedWithdrawShares;
-
         {
             (newRiskyPrice, newStablePrice) = VaultMath.getSharePrice(
-                params.shareSupply.sub(lastQueuedWithdrawShares),
-                currentRisky.sub(params.lastQueuedWithdrawRisky),
-                currentStable.sub(params.lastQueuedWithdrawStable),
+                params.shareSupply.sub(vaultState.totalQueuedWithdrawShares),
+                currentRisky.sub(vaultState.lastQueuedWithdrawRisky),
+                currentStable.sub(vaultState.lastQueuedWithdrawStable),
                 pendingRisky,
                 pendingStable,
                 params.decimals
             );
             (uint256 newRisky, uint256 newStable) = VaultMath.sharesToAssets(
-                params.queuedWithdrawShares,
+                vaultState.currQueuedWithdrawShares,
                 newRiskyPrice,
                 newStablePrice,
                 params.decimals
             );
-            queuedWithdrawRisky = params.lastQueuedWithdrawRisky.add(newRisky);
-            queuedWithdrawStable = params.lastQueuedWithdrawStable.add(
+            queuedWithdrawRisky = vaultState.lastQueuedWithdrawRisky.add(
+                newRisky
+            );
+            queuedWithdrawStable = vaultState.lastQueuedWithdrawStable.add(
                 newStable
             );
 

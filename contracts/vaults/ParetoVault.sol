@@ -51,14 +51,6 @@ contract ParetoVault is
     // Pending user withdrawals
     mapping(address => Vault.Withdrawal) public withdrawals;
 
-    // Amount of risky/stable asset locked for withdrawals last vault
-    // Used for accurately computing fees
-    uint256 public lastQueuedWithdrawRisky;
-    uint256 public lastQueuedWithdrawStable;
-
-    // Amount of shares locked for withdraw currently
-    uint256 public currQueuedWithdrawShares;
-
     // Vault's parameters
     Vault.VaultParams public vaultParams;
 
@@ -404,6 +396,11 @@ contract ParetoVault is
         // Reset params back to 0
         withdrawals[msg.sender].shares = 0;
 
+        // Remove portion from queued withdraws
+        vaultState.totalQueuedWithdrawShares = uint128(
+            uint256(vaultState.totalQueuedWithdrawShares).sub(withdrawShares)
+        );
+
         (uint256 withdrawRisky, uint256 withdrawStable) = VaultMath
             .sharesToAssets(
                 withdrawShares,
@@ -444,23 +441,14 @@ contract ParetoVault is
      * @notice Pipeline for rolling to the next option, such as calling
      *  minting new shares and getting vault fees
      * --
-     * @param lastWithdrawRisky is the amount of risky assets withdrawn last
-     * @param lastWithdrawStable is the amount of risky assets withdrawn last
-     *  This is needed to compute vault fees
-     * @param currQueuedWithdrawShares is the queued withdraw shares for 
-     *  current round. This is a distinct object from 
-     *  VaultState.queuedWithdrawShares
-     * --
+     * @return lockedRisky is the amount of risky asset locked for next round
+     * @return lockedStable is the amount of stable asset locked for next round
      * @return queuedWithdrawRisky is the new queued withdraw amount of risky
      *  asset for this round
      * @return queuedWithdrawStable is the new queued withdraw amount of stable
      *  asset for this round
      */
-    function _rollToNextOption(
-        uint256 lastWithdrawRisky,
-        uint256 lastWithdrawStable,
-        uint256 currQueuedWithdrawShares
-    )
+    function _rollToNextOption()
         internal
         returns (
             uint256 lockedRisky,
@@ -503,11 +491,8 @@ contract ParetoVault is
                     IERC20(vaultParams.risky).balanceOf(address(this)),
                     IERC20(vaultParams.stable).balanceOf(address(this)),
                     totalSupply(),
-                    lastQueuedWithdrawRisky,
-                    lastQueuedWithdrawStable,
                     managementFeeRisky,
-                    managementFeeStable,
-                    currQueuedWithdrawShares
+                    managementFeeStable
                 )
             );
 

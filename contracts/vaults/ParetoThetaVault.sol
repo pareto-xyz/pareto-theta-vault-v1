@@ -59,13 +59,30 @@ contract ParetoThetaVault is ParetoVault {
             uint256 queuedWithdrawStable
         ) = 
             _rollToNextOption(
-                lastQueuedWithdrawRisky,
-                lastQueuedWithdrawStable,
-                queuedWithdrawShares
+                vaultState.lastQueuedWithdrawRisky,
+                vaultState.lastQueuedWithdrawStable,
+                vaultState.currQueuedWithdrawShares
             );
         
-        // Update global variables of queued withdrawal amounts
-        lastQueuedWithdrawRisky = queuedWithdrawRisky;
-        lastQueuedWithdrawStable = queuedWithdrawStable;
+        // Queued withdraws from current round are set to last round
+        vaultState.lastQueuedWithdrawRisky = queuedWithdrawRisky;
+        vaultState.lastQueuedWithdrawStable = queuedWithdrawStable;
+
+        // Add queued withdraw shares for current round to cache and 
+        // reset current queue to zero
+        uint256 totalQueuedWithdrawShares = 
+            vaultState.totalQueuedWithdrawShares.add(
+                vaultState.currQueuedWithdrawShares
+            );
+        vaultState.totalQueuedWithdrawShares = totalQueuedWithdrawShares;
+        vaultState.currQueuedWithdrawShares = 0;
+
+        // Update locked balances
+        VaultMath.assertUint104(lockedRisky);
+        VaultMath.assertUint104(lockedStable);
+        vaultState.lockedRisky = uint104(lockedRisky);
+        vaultState.lockedStable = uint104(lockedStable);
+
+        // TODO do actual option creation
     }
 }
