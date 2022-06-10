@@ -76,7 +76,6 @@ contract ParetoVault is
     address public keeper;
 
     /// Management fee charged on entire AUM.
-    // Only charged when there is no loss.
     uint256 public managementFeeRisky;
     uint256 public managementFeeStable;
 
@@ -460,7 +459,12 @@ contract ParetoVault is
         uint256 queuedWithdrawShares
     )
         internal
-        returns (uint256 queuedWithdrawRisky, uint256 queuedWithdrawStable)
+        returns (
+            uint256 lockedRisky,
+            uint256 lockedStable,
+            uint256 queuedWithdrawRisky, 
+            uint256 queuedWithdrawStable
+        )
     {
         require(
             block.timestamp >= optionState.maturity,
@@ -477,6 +481,8 @@ contract ParetoVault is
 
         {
             (
+                lockedRisky,
+                lockedStable,
                 queuedWithdrawRisky,
                 queuedWithdrawStable,
                 newRiskyPrice,

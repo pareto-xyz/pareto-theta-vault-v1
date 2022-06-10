@@ -45,6 +45,8 @@ library VaultLifecycle {
      * @param vaultState is the storage variable
      * @param params is the rollover parameters passed to compute the next
      *  state
+     * @return newLockedRisky is the amount of risky assets for the next round
+     * @return newLockedStable is the amount of stable " "
      * @return queuedWithdrawRisky is the amount of risky funds set aside
      *  for withdrawal
      * @return queuedWithdrawStable is the amount of stable funds set aside
@@ -145,6 +147,8 @@ library VaultLifecycle {
         }
 
         return (
+            currentRisky.sub(queuedWithdrawRisky),
+            currentStable.sub(queuedWithdrawStable),
             queuedWithdrawRisky,
             queuedWithdrawStable,
             newRiskyPrice,
