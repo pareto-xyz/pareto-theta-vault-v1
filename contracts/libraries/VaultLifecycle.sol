@@ -42,6 +42,7 @@ library VaultLifecycle {
      * @param vaultState is the storage variable
      * @param params is the rollover parameters passed to compute the next
      *  state
+     * --
      * @return newLockedRisky is the amount of risky assets for the next round
      * @return newLockedStable is the amount of stable " "
      * @return queuedWithdrawRisky is the amount of risky funds set aside
@@ -65,6 +66,8 @@ library VaultLifecycle {
         external
         view
         returns (
+            uint256 newLockedRisky,
+            uint256 newLockedStable,
             uint256 queuedWithdrawRisky,
             uint256 queuedWithdrawStable,
             uint256 newRiskyPrice,
@@ -127,21 +130,30 @@ library VaultLifecycle {
             mintShares = VaultMath.assetsToShares(
                 pendingRisky,
                 pendingStable,
-                newSharePrice,
+                newRiskyPrice,
+                newStablePrice,
                 params.decimals
             );
 
             // Compute liquidity remaining as some rounding is required
             // to convert assets to shares
             (uint256 reconRisky, uint256 reconStable) = VaultMath
-                .sharesToAssets(mintShares, newSharePrice, params.decimals);
+                .sharesToAssets(
+                    mintShares,
+                    newRiskyPrice,
+                    newStablePrice,
+                    params.decimals
+                );
             unusedRisky = pendingRisky.sub(reconRisky);
             unusedStable = pendingStable.sub(reconStable);
         }
 
+        newLockedRisky = currentRisky.sub(queuedWithdrawRisky);
+        newLockedStable = currentStable.sub(queuedWithdrawStable);
+
         return (
-            currentRisky.sub(queuedWithdrawRisky),
-            currentStable.sub(queuedWithdrawStable),
+            newLockedRisky,
+            newLockedStable,
             queuedWithdrawRisky,
             queuedWithdrawStable,
             newRiskyPrice,
@@ -208,7 +220,6 @@ library VaultLifecycle {
      * @notice Creates a Primitive RMM-01 pool on the risky and stable assets
      * @notice Deposits liquidity to mint Primitive LP tokens
      * --
-     * --
      * @return mint is the amount of LP token
      */
     function createPosition() external returns (uint256) {
@@ -221,7 +232,7 @@ library VaultLifecycle {
      * @return risky is the amount of risky token retrieved
      * @return stable is the amount of risky token retrieved
      */
-    function settlePosition() external returns (uint256) {
+    function settlePosition() external returns (uint256, uint256) {
     }
 
     /************************************************

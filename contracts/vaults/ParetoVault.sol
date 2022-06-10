@@ -536,7 +536,12 @@ contract ParetoVault is
             );
         }
 
-        return (queuedWithdrawRisky, queuedWithdrawStable);
+        return (
+            lockedRisky,
+            lockedStable,
+            queuedWithdrawRisky,
+            queuedWithdrawStable
+        );
     }
 
     /************************************************

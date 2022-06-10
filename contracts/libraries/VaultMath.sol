@@ -37,7 +37,8 @@ library VaultMath {
      * @notice Convert shares to risky assets
      * --
      * @param shares is the amount of shares
-     * @param sharePrice is the price of one share in assets
+     * @param riskyPrice is the price of one share in risky assets
+     * @param stablePrice is the price of one share in stable assets
      * @param decimals is the decimals for vault shares
      * --
      * @return risky is the amount of risky assets
@@ -60,7 +61,8 @@ library VaultMath {
      * --
      * @param depositReceipt is the user's deposit receipt
      * @param currentRound is the `round` stored on the vault
-     * @param sharePrice is the price in asset per share
+     * @param riskyPrice is the price of one share in risky assets
+     * @param stablePrice is the price of one share in stable assets
      * @param decimals is the number of decimals the asset/shares use
      * --
      * @return shares is the user's virtual balance of shares that are owed

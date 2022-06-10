@@ -31,7 +31,8 @@ contract ParetoThetaVault is ParetoVault {
     function requestWithdraw(uint256 shares) external nonReentrant {
         _requestWithdraw(shares);
         // Update global variable caching shares queued for withdrawal
-        queuedWithdrawShares = queuedWithdrawShares.add(shares);
+        vaultState.totalQueuedWithdrawShares = 
+            vaultState.totalQueuedWithdrawShares.add(shares);
     }
 
     /**
@@ -40,12 +41,10 @@ contract ParetoThetaVault is ParetoVault {
     function completeWithdraw() external nonReentrant {
         (uint256 withdrawRisky, uint256 withdrawStable) = _completeWithdraw();
         // Update globals caching withdrawal amounts from last round
-        lastQueuedWithdrawRisky = uint128(
-            uint256(lastQueuedWithdrawRisky).sub(withdrawRisky)
-        );
-        lastQueuedWithdrawStable = uint128(
-            uint256(lastQueuedWithdrawStable).sub(withdrawStable)
-        );
+        vaultState.lastQueuedWithdrawRisky = 
+            vaultState.lastQueuedWithdrawRisky.sub(withdrawRisky);
+        vaultState.lastQueuedWithdrawStable = 
+            vaultState.lastQueuedWithdrawStable.sub(withdrawStable);
     }
 
     /**
@@ -58,11 +57,7 @@ contract ParetoThetaVault is ParetoVault {
             uint256 queuedWithdrawRisky,
             uint256 queuedWithdrawStable
         ) = 
-            _rollToNextOption(
-                vaultState.lastQueuedWithdrawRisky,
-                vaultState.lastQueuedWithdrawStable,
-                vaultState.currQueuedWithdrawShares
-            );
+            _rollToNextOption();
         
         // Queued withdraws from current round are set to last round
         vaultState.lastQueuedWithdrawRisky = queuedWithdrawRisky;
