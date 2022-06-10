@@ -51,12 +51,6 @@ library Vault {
      *  a covered call short position
      * @param lockedStable is the amount of stable asset locked away in
      *  a covered call short position
-     * @param lastLockedRisky is the amount of risky asset locked in 
-     *  the previous round
-     *  Used for calculating performance fee deduction
-     * @param lastLockedStable is the amount of stable asset locked in
-     *  the previous round
-     *  Used for calculating performance fee deduction
      * @param pendingRisky is the amount of risky asset to be used to mint
      *  receipt tokens
      * @param pendingStable is the amount of stable asset to be used to 
@@ -68,8 +62,6 @@ library Vault {
         uint16 round;
         uint104 lockedRisky;
         uint104 lockedStable;
-        uint104 lastLockedRisky;
-        uint104 lastLockedStable;
         uint128 pendingRisky;
         uint128 pendingStable;
         uint128 queuedWithdrawShares;

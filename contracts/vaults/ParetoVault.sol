@@ -66,13 +66,10 @@ contract ParetoVault is
     // No access to critical vault changes
     address public keeper;
 
-    /// Performance fee charged on premiums earned.
-    //  Only charged when there is no loss.
-    uint256 public performanceFee;
-
     /// Management fee charged on entire AUM.
     // Only charged when there is no loss.
-    uint256 public managementFee;
+    uint256 public managementFeeRisky;
+    uint256 public managementFeeStable;
 
     // Gap is left to avoid storage collisions
     uint256[30] private ____gap;
@@ -102,9 +99,12 @@ contract ParetoVault is
         uint256 round
     );
 
-    event ManagementFeeSetEvent(uint256 managementFee, uint256 newManagementFee);
-
-    event PerformanceFeeSetEvent(uint256 performanceFee, uint256 newPerformanceFee);
+    event ManagementFeeSetEvent(
+        uint256 managementFeeRisky, 
+        uint256 managementFeeStable, 
+        uint256 newManagementFeeRisky,
+        uint256 newManagementFeeStable,
+    )
 
     event WithdrawEvent(
         address indexed account, 
@@ -172,14 +172,6 @@ contract ParetoVault is
             .mul(Vault.FEE_MULTIPLIER)
             .div(WEEKS_PER_YEAR);
         vaultParams = _vaultParams;
-
-        // Initialize VaultState
-        uint256 riskyBalance = IERC20(vaultParams.risky).balanceOf(address(this));
-        uint256 stableBalance = IERC20(vaultParams.stable).balanceOf(address(this))
-        VaultMath.assertUint104(riskyBalance);
-        VaultMath.assertUint104(stableBalance);
-        vaultState.lastLockedRisky = uint104(riskyBalance);
-        vaultState.lastLockedStable = uint104(stableBalance);
         vaultState.round = 1;
     }
 
@@ -220,42 +212,41 @@ contract ParetoVault is
     /**
      * Sets the management fee for the vault
      * --
-     * @param newManagementFee is the management fee (6 decimals)
-     *  For example, 2 * 10**6 = 2%
+     * @param newManagementFeeRisky is the management fee in risky asset
+     * @param newManagementFeeStable is the management fee in stable asset
      */
-    function setManagementFee(uint256 newManagementFee) external onlyOwner {
+    function setManagementFee(
+        uint256 newManagementFeeRisky,
+        uint256 newManagementFeeStable
+    ) external onlyOwner {
         require(
-            newManagementFee < 100 * Vault.FEE_MULTIPLIER,
-            "Invalid management fee"
+            newManagementFeeRisky < 100 * Vault.FEE_MULTIPLIER,
+            "Invalid management fee in risky asset"
+        );
+        require(
+            newManagementFeeStable < 100 * Vault.FEE_MULTIPLIER,
+            "Invalid management fee in stable asset"
         );
 
         // Divide annualized management fee by num weeks in a year
-        uint256 weekManagementFee = newManagementFee
+        uint256 weekFeeRisky = newManagementFeeRisky
+            .mul(Vault.FEE_MULTIPLIER)
+            .div(WEEKS_PER_YEAR);
+
+        uint256 weekFeeStable = newManagementFeeStable
             .mul(Vault.FEE_MULTIPLIER)
             .div(WEEKS_PER_YEAR);
 
         // Log event
-        emit ManagementFeeSetEvent(managementFee, newManagementFee);
-
-        // Note we use the weekly fee
-        managementFee = weekManagementFee;
-    }
-
-    /**
-     * Sets the performance fee for the vault
-     * --
-     * @param newPerformanceFee is the performance fee (6 decimals)
-     *  For example, 20 * 10**6 = 20%
-     */
-    function setPerformanceFee(uint256 newPerformanceFee) external onlyOwner {
-        require(
-            newPerformanceFee < 100 * Vault.FEE_MULTIPLIER,
-            "Invalid performance fee"
+        emit ManagementFeeSetEvent(
+            managementFeeRisky, 
+            managementFeeStable,
+            newManagementFeeRisky,
+            newManagementFeeStable,
         );
 
-        emit PerformanceFeeSetEvent(performanceFee, newPerformanceFee);
-
-        performanceFee = newPerformanceFee;
+        managementFeeRisky = weekFeeRisky;
+        managementFeeStable = weekFeeStable;
     }
 
     /************************************************
@@ -447,12 +438,14 @@ contract ParetoVault is
      *  round
      * --
      * @return newOption is the new option's address
-     * @return lockedBalance is amount 
+     * @return lockedRisky is amount of risky asset
+     * @return lockedStable is amount of stable asset
      * @return queuedWithdrawAmount is the new queued withdraw amount for this
      *  round
      */
     function _rollToNextOption(
-        uint256 lastWithdrawAmount,
+        uint256 lastWithdrawRisky,
+        uint256 lastWithdrawStable,
         uint256 queuedWithdrawShares
     )
         internal
@@ -472,30 +465,28 @@ contract ParetoVault is
 
         address recipient = feeRecipient;
         uint256 mintShares;
-        uint256 performanceFeeInAsset;
-        uint256 totalVaultFee;
+        uint256 vaultFeeRisky;
+        uint256 vaultFeeStable;
 
-        // Begin new scope
         {
-            uint256 newSharePrice;
-
-            // Punt to VaultLifecycle to do a lot of the heavy lifting
+            Vault.SharePrice memory newSharePrice;
             (
-                lockedBalance,
-                queuedWithdrawAmount,
+                queuedWithdrawRisky,
+                queuedWithdrawStable,
                 newSharePrice,
                 mintShares,
-                performanceFeeInAsset,
-                totalVaultFee
+                vaultFeeRisky,
+                vaultFeeStable
             ) = VaultLifecycle.rollover(
                 vaultState,
                 // Direct usage avoids saving variable
                 VaultLifecycle.RolloverParams(
                     vaultParams.decimals,
-                    IERC20(vaultParams.asset).balanceOf(address(this)),
+                    IERC20(vaultParams.risky).balanceOf(address(this)),
+                    IERC20(vaultParams.stable).balanceOf(address(this)),
                     totalSupply(),
-                    lastQueuedWithdrawAmount,
-                    performanceFee,
+                    lastQueuedWithdrawRisky,
+                    lastQueuedWithdrawStable,,
                     managementFee,
                     queuedWithdrawShares
                 )
