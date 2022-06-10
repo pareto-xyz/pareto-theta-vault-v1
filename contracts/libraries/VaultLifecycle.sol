@@ -51,6 +51,10 @@ library VaultLifecycle {
      *  for withdrawal
      * @return newSharePrice is the price per share of the new round
      * @return mintShares is the amount of shares to mint from deposits
+     * @return unusedRisky is the amount of risky asset that was not used 
+     *  in minting shares 
+     * @return unusedStable is the amount of stable asset that was not used
+     *  in minting shares
      * @return vaultFeeRisky is the total fee on risky charged by vault
      * @return vaultFeeStable is the total fee on stable charged by vault
      */
@@ -65,6 +69,8 @@ library VaultLifecycle {
             uint256 queuedWithdrawStable,
             uint256 newSharePrice,
             uint256 mintShares,
+            uint256 unusedRisky,
+            uint256 unusedStable,
             uint256 vaultFeeRisky,
             uint256 vaultFeeStable
         )
@@ -116,12 +122,25 @@ library VaultLifecycle {
             queuedWithdrawStable = 
                 params.lastQueuedWithdrawStable.add(newStable);
             
+            // Compute number of shares that can be minded using the 
+            // liquidity pending
             mintShares = VaultMath.assetsToShares(
                 vaultState.pendingRisky,
                 vaultState.pendingStable,
                 newSharePrice,
                 params.decimals
             );
+
+            // Compute liquidity remaining as some rounding is required
+            // to convert assets to shares
+            (uint256 reconRisky, uint256 reconStable) = VaultMath
+                .sharesToAssets(
+                    mintShares,
+                    newSharePrice,
+                    params.decimals
+               );
+            unusedRisky = vaultState.pendingRisky.sub(reconRisky);
+            unusedStable = vaultState.pendingStable.sub(reconStable);
         }
 
         return (
@@ -129,6 +148,8 @@ library VaultLifecycle {
             queuedWithdrawStable,
             newSharePrice,
             mintShares,
+            unusedRisky,
+            unusedStable,
             vaultFeeRisky,
             vaultFeeStable
         );

@@ -114,8 +114,8 @@ contract ParetoVault is
     );
 
     event VaultFeesCollectionEvent(
-        uint256 performanceFee,
-        uint256 vaultFee,
+        uint256 vaultFeeRisky,
+        uint256 vaultFeeStable,
         uint256 round,
         address indexed feeRecipient
     );
@@ -451,8 +451,8 @@ contract ParetoVault is
         internal
         returns (
             address newOption,
-            uint256 lockedBalance,
-            uint256 queuedWithdrawAmount
+            uint256 queuedWithdrawRisky
+            uint256 queuedWithdrawStable
         )
     {
         require(
@@ -463,10 +463,11 @@ contract ParetoVault is
         newOption = optionState.nextOption;
         require(newOption != address(0), "Invalid next option");
 
-        address recipient = feeRecipient;
         uint256 mintShares;
         uint256 vaultFeeRisky;
         uint256 vaultFeeStable;
+        uint256 unusedRisky;
+        uint256 unusedStable;
 
         {
             Vault.SharePrice memory newSharePrice;
@@ -475,6 +476,8 @@ contract ParetoVault is
                 queuedWithdrawStable,
                 newSharePrice,
                 mintShares,
+                unusedRisky,
+                unusedStable,
                 vaultFeeRisky,
                 vaultFeeStable
             ) = VaultLifecycle.rollover(
@@ -498,30 +501,40 @@ contract ParetoVault is
             // Reset new option to be empty
             optionState.nextOption = address(0);
 
+            // record the share price
             uint256 currentRound = vaultState.round;
             roundSharePrice[currentRound] = newSharePrice;
 
             // Log that vault fees are being collected
             emit VaultFeesCollectionEvent(
-                performanceFeeInAsset,
-                totalVaultFee,
+                vaultFeeRisky,
+                vaultFeeStable,
                 currentRound,
-                recipient
+                feeRecipient
             );
 
             // Reset pending to zero
             vaultState.pendingRisky = 0;
             vaultState.pendingStable = 0;
+            // Record any liquidity not being used
+            vaultState.unusedRisky = unusedRisky;
+            vaultState.unusedStable = unusedStable;
             vaultState.round = uint16(currentRound + 1);
         }
 
         _mint(address(this), mintShares);
 
-        if (totalVaultFee > 0) {
-            _transferAsset(payable(recipient), totalVaultFee);
+        // Make transfers for fee
+        if (vaultFeeRisky > 0) {
+            IERC20(vaultParams.risky)
+                .safeTransfer(payable(feeRecipient), vaultFeeRisky);
+        }
+        if (vaultFeeStable > 0) {
+            IERC20(vaultParams.stable)
+                .safeTransfer(payable(feeRecipient), vaultFeeStable);
         }
 
-        return (newOption, lockedBalance, queuedWithdrawAmount);
+        return (newOption, queuedWithdrawRisky, queuedWithdrawStable);
     }
 
     /************************************************

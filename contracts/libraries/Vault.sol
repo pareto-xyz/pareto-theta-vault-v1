@@ -57,6 +57,10 @@ library Vault {
      *  mint receipt tokens
      * @param queuedWithdrawShares is the total amount of queued withdrawal
      *  shares from previous rounds (doesn't include the current round)
+     * @param unusedRisky is the amount of risky asset leftover after
+     *  minting shares
+     * @param unusedStable is the amount of stable asset leftover 
+     *  after minting shares
      */
     struct VaultState {
         uint16 round;
@@ -65,6 +69,8 @@ library Vault {
         uint128 pendingRisky;
         uint128 pendingStable;
         uint128 queuedWithdrawShares;
+        uint104 unusedRisky;
+        uint104 unusedStable;
     }
 
     /**
@@ -73,18 +79,12 @@ library Vault {
      * @param risky is the deposit amount of the risky asset
      * @param stable is the deposit amount of the stable asset
      * @param shares is the awarded amount of shares
-     * @param unusedRisky is the amount of risky asset leftover after
-     *  minting shares
-     * @param unusedStable is the amount of stable asset leftover 
-     *  after minting shares
      */
     struct DepositReceipt {
         uint16 round;
         uint104 risky;
         uint104 stable;
         uint128 shares;
-        uint104 unusedRisky;
-        uint104 unusedStable;
     }
 
     /**
