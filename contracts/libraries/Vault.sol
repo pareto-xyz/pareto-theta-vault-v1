@@ -53,13 +53,13 @@ library Vault {
      *  a covered call short position
      * @param pendingRisky is the amount of risky asset to be used to mint
      *  receipt tokens
-     * @param pendingStable is the amount of stable asset to be used to 
+     * @param pendingStable is the amount of stable asset to be used to
      *  mint receipt tokens
      * @param queuedWithdrawShares is the total amount of queued withdrawal
      *  shares from previous rounds (doesn't include the current round)
      * @param unusedRisky is the amount of risky asset leftover after
      *  minting shares
-     * @param unusedStable is the amount of stable asset leftover 
+     * @param unusedStable is the amount of stable asset leftover
      *  after minting shares
      */
     struct VaultState {
@@ -69,8 +69,8 @@ library Vault {
         uint128 pendingRisky;
         uint128 pendingStable;
         uint128 queuedWithdrawShares;
-        uint104 unusedRisky;
-        uint104 unusedStable;
+        uint128 unusedRisky;
+        uint128 unusedStable;
     }
 
     /**

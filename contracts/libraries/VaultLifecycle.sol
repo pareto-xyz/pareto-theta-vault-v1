@@ -32,7 +32,7 @@ library VaultLifecycle {
         uint256 lastQueuedWithdrawRisky;
         uint256 lastQueuedWithdrawStable;
         uint256 managementFeeRisky;
-        uint256 managementFeeStable; 
+        uint256 managementFeeStable;
         uint256 queuedWithdrawShares;
     }
 
@@ -49,10 +49,11 @@ library VaultLifecycle {
      *  for withdrawal
      * @return queuedWithdrawStable is the amount of stable funds set aside
      *  for withdrawal
-     * @return newSharePrice is the price per share of the new round
+     * @return newRiskyPrice is the risky price per share of the new round
+     * @return newStablePrice is the stable price per share of the new round
      * @return mintShares is the amount of shares to mint from deposits
-     * @return unusedRisky is the amount of risky asset that was not used 
-     *  in minting shares 
+     * @return unusedRisky is the amount of risky asset that was not used
+     *  in minting shares
      * @return unusedStable is the amount of stable asset that was not used
      *  in minting shares
      * @return vaultFeeRisky is the total fee on risky charged by vault
@@ -67,7 +68,8 @@ library VaultLifecycle {
         returns (
             uint256 queuedWithdrawRisky,
             uint256 queuedWithdrawStable,
-            uint256 newSharePrice,
+            uint256 newRiskyPrice,
+            uint256 newStablePrice,
             uint256 mintShares,
             uint256 unusedRisky,
             uint256 unusedStable,
@@ -77,20 +79,23 @@ library VaultLifecycle {
     {
         uint256 currentRisky = params.totalRisky;
         uint256 currentStable = params.totalStable;
-        uint256 riskyForVaultFees = 
-            currentRisky.sub(params.lastQueuedWithdrawRisky);
-        uint256 stableForVaultFees =
-            currentStable.sub(params.lastQueuedWithdrawStable);
-        {
-            (vaultFeeRisky, vaultFeeStable) = VaultLifecycle.getVaultFees(
-                riskyForVaultFees,
-                stableForVaultFees,
-                vaultState.pendingRisky,
-                vaultState.pendingStable,
-                params.managementFeeRisky,
-                params.managementFeeStable
-            );
-        }
+        uint256 riskyForVaultFees = currentRisky.sub(
+            params.lastQueuedWithdrawRisky
+        );
+        uint256 stableForVaultFees = currentStable.sub(
+            params.lastQueuedWithdrawStable
+        );
+        uint256 pendingRisky = vaultState.pendingRisky;
+        uint256 pendingStable = vaultState.pendingStable;
+
+        (vaultFeeRisky, vaultFeeStable) = VaultLifecycle.getVaultFees(
+            riskyForVaultFees,
+            stableForVaultFees,
+            pendingRisky,
+            pendingStable,
+            params.managementFeeRisky,
+            params.managementFeeStable
+        );
 
         // Remove fee from assets
         currentRisky = currentRisky.sub(vaultFeeRisky);
@@ -100,12 +105,12 @@ library VaultLifecycle {
         uint256 lastQueuedWithdrawShares = vaultState.queuedWithdrawShares;
 
         {
-            newRiskyPrice, newStablePrice = VaultMath.getSharePrice(
+            (newRiskyPrice, newStablePrice) = VaultMath.getSharePrice(
                 params.shareSupply.sub(lastQueuedWithdrawShares),
                 currentRisky.sub(params.lastQueuedWithdrawRisky),
                 currentStable.sub(params.lastQueuedWithdrawStable),
-                vaultState.pendingRisky,
-                vaultState.pendingStable,
+                pendingRisky,
+                pendingStable,
                 params.decimals
             );
             Vault.SharePrice memory newSharePrice = Vault.SharePrice({
@@ -117,16 +122,16 @@ library VaultLifecycle {
                 newSharePrice,
                 params.decimals
             );
-            queuedWithdrawRisky = 
-                params.lastQueuedWithdrawRisky.add(newRisky);
-            queuedWithdrawStable = 
-                params.lastQueuedWithdrawStable.add(newStable);
-            
-            // Compute number of shares that can be minded using the 
+            queuedWithdrawRisky = params.lastQueuedWithdrawRisky.add(newRisky);
+            queuedWithdrawStable = params.lastQueuedWithdrawStable.add(
+                newStable
+            );
+
+            // Compute number of shares that can be minded using the
             // liquidity pending
             mintShares = VaultMath.assetsToShares(
-                vaultState.pendingRisky,
-                vaultState.pendingStable,
+                pendingRisky,
+                pendingStable,
                 newSharePrice,
                 params.decimals
             );
@@ -134,19 +139,16 @@ library VaultLifecycle {
             // Compute liquidity remaining as some rounding is required
             // to convert assets to shares
             (uint256 reconRisky, uint256 reconStable) = VaultMath
-                .sharesToAssets(
-                    mintShares,
-                    newSharePrice,
-                    params.decimals
-               );
-            unusedRisky = vaultState.pendingRisky.sub(reconRisky);
-            unusedStable = vaultState.pendingStable.sub(reconStable);
+                .sharesToAssets(mintShares, newSharePrice, params.decimals);
+            unusedRisky = pendingRisky.sub(reconRisky);
+            unusedStable = pendingStable.sub(reconStable);
         }
 
         return (
             queuedWithdrawRisky,
             queuedWithdrawStable,
-            newSharePrice,
+            newRiskyPrice,
+            newStablePrice,
             mintShares,
             unusedRisky,
             unusedStable,
@@ -170,16 +172,12 @@ library VaultLifecycle {
      */
     function getVaultFees(
         uint256 currentRisky,
-        uint256 currentStable
+        uint256 currentStable,
         uint256 pendingRisky,
         uint256 pendingStable,
-        uint256 managementFeeRisky
+        uint256 managementFeeRisky,
         uint256 managementFeeStable
-    )
-        internal
-        pure
-        returns (uint256, uint256)
-    {
+    ) internal pure returns (uint256, uint256) {
         uint256 riskyMinusPending = currentRisky > pendingRisky
             ? currentRisky.sub(pendingRisky)
             : 0;
@@ -189,9 +187,8 @@ library VaultLifecycle {
 
         uint256 _vaultFeeRisky;
         uint256 _vaultFeeStable;
-        uint256 _vaultFee;
 
-        // TODO: For future versions, we should consider a price oracle to 
+        // TODO: For future versions, we should consider a price oracle to
         // compute performance w/ conditional fees
         _vaultFeeRisky = managementFeeRisky > 0
             ? riskyMinusPending.mul(managementFeeRisky).div(
@@ -216,7 +213,8 @@ library VaultLifecycle {
      * @param owner is the owner of the vault with critical permissions
      * @param keeper is the keeper of the vault
      * @param feeRecipient is the address to recieve vault performance and management fees
-     * @param performanceFee is the perfomance fee percent
+     * @param managementFeeRisky is the management fee percent for risky
+     * @param managementFeeStable is the management fee percent for stable
      * @param tokenName is the name of the token
      * @param tokenSymbol is the symbol of the token
      * @param _vaultParams is the struct with vault general data
@@ -225,8 +223,8 @@ library VaultLifecycle {
         address owner,
         address keeper,
         address feeRecipient,
-        uint256 performanceFee,
-        uint256 managementFee,
+        uint256 managementFeeRisky,
+        uint256 managementFeeStable,
         string calldata tokenName,
         string calldata tokenSymbol,
         Vault.VaultParams calldata _vaultParams
@@ -235,12 +233,12 @@ library VaultLifecycle {
         require(keeper != address(0), "Empty keeper address");
         require(feeRecipient != address(0), "Empty feeRecipient address");
         require(
-            performanceFee < 100 * Vault.FEE_MULTIPLIER,
-            "performanceFee >= 100%"
+            managementFeeRisky < 100 * Vault.FEE_MULTIPLIER,
+            "managementFeeRisky >= 100%"
         );
         require(
-            managementFee < 100 * Vault.FEE_MULTIPLIER,
-            "managementFee >= 100%"
+            managementFeeStable < 100 * Vault.FEE_MULTIPLIER,
+            "managementFeeStable >= 100%"
         );
         require(bytes(tokenName).length > 0, "Empty tokenName");
         require(bytes(tokenSymbol).length > 0, "Empty tokenSymbol");

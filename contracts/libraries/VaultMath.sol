@@ -2,13 +2,14 @@
 pragma solidity =0.8.4;
 
 import {SafeMath} from "@openzeppelin/contracts/utils/math/SafeMath.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {Vault} from "./Vault.sol";
 
 library VaultMath {
     using SafeMath for uint256;
 
     /**
-     * @notice Convert assets to shares. 
+     * @notice Convert assets to shares.
      * --
      * @param risky is the amount of risky assets
      * @param stable is the amount of stable assets
@@ -23,10 +24,11 @@ library VaultMath {
         Vault.SharePrice memory sharePrice,
         uint256 decimals
     ) internal pure returns (uint256) {
-        return SafeMath.min(
-            risky.mul(10**decimals).div(sharePrice.riskyPrice),
-            stable.mul(10**decimals).div(sharePrice.stablePrice)
-        );
+        return
+            Math.min(
+                risky.mul(10**decimals).div(sharePrice.riskyPrice),
+                stable.mul(10**decimals).div(sharePrice.stablePrice)
+            );
     }
 
     /**
@@ -78,7 +80,7 @@ library VaultMath {
             // added with shares from current round
             return uint256(depositReceipt.shares).add(currentShares);
         } else {
-            // If receipt is from current round, return directly 
+            // If receipt is from current round, return directly
             return depositReceipt.shares;
         }
     }
@@ -103,21 +105,16 @@ library VaultMath {
         uint256 pendingRisky,
         uint256 pendingStable,
         uint256 decimals
-    ) internal pure returns (uint256) {
+    ) internal pure returns (uint256, uint256) {
         uint256 oneShare = 10**decimals;
         // 10**decimals * (balance - pending) / supply
-        uint256 riskyPrice = 
-            totalSupply > 0
-                ? oneShare.mul(totalRisky.sub(pendingRisky)).div(totalSupply)
-                : oneShare;
-        uint256 stablePrice = 
-            totalSupply > 0
-                ? oneShare.mul(totalStable.sub(pendingStable)).div(totalSupply)
-                : oneShare;
-        return Vault.SharePrice({
-            riskyPrice: riskyPrice,
-            stablePrice: stablePrice
-        });
+        uint256 riskyPrice = totalSupply > 0
+            ? oneShare.mul(totalRisky.sub(pendingRisky)).div(totalSupply)
+            : oneShare;
+        uint256 stablePrice = totalSupply > 0
+            ? oneShare.mul(totalStable.sub(pendingStable)).div(totalSupply)
+            : oneShare;
+        return (riskyPrice, stablePrice);
     }
 
     /**

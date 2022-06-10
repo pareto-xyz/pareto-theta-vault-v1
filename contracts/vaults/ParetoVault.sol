@@ -50,6 +50,12 @@ contract ParetoVault is
     // Pending user withdrawals
     mapping(address => Vault.Withdrawal) public withdrawals;
 
+    // Amount of risky asset lcoked for scheduled withdrawals last vault
+    uint256 public lastQueuedWithdrawRisky;
+
+    // Amount of stable asset lcoked for scheduled withdrawals last vault
+    uint256 public lastQueuedWithdrawStable;
+
     // Vault's parameters
     Vault.VaultParams public vaultParams;
 
@@ -62,7 +68,7 @@ contract ParetoVault is
     // Recipient of performance and management fees
     address public feeRecipient;
 
-    // Role in charge of weekly vault operations 
+    // Role in charge of weekly vault operations
     // No access to critical vault changes
     address public keeper;
 
@@ -77,7 +83,7 @@ contract ParetoVault is
     /************************************************
      *  Immutables and Constants
      ***********************************************/
-    
+
     // Number of weeks per year = 52.142857 weeks * FEE_MULTIPLIER = 52142857
     // Dividing by weeks per year requires doing num.mul(FEE_MULTIPLIER).div(WEEKS_PER_YEAR)
     uint256 private constant WEEKS_PER_YEAR = 52142857;
@@ -87,8 +93,8 @@ contract ParetoVault is
      ***********************************************/
 
     event DepositEvent(
-        address indexed account, 
-        uint256 risky, 
+        address indexed account,
+        uint256 risky,
         uint256 stable,
         uint256 round
     );
@@ -100,15 +106,15 @@ contract ParetoVault is
     );
 
     event ManagementFeeSetEvent(
-        uint256 managementFeeRisky, 
-        uint256 managementFeeStable, 
+        uint256 managementFeeRisky,
+        uint256 managementFeeStable,
         uint256 newManagementFeeRisky,
-        uint256 newManagementFeeStable,
-    )
+        uint256 newManagementFeeStable
+    );
 
     event WithdrawEvent(
-        address indexed account, 
-        uint256 risky, 
+        address indexed account,
+        uint256 risky,
         uint256 stable,
         uint256 shares
     );
@@ -130,8 +136,8 @@ contract ParetoVault is
      * @param _owner is the Owner address
      * @param _keeper is the Keeper address
      * @param _feeRecipient is the address that receives fees
-     * @param _managementFee is the management fee percent
-     * @param _performanceFee is the management fee percent
+     * @param _managementFeeRisky is the management fee percent for risky
+     * @param _managementFeeStable is the management fee percent for stable
      * @param _tokenName is the name of the asset
      * @param _tokenSymbol is the symbol of the asset
      * @param _vaultParams is the parameters of the vault
@@ -140,8 +146,8 @@ contract ParetoVault is
         address _owner,
         address _keeper,
         address _feeRecipient,
-        uint256 _managementFee,
-        uint256 _performanceFee,
+        uint256 _managementFeeRisky,
+        uint256 _managementFeeStable,
         string memory _tokenName,
         string memory _tokenSymbol,
         Vault.VaultParams calldata _vaultParams
@@ -151,8 +157,8 @@ contract ParetoVault is
             _owner,
             _keeper,
             _feeRecipient,
-            _performanceFee,
-            _managementFee,
+            _managementFeeRisky,
+            _managementFeeStable,
             _tokenName,
             _tokenSymbol,
             _vaultParams
@@ -167,8 +173,10 @@ contract ParetoVault is
         // Set global variables
         keeper = _keeper;
         feeRecipient = _feeRecipient;
-        performanceFee = _performanceFee;
-        managementFee = _managementFee
+        managementFeeRisky = _managementFeeRisky.mul(Vault.FEE_MULTIPLIER).div(
+            WEEKS_PER_YEAR
+        );
+        managementFeeStable = _managementFeeStable
             .mul(Vault.FEE_MULTIPLIER)
             .div(WEEKS_PER_YEAR);
         vaultParams = _vaultParams;
@@ -239,10 +247,10 @@ contract ParetoVault is
 
         // Log event
         emit ManagementFeeSetEvent(
-            managementFeeRisky, 
+            managementFeeRisky,
             managementFeeStable,
             newManagementFeeRisky,
-            newManagementFeeStable,
+            newManagementFeeStable
         );
 
         managementFeeRisky = weekFeeRisky;
@@ -254,16 +262,13 @@ contract ParetoVault is
      ***********************************************/
 
     /**
-     * @notice Deposits risky asset from msg.sender. 
+     * @notice Deposits risky asset from msg.sender.
      * --
      * @param risky is the amount of risky asset to deposit
      * @param stable is the amount of stable asset to deposit
-     *  in stable 
+     *  in stable
      */
-    function deposit(uint256 risky, uint256 stable) 
-        external 
-        nonReentrant 
-    {
+    function deposit(uint256 risky, uint256 stable) external nonReentrant {
         require(risky > 0, "Invalid amount of risky tokens");
         require(stable > 0, "Invalid amount of stable tokens");
 
@@ -283,7 +288,7 @@ contract ParetoVault is
     }
 
     /**
-     * @notice Updates receipts and internal variables 
+     * @notice Updates receipts and internal variables
      * @notice Minting will be done in the next rollover
      * --
      * @param risky is the amount of risky asset to be deposited
@@ -291,7 +296,7 @@ contract ParetoVault is
      * @param creditor is the address to receive the deposit
      */
     function _processDeposit(
-        uint256 risky, 
+        uint256 risky,
         uint256 stable,
         address creditor
     ) private {
@@ -335,9 +340,11 @@ contract ParetoVault is
         VaultMath.assertUint128(newPendingRisky);
         vaultState.pendingRisky = uint128(newPendingRisky);
 
-        uint256 newPendingStable = uint256(vaultState.PendingStable).add(stable);
+        uint256 newPendingStable = uint256(vaultState.pendingStable).add(
+            stable
+        );
         VaultMath.assertUint128(newPendingStable);
-        vaultState.PendingStable = uint128(newPendingStable);
+        vaultState.pendingStable = uint128(newPendingStable);
     }
 
     /**
@@ -364,13 +371,13 @@ contract ParetoVault is
             withdrawnShares = uint256(withdrawal.shares).add(shares);
         } else {
             // If we find a withdrawal request from an old round, something
-            // bad has happened 
+            // bad has happened
             require(uint256(withdrawal.shares) == 0, "Abandoned withdraw");
             withdrawnShares = shares;
             // Update cached withdrawal request
             withdrawals[msg.sender].round = uint16(currentRound);
         }
-        VaultMath.assertUint128(withdrawnShares);  // check typecasting
+        VaultMath.assertUint128(withdrawnShares); // check typecasting
         withdrawals[msg.sender].shares = uint128(withdrawnShares);
     }
 
@@ -394,16 +401,17 @@ contract ParetoVault is
         // Reset params back to 0
         withdrawals[msg.sender].shares = 0;
 
-        (uint256 withdrawRisky, uint256 withdrawStable) = VaultMath.sharesToAsset(
-            withdrawShares,
-            roundSharePrice[withdrawRound],
-            vaultParams.decimals
-        );
+        (uint256 withdrawRisky, uint256 withdrawStable) = VaultMath
+            .sharesToAssets(
+                withdrawShares,
+                roundSharePrice[withdrawRound],
+                vaultParams.decimals
+            );
 
         // Log withdraw event
         emit WithdrawEvent(
-            msg.sender, 
-            withdrawRisky, 
+            msg.sender,
+            withdrawRisky,
             withdrawStable,
             withdrawShares
         );
@@ -411,10 +419,11 @@ contract ParetoVault is
         // Burn the shares
         _burn(address(this), withdrawShares);
 
-        require(withdrawRisky > 0, 
-            "Invalid amount of risky asset to withdraw");
-        require(withdrawStable > 0,
-            "Invalid amount of stable asset to withdraw");
+        require(withdrawRisky > 0, "Invalid amount of risky asset to withdraw");
+        require(
+            withdrawStable > 0,
+            "Invalid amount of stable asset to withdraw"
+        );
 
         // Transfer tokens from contract to user
         IERC20(vaultParams.risky).safeTransfer(msg.sender, withdrawRisky);
@@ -437,11 +446,10 @@ contract ParetoVault is
      * @param queuedWithdrawShares is the queued withdraw shares for current
      *  round
      * --
-     * @return newOption is the new option's address
-     * @return lockedRisky is amount of risky asset
-     * @return lockedStable is amount of stable asset
-     * @return queuedWithdrawAmount is the new queued withdraw amount for this
-     *  round
+     * @return queuedWithdrawRisky is the new queued withdraw amount of risky
+     *  asset for this round
+     * @return queuedWithdrawStable is the new queued withdraw amount of stable
+     *  asset for this round
      */
     function _rollToNextOption(
         uint256 lastWithdrawRisky,
@@ -449,32 +457,27 @@ contract ParetoVault is
         uint256 queuedWithdrawShares
     )
         internal
-        returns (
-            address newOption,
-            uint256 queuedWithdrawRisky
-            uint256 queuedWithdrawStable
-        )
+        returns (uint256 queuedWithdrawRisky, uint256 queuedWithdrawStable)
     {
         require(
-            block.timestamp >= optionState.nextOptionReadyAt,
+            block.timestamp >= optionState.maturity,
             "Too early to roll over"
         );
-
-        newOption = optionState.nextOption;
-        require(newOption != address(0), "Invalid next option");
 
         uint256 mintShares;
         uint256 vaultFeeRisky;
         uint256 vaultFeeStable;
+        uint256 newRiskyPrice;
+        uint256 newStablePrice;
         uint256 unusedRisky;
         uint256 unusedStable;
 
         {
-            Vault.SharePrice memory newSharePrice;
             (
                 queuedWithdrawRisky,
                 queuedWithdrawStable,
-                newSharePrice,
+                newRiskyPrice,
+                newStablePrice,
                 mintShares,
                 unusedRisky,
                 unusedStable,
@@ -489,17 +492,17 @@ contract ParetoVault is
                     IERC20(vaultParams.stable).balanceOf(address(this)),
                     totalSupply(),
                     lastQueuedWithdrawRisky,
-                    lastQueuedWithdrawStable,,
-                    managementFee,
+                    lastQueuedWithdrawStable,
+                    managementFeeRisky,
+                    managementFeeStable,
                     queuedWithdrawShares
                 )
             );
 
-            // Overwrite current option with new option
-            optionState.currentOption = newOption;
-
-            // Reset new option to be empty
-            optionState.nextOption = address(0);
+            Vault.SharePrice memory newSharePrice = Vault.SharePrice({
+                riskyPrice: newRiskyPrice,
+                stablePrice: newStablePrice
+            });
 
             // record the share price
             uint256 currentRound = vaultState.round;
@@ -517,8 +520,10 @@ contract ParetoVault is
             vaultState.pendingRisky = 0;
             vaultState.pendingStable = 0;
             // Record any liquidity not being used
-            vaultState.unusedRisky = unusedRisky;
-            vaultState.unusedStable = unusedStable;
+            VaultMath.assertUint128(unusedRisky);
+            VaultMath.assertUint128(unusedStable);
+            vaultState.unusedRisky = uint128(unusedRisky);
+            vaultState.unusedStable = uint128(unusedStable);
             vaultState.round = uint16(currentRound + 1);
         }
 
@@ -526,15 +531,19 @@ contract ParetoVault is
 
         // Make transfers for fee
         if (vaultFeeRisky > 0) {
-            IERC20(vaultParams.risky)
-                .safeTransfer(payable(feeRecipient), vaultFeeRisky);
+            IERC20(vaultParams.risky).safeTransfer(
+                payable(feeRecipient),
+                vaultFeeRisky
+            );
         }
         if (vaultFeeStable > 0) {
-            IERC20(vaultParams.stable)
-                .safeTransfer(payable(feeRecipient), vaultFeeStable);
+            IERC20(vaultParams.stable).safeTransfer(
+                payable(feeRecipient),
+                vaultFeeStable
+            );
         }
 
-        return (newOption, queuedWithdrawRisky, queuedWithdrawStable);
+        return (queuedWithdrawRisky, queuedWithdrawStable);
     }
 
     /************************************************
@@ -554,7 +563,7 @@ contract ParetoVault is
         returns (uint256, uint256)
     {
         uint256 _decimals = vaultParams.decimals;
-        Vault.SharePrice memory sharePrice = VaultMath.getSharePrice(
+        (uint256 riskyPrice, uint256 stablePrice) = VaultMath.getSharePrice(
             totalSupply(),
             totalRisky(),
             totalStable(),
@@ -562,6 +571,10 @@ contract ParetoVault is
             vaultState.pendingStable,
             _decimals
         );
+        Vault.SharePrice memory sharePrice = Vault.SharePrice({
+            riskyPrice: riskyPrice,
+            stablePrice: stablePrice
+        });
         return
             VaultMath.sharesToAssets(
                 getAccountShares(account),
@@ -580,15 +593,16 @@ contract ParetoVault is
      */
     function getAccountShares(address account) public view returns (uint256) {
         Vault.DepositReceipt memory receipt = depositReceipts[account];
-        return receipt.getSharesFromReceipt(
-            vaultState.round,
-            roundSharePrice[receipt.round],
-            vaultParams.decimals
-        );
+        return
+            receipt.getSharesFromReceipt(
+                vaultState.round,
+                roundSharePrice[receipt.round],
+                vaultParams.decimals
+            );
     }
 
     /**
-     * @notice Return vault's total balance of risky assets, including 
+     * @notice Return vault's total balance of risky assets, including
      *  amounts locked into Primitive
      */
     function totalRisky() public view returns (uint256) {
