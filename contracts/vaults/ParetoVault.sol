@@ -15,7 +15,6 @@ import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/
 
 // Relative imports
 import {Vault} from "../libraries/Vault.sol";
-import {VaultLifecycle} from "../libraries/VaultLifecycle.sol";
 import {VaultMath} from "../libraries/VaultMath.sol";
 
 /**
@@ -146,18 +145,6 @@ contract ParetoVault is
         string memory _tokenSymbol,
         Vault.VaultParams calldata _vaultParams
     ) internal initializer {
-        // Check that input parameters are valid
-        VaultLifecycle.verifyInitializerParams(
-            _owner,
-            _keeper,
-            _feeRecipient,
-            _managementFeeRisky,
-            _managementFeeStable,
-            _tokenName,
-            _tokenSymbol,
-            _vaultParams
-        );
-
         // Init calls are required for upgradeable contracts
         __ReentrancyGuard_init();
         __ERC20_init(_tokenName, _tokenSymbol);
@@ -351,9 +338,6 @@ contract ParetoVault is
     function _requestWithdraw(uint256 shares) internal {
         require(shares > 0, "Invalid shares passed");
 
-        // Fetch caller's receipt
-        Vault.DepositReceipt memory receipt = depositReceipts[msg.sender];
-
         uint256 currRound = vaultState.round;
         Vault.Withdrawal storage withdrawal = withdrawals[msg.sender];
 
@@ -434,7 +418,7 @@ contract ParetoVault is
     }
 
     /************************************************
-     *  Vault Operations
+     * Vault Operations
      ***********************************************/
 
     /**
@@ -453,7 +437,7 @@ contract ParetoVault is
         returns (
             uint256 lockedRisky,
             uint256 lockedStable,
-            uint256 queuedWithdrawRisky, 
+            uint256 queuedWithdrawRisky,
             uint256 queuedWithdrawStable
         )
     {
@@ -462,79 +446,120 @@ contract ParetoVault is
             "Too early to roll over"
         );
 
-        uint256 mintShares;
-        uint256 vaultFeeRisky;
-        uint256 vaultFeeStable;
-        uint256 newRiskyPrice;
-        uint256 newStablePrice;
-        uint256 unusedRisky;
-        uint256 unusedStable;
-
         {
-            (
-                lockedRisky,
-                lockedStable,
-                queuedWithdrawRisky,
-                queuedWithdrawStable,
-                newRiskyPrice,
-                newStablePrice,
-                mintShares,
-                unusedRisky,
-                unusedStable,
-                vaultFeeRisky,
-                vaultFeeStable
-            ) = VaultLifecycle.rollover(
-                vaultState,
-                // Direct usage avoids saving variable
-                VaultLifecycle.RolloverParams(
-                    vaultParams.decimals,
-                    IERC20(vaultParams.risky).balanceOf(address(this)),
-                    IERC20(vaultParams.stable).balanceOf(address(this)),
-                    totalSupply(),
-                    managementFeeRisky,
-                    managementFeeStable
-                )
+            uint256 mintShares;
+            uint256 vaultFeeRisky;
+            uint256 vaultFeeStable;
+            uint256 unusedRisky;
+            uint256 unusedStable;
+            uint256 newRiskyPrice;
+            uint256 newStablePrice;
+
+            uint256 currentRisky = IERC20(vaultParams.risky).balanceOf(address(this));
+            uint256 currentStable = IERC20(vaultParams.stable).balanceOf(address(this));
+
+            (vaultFeeRisky, vaultFeeStable) = _getVaultFees(
+                currentRisky.sub(vaultState.lastQueuedWithdrawRisky),
+                currentStable.sub(vaultState.lastQueuedWithdrawStable),
+                vaultState.pendingRisky,
+                vaultState.pendingStable,
+                managementFeeRisky,
+                managementFeeStable
             );
 
+            // Remove fee from assets
+            currentRisky = currentRisky.sub(vaultFeeRisky);
+            currentStable = currentStable.sub(vaultFeeStable);
+
+            {
+                (newRiskyPrice, newStablePrice) = VaultMath.getSharePrice(
+                    totalSupply().sub(vaultState.totalQueuedWithdrawShares),
+                    currentRisky.sub(vaultState.lastQueuedWithdrawRisky),
+                    currentStable.sub(vaultState.lastQueuedWithdrawStable),
+                    vaultState.pendingRisky,
+                    vaultState.pendingStable,
+                    vaultParams.decimals
+                );
+                (uint256 newRisky, uint256 newStable) = VaultMath.sharesToAssets(
+                    vaultState.currQueuedWithdrawShares,
+                    newRiskyPrice,
+                    newStablePrice,
+                    vaultParams.decimals
+                );
+                queuedWithdrawRisky = vaultState.lastQueuedWithdrawRisky.add(
+                    newRisky
+                );
+                queuedWithdrawStable = vaultState.lastQueuedWithdrawStable.add(
+                    newStable
+                );
+
+                // Compute number of shares that can be minded using the
+                // liquidity pending
+                mintShares = VaultMath.assetsToShares(
+                    vaultState.pendingRisky,
+                    vaultState.pendingStable,
+                    newRiskyPrice,
+                    newStablePrice,
+                    vaultParams.decimals
+                );
+            }
+
+            {
+                // Compute liquidity remaining as some rounding is required
+                // to convert assets to shares
+                (uint256 reconRisky, uint256 reconStable) = VaultMath
+                    .sharesToAssets(
+                        mintShares,
+                        newRiskyPrice,
+                        newStablePrice,
+                        vaultParams.decimals
+                    );
+                unusedRisky = uint256(vaultState.pendingRisky).sub(reconRisky);
+                unusedStable = uint256(vaultState.pendingRisky).sub(reconStable);
+
+                lockedRisky = currentRisky.sub(queuedWithdrawRisky);
+                lockedStable = currentStable.sub(queuedWithdrawStable);
+            }
+
             // record the share price
-            uint256 currRound = vaultState.round;
-            roundSharePriceRisky[currRound] = newRiskyPrice;
-            roundSharePriceStable[currRound] = newStablePrice;
+            roundSharePriceRisky[vaultState.round] = newRiskyPrice;
+            roundSharePriceStable[vaultState.round] = newStablePrice;
 
             // Log that vault fees are being collected
             emit VaultFeesCollectionEvent(
                 vaultFeeRisky,
                 vaultFeeStable,
-                currRound,
+                vaultState.round,
                 feeRecipient
             );
 
-            // Reset pending to zero
-            vaultState.pendingRisky = 0;
-            vaultState.pendingStable = 0;
+            _mint(address(this), mintShares);
+
             // Record any liquidity not being used
             VaultMath.assertUint128(unusedRisky);
             VaultMath.assertUint128(unusedStable);
             vaultState.unusedRisky = uint128(unusedRisky);
             vaultState.unusedStable = uint128(unusedStable);
-            vaultState.round = uint16(currRound + 1);
+            vaultState.round = uint16(vaultState.round + 1);
+
+            // Make transfers for fee
+            if (vaultFeeRisky > 0) {
+                IERC20(vaultParams.risky).safeTransfer(
+                    payable(feeRecipient),
+                    vaultFeeRisky
+                );
+            }
+            if (vaultFeeStable > 0) {
+                IERC20(vaultParams.stable).safeTransfer(
+                    payable(feeRecipient),
+                    vaultFeeStable
+                );
+            }
         }
 
-        _mint(address(this), mintShares);
-
-        // Make transfers for fee
-        if (vaultFeeRisky > 0) {
-            IERC20(vaultParams.risky).safeTransfer(
-                payable(feeRecipient),
-                vaultFeeRisky
-            );
-        }
-        if (vaultFeeStable > 0) {
-            IERC20(vaultParams.stable).safeTransfer(
-                payable(feeRecipient),
-                vaultFeeStable
-            );
-        }
+        // Reset pending to zero
+        vaultState.pendingRisky = 0;
+        vaultState.pendingStable = 0;
 
         return (
             lockedRisky,
@@ -543,6 +568,73 @@ contract ParetoVault is
             queuedWithdrawStable
         );
     }
+
+    /**
+     * @notice Calculates performance and management fee for this week's round
+     * --
+     * @param currentRisky is the balance of risky assets in vault
+     * @param currentStable is the balance of stable assets in vault
+     * @param pendingRisky is the pending deposit amount of risky asset
+     * @param pendingStable is the pending deposit amount of stable asset
+     * @param _managementFeeRisky is the fee percent on the risky asset
+     * @param _managementFeeStable is the fee percent on the stable asset
+     * --
+     * @return vaultFeeRisky is the fees awarded to owner in risky
+     * @return vaultFeeStable is the fees awarded to owner in stable
+     */
+    function _getVaultFees(
+        uint256 currentRisky,
+        uint256 currentStable,
+        uint256 pendingRisky,
+        uint256 pendingStable,
+        uint256 _managementFeeRisky,
+        uint256 _managementFeeStable
+    ) internal pure returns (uint256, uint256) {
+        uint256 riskyMinusPending = currentRisky > pendingRisky
+            ? currentRisky.sub(pendingRisky)
+            : 0;
+        uint256 stableMinusPending = currentStable > pendingStable
+            ? currentStable.sub(pendingStable)
+            : 0;
+
+        uint256 _vaultFeeRisky;
+        uint256 _vaultFeeStable;
+
+        // TODO: For future versions, we should consider a price oracle to
+        // compute performance w/ conditional fees
+        _vaultFeeRisky = _managementFeeRisky > 0
+            ? riskyMinusPending.mul(_managementFeeRisky).div(
+                100 * Vault.FEE_MULTIPLIER
+            )
+            : 0;
+        _vaultFeeStable = _managementFeeStable > 0
+            ? stableMinusPending.mul(_managementFeeStable).div(
+                100 * Vault.FEE_MULTIPLIER
+            )
+            : 0;
+        return (_vaultFeeRisky, _vaultFeeStable);
+    }
+
+    /************************************************
+     * Primitive Bindings
+     ***********************************************/
+
+    /**
+     * @notice Creates a Primitive RMM-01 pool on the risky and stable assets
+     * @notice Deposits liquidity to mint Primitive LP tokens
+     * --
+     * @return mint is the amount of LP token
+     */
+    function createPosition() external returns (uint256) {}
+
+    /**
+     * @notice Burns Primitives LP tokens in exchange for risky and stable
+     * assets. This should include any premium earned by Primitive fees
+     * --
+     * @return risky is the amount of risky token retrieved
+     * @return stable is the amount of risky token retrieved
+     */
+    function settlePosition() external returns (uint256, uint256) {}
 
     /************************************************
      * Helper and Getter functions (frontend)

@@ -7,7 +7,6 @@ import {
     SafeERC20
 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Vault} from "../libraries/Vault.sol";
-import {VaultLifecycle} from "../libraries/VaultLifecycle.sol";
 import {VaultMath} from "../libraries/VaultMath.sol";
 import {ParetoVault} from "./ParetoVault.sol";
 
