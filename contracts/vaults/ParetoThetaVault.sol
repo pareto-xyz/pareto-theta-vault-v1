@@ -49,14 +49,14 @@ contract ParetoThetaVault is ParetoVault {
     /**
      * @notice Roll's the vault's funds into the next vault
      */
-    function rollToNextOption() external onlyKeeper nonReentrant {
+    function rollover() external onlyKeeper nonReentrant {
         (
             uint256 lockedRisky,
             uint256 lockedStable,
             uint256 queuedWithdrawRisky,
             uint256 queuedWithdrawStable
         ) = 
-            _rollToNextOption();
+            _prepareRollover();
         
         // Queued withdraws from current round are set to last round
         vaultState.lastQueuedWithdrawRisky = queuedWithdrawRisky;
