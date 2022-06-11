@@ -172,7 +172,7 @@ contract ParetoVault is
      * @notice Throws if called by any account other than the keeper.
      */
     modifier onlyKeeper() {
-        require(msg.sender == keeper, "Requires keeper");
+        require(msg.sender == keeper, "!keeper");
         _;
     }
 
@@ -182,7 +182,7 @@ contract ParetoVault is
      * @param newKeeper is the address of the new keeper
      */
     function setKeeper(address newKeeper) external onlyOwner {
-        require(newKeeper != address(0), "Missing `newKeeper`");
+        require(newKeeper != address(0), "!keeper`");
         keeper = newKeeper;
     }
 
@@ -193,8 +193,8 @@ contract ParetoVault is
      *  This must be different than the current `feeRecipient`
      */
     function setFeeRecipient(address newFeeRecipient) external onlyOwner {
-        require(newFeeRecipient != address(0), "Missing `newFeeRecipient`");
-        require(newFeeRecipient != feeRecipient, "Must be new `feeRecipient`");
+        require(newFeeRecipient != address(0), "!newFeeRecipient");
+        require(newFeeRecipient != feeRecipient, "Old feeRecipient");
         feeRecipient = newFeeRecipient;
     }
 
@@ -210,11 +210,11 @@ contract ParetoVault is
     ) external onlyOwner {
         require(
             newManagementFeeRisky < 100 * Vault.FEE_MULTIPLIER,
-            "Invalid management fee in risky asset"
+            "newManagementFeeRisky > 100"
         );
         require(
             newManagementFeeStable < 100 * Vault.FEE_MULTIPLIER,
-            "Invalid management fee in stable asset"
+            "newManagementFeeStable > 100"
         );
 
         // Divide annualized management fee by num weeks in a year
@@ -250,8 +250,8 @@ contract ParetoVault is
      *  in stable
      */
     function deposit(uint256 risky, uint256 stable) external nonReentrant {
-        require(risky > 0, "Invalid amount of risky tokens");
-        require(stable > 0, "Invalid amount of stable tokens");
+        require(risky > 0, "!risky");
+        require(stable > 0, "!stable");
 
         _processDeposit(risky, stable, msg.sender);
 
@@ -336,7 +336,7 @@ contract ParetoVault is
      * @param shares is the amount of shares to withdraw
      */
     function _requestWithdraw(uint256 shares) internal {
-        require(shares > 0, "Invalid shares passed");
+        require(shares > 0, "!shares");
 
         uint256 currRound = vaultState.round;
         Vault.Withdrawal storage withdrawal = withdrawals[msg.sender];
@@ -373,9 +373,9 @@ contract ParetoVault is
         uint256 withdrawRound = withdrawal.round;
 
         // Check that a request to withdrawal has been made
-        require(withdrawShares > 0, "Withdrawal not requested");
+        require(withdrawShares > 0, "!withdrawShares");
         // Check that the withdraw request was made in a previous round
-        require(withdrawRound < vaultState.round, "Round not complete");
+        require(withdrawRound < vaultState.round, "Round incomplete");
 
         // Reset params back to 0
         withdrawals[msg.sender].shares = 0;
@@ -404,11 +404,8 @@ contract ParetoVault is
         // Burn the shares
         _burn(address(this), withdrawShares);
 
-        require(withdrawRisky > 0, "Invalid amount of risky asset to withdraw");
-        require(
-            withdrawStable > 0,
-            "Invalid amount of stable asset to withdraw"
-        );
+        require(withdrawRisky > 0, "!withdrawRisky");
+        require(withdrawStable > 0, "!withdrawStable");
 
         // Transfer tokens from contract to user
         IERC20(vaultParams.risky).safeTransfer(msg.sender, withdrawRisky);
@@ -422,8 +419,9 @@ contract ParetoVault is
      ***********************************************/
 
     /**
-     * @notice Pipeline for rolling to the next option, such as calling
-     *  minting new shares and getting vault fees
+     * @notice Logistic operations for rolling to the next option, such as 
+     *  minting new shares and transferring vault fees. The actual calls to 
+     *  Primitive are not made in this function but require the outputs
      * --
      * @return lockedRisky is the amount of risky asset locked for next round
      * @return lockedStable is the amount of stable asset locked for next round
@@ -432,7 +430,7 @@ contract ParetoVault is
      * @return queuedWithdrawStable is the new queued withdraw amount of stable
      *  asset for this round
      */
-    function _rollToNextOption()
+    function _prepareRollover()
         internal
         returns (
             uint256 lockedRisky,
@@ -441,10 +439,7 @@ contract ParetoVault is
             uint256 queuedWithdrawStable
         )
     {
-        require(
-            block.timestamp >= optionState.maturity,
-            "Too early to roll over"
-        );
+        require(block.timestamp >= optionState.maturity, "Too early");
 
         {
             uint256 mintShares;
