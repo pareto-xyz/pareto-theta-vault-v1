@@ -419,8 +419,8 @@ contract ParetoVault is
      ***********************************************/
 
     /**
-     * @notice Logistic operations for rolling to the next option, such as 
-     *  minting new shares and transferring vault fees. The actual calls to 
+     * @notice Logistic operations for rolling to the next option, such as
+     *  minting new shares and transferring vault fees. The actual calls to
      *  Primitive are not made in this function but require the outputs
      * --
      * @return lockedRisky is the amount of risky asset locked for next round
@@ -441,18 +441,24 @@ contract ParetoVault is
     {
         require(block.timestamp >= optionState.maturity, "Too early");
 
+        uint256 mintShares;
+        uint256 vaultFeeRisky;
+        uint256 vaultFeeStable;
+
         {
-            uint256 mintShares;
-            uint256 vaultFeeRisky;
-            uint256 vaultFeeStable;
             uint256 unusedRisky;
             uint256 unusedStable;
             uint256 newRiskyPrice;
             uint256 newStablePrice;
 
-            uint256 currentRisky = IERC20(vaultParams.risky).balanceOf(address(this));
-            uint256 currentStable = IERC20(vaultParams.stable).balanceOf(address(this));
+            uint256 currentRisky = IERC20(vaultParams.risky).balanceOf(
+                address(this)
+            );
+            uint256 currentStable = IERC20(vaultParams.stable).balanceOf(
+                address(this)
+            );
 
+            // Compute vault fees (consider moving this to a library)
             (vaultFeeRisky, vaultFeeStable) = _getVaultFees(
                 currentRisky.sub(vaultState.lastQueuedWithdrawRisky),
                 currentStable.sub(vaultState.lastQueuedWithdrawStable),
@@ -467,6 +473,7 @@ contract ParetoVault is
             currentStable = currentStable.sub(vaultFeeStable);
 
             {
+                // Compute new share price after rollover
                 (newRiskyPrice, newStablePrice) = VaultMath.getSharePrice(
                     totalSupply().sub(vaultState.totalQueuedWithdrawShares),
                     currentRisky.sub(vaultState.lastQueuedWithdrawRisky),
@@ -475,12 +482,13 @@ contract ParetoVault is
                     vaultState.pendingStable,
                     vaultParams.decimals
                 );
-                (uint256 newRisky, uint256 newStable) = VaultMath.sharesToAssets(
-                    vaultState.currQueuedWithdrawShares,
-                    newRiskyPrice,
-                    newStablePrice,
-                    vaultParams.decimals
-                );
+                (uint256 newRisky, uint256 newStable) = VaultMath
+                    .sharesToAssets(
+                        vaultState.currQueuedWithdrawShares,
+                        newRiskyPrice,
+                        newStablePrice,
+                        vaultParams.decimals
+                    );
                 queuedWithdrawRisky = vaultState.lastQueuedWithdrawRisky.add(
                     newRisky
                 );
@@ -510,11 +518,23 @@ contract ParetoVault is
                         vaultParams.decimals
                     );
                 unusedRisky = uint256(vaultState.pendingRisky).sub(reconRisky);
-                unusedStable = uint256(vaultState.pendingRisky).sub(reconStable);
+                unusedStable = uint256(vaultState.pendingRisky).sub(
+                    reconStable
+                );
+                require(
+                    unusedRisky == 0 || unusedStable == 0,
+                    "One must be zero"
+                );
 
                 lockedRisky = currentRisky.sub(queuedWithdrawRisky);
                 lockedStable = currentStable.sub(queuedWithdrawStable);
             }
+
+            // Record any liquidity not being used
+            VaultMath.assertUint128(unusedRisky);
+            VaultMath.assertUint128(unusedStable);
+            vaultState.unusedRisky = uint128(unusedRisky);
+            vaultState.unusedStable = uint128(unusedStable);
 
             // record the share price
             roundSharePriceRisky[vaultState.round] = newRiskyPrice;
@@ -528,33 +548,29 @@ contract ParetoVault is
                 feeRecipient
             );
 
-            _mint(address(this), mintShares);
+            // Reset pending to zero
+            vaultState.pendingRisky = 0;
+            vaultState.pendingStable = 0;
 
-            // Record any liquidity not being used
-            VaultMath.assertUint128(unusedRisky);
-            VaultMath.assertUint128(unusedStable);
-            vaultState.unusedRisky = uint128(unusedRisky);
-            vaultState.unusedStable = uint128(unusedStable);
             vaultState.round = uint16(vaultState.round + 1);
-
-            // Make transfers for fee
-            if (vaultFeeRisky > 0) {
-                IERC20(vaultParams.risky).safeTransfer(
-                    payable(feeRecipient),
-                    vaultFeeRisky
-                );
-            }
-            if (vaultFeeStable > 0) {
-                IERC20(vaultParams.stable).safeTransfer(
-                    payable(feeRecipient),
-                    vaultFeeStable
-                );
-            }
         }
 
-        // Reset pending to zero
-        vaultState.pendingRisky = 0;
-        vaultState.pendingStable = 0;
+        // Mint new shares for next round
+        _mint(address(this), mintShares);
+
+        // Make transfers for fee
+        if (vaultFeeRisky > 0) {
+            IERC20(vaultParams.risky).safeTransfer(
+                payable(feeRecipient),
+                vaultFeeRisky
+            );
+        }
+        if (vaultFeeStable > 0) {
+            IERC20(vaultParams.stable).safeTransfer(
+                payable(feeRecipient),
+                vaultFeeStable
+            );
+        }
 
         return (
             lockedRisky,
