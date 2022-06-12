@@ -34,6 +34,7 @@
   "devDependencies": {
     "@nomiclabs/hardhat-ethers": "^2.0.6",
     "@nomiclabs/hardhat-waffle": "^2.0.3",
+    "@primitivefi/rmm-math": "^2.0.0-beta.3",
     "@types/mocha": "^9.1.1",
     "chai": "^4.3.6",
     "eslint": "^8.17.0",
@@ -51,6 +52,8 @@
   "dependencies": {
     "@openzeppelin/contracts": "^4.6.0",
     "@openzeppelin/contracts-upgradeable": "^4.6.0",
+    "@primitivefi/rmm-core": "^1.0.0",
+    "@primitivefi/rmm-manager": "^1.1.0",
     "axios": "^0.27.2"
   },
   "mocha": {

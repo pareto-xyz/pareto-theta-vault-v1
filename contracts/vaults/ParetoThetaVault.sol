@@ -4,6 +4,7 @@ pragma solidity =0.8.4;
 import {SafeMath} from "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "@primitivefi/rmm-core/contracts/interfaces/engine/IPrimitiveEngineView.sol";
 import {Vault} from "../libraries/Vault.sol";
 import {VaultMath} from "../libraries/VaultMath.sol";
 import {ParetoVault} from "./ParetoVault.sol";
@@ -17,7 +18,23 @@ contract ParetoThetaVault is ParetoVault {
     using VaultMath for Vault.DepositReceipt;
 
     /************************************************
-     *  VAULT OPERATIONS
+     * Events
+     ***********************************************/
+
+    event OpenPositionEvent(
+        uint256 depositRisky,
+        uint256 depositStable,
+        address indexed keeper
+    );
+
+    event ClosePositionEvent(
+        uint256 withdrawRisky,
+        uint256 withdrawStable,
+        address indexed keeper
+    );
+
+    /************************************************
+     * Vault operations
      ***********************************************/
 
     /**
@@ -76,6 +93,36 @@ contract ParetoThetaVault is ParetoVault {
         vaultState.lockedRisky = uint104(lockedRisky);
         vaultState.lockedStable = uint104(lockedStable);
 
-        // TODO do actual option creation
+        emit OpenPositionEvent(lockedRisky, lockedStable, msg.sender);
+
+        createPosition(lockedRisky, lockedStable);
     }
+
+    /************************************************
+     * Primitive Bindings
+     ***********************************************/
+
+    /**
+     * @notice Creates a Primitive RMM-01 pool on the risky and stable assets
+     * @notice Deposits liquidity to mint Primitive LP tokens
+     * --
+     * @param depositRisky is the amount of risky asset to deposit into RMM
+     * @param depositStable is the amount of stable asset to deposit into RMM
+     * --
+     * @return mint is the amount of LP token
+     */
+    function createPosition(
+        uint256 depositRisky,
+        uint256 depositStable
+    ) external returns (uint256) {
+    }
+
+    /**
+     * @notice Burns Primitives LP tokens in exchange for risky and stable
+     * assets. This should include any premium earned by Primitive fees
+     * --
+     * @return risky is the amount of risky token retrieved
+     * @return stable is the amount of risky token retrieved
+     */
+    function settlePosition() external returns (uint256, uint256) {}
 }
