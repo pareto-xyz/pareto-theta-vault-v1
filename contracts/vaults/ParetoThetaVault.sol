@@ -4,7 +4,6 @@ pragma solidity =0.8.4;
 import {SafeMath} from "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import "@primitivefi/rmm-core/contracts/interfaces/engine/IPrimitiveEngineView.sol";
 import {Vault} from "../libraries/Vault.sol";
 import {VaultMath} from "../libraries/VaultMath.sol";
 import {ParetoVault} from "./ParetoVault.sol";
@@ -18,8 +17,19 @@ contract ParetoThetaVault is ParetoVault {
     using VaultMath for Vault.DepositReceipt;
 
     /************************************************
+     * Non-upgradeable storage
+     * TODO: some of these should probably be made upgradeable!
+     ***********************************************/
+    
+    address public paretoManager;
+
+    /************************************************
      * Events
      ***********************************************/
+
+    event CreatePoolEvent(
+        address indexed keeper
+    );
 
     event OpenPositionEvent(
         uint256 depositRisky,
@@ -32,6 +42,69 @@ contract ParetoThetaVault is ParetoVault {
         uint256 withdrawStable,
         address indexed keeper
     );
+
+    /************************************************
+     * Constructor and Initialization
+     ***********************************************/
+    
+    /**
+     * @notice Initialization parameters for the vault
+     * --
+     * @param _owner is the owner of the vault with critical permissions
+     * @param _feeRecipient is the address to recieve vault performance and management fees
+     * @param _managementFeeRisky is the management fee pct for risky assets
+     * @param _managementFeeStable is the management fee pct for stable assets
+     * @param _tokenName is the name of the token
+     * @param _tokenSymbol is the symbol of the token
+     * @param _paretoManager is the address of the Pareto Manager contract
+     */
+    struct InitParams {
+        address _owner;
+        address _keeper;
+        address _feeRecipient;
+        uint256 _managementFeeRisky;
+        uint256 _managementFeeStable;
+        string _tokenName;
+        string _tokenSymbol;
+        address _paretoManager;
+    }
+
+    /**
+     * @notice Initialize the contract with storage variables
+     * --
+     * @param _initParams is the struct with vault initialization params
+     * @param _vaultParams with general data about the vault
+     */
+    function initialize(
+        InitParams calldata _initParams,
+        Vault.VaultParams calldata _vaultParams
+    ) external initializer {
+        baseInitialize(
+            _initParams._owner,
+            _initParams._keeper,
+            _initParams._feeRecipient,
+            _initParams._managementFeeRisky,
+            _initParams._managementFeeStable,
+            _initParams._tokenName,
+            _initParams._tokenSymbol,
+            _vaultParams
+        );
+        require(_initParams._paretoManager != address(0), "!_paretoManager");
+        paretoManager = _initParams._paretoManager;
+    }
+
+    /************************************************
+     * Setters
+     ***********************************************/
+    
+    /**
+     * @notice Sets the new Pareto manager contract
+     * @param newManager is the address of the new Pareto manager contract
+     */
+    function setParetoManager(address newManager) external onlyOwner {
+        require(newManager != address(0), "!newManager");
+        paretoManager = newManager;
+    }
 
     /************************************************
      * Vault operations
@@ -69,6 +142,7 @@ contract ParetoThetaVault is ParetoVault {
      */
     function rollover() external onlyKeeper nonReentrant {
         (
+            bytes32 newPoolId,
             uint256 lockedRisky,
             uint256 lockedStable,
             uint256 queuedWithdrawRisky,
@@ -92,37 +166,5 @@ contract ParetoThetaVault is ParetoVault {
         VaultMath.assertUint104(lockedStable);
         vaultState.lockedRisky = uint104(lockedRisky);
         vaultState.lockedStable = uint104(lockedStable);
-
-        emit OpenPositionEvent(lockedRisky, lockedStable, msg.sender);
-
-        createPosition(lockedRisky, lockedStable);
     }
-
-    /************************************************
-     * Primitive Bindings
-     ***********************************************/
-
-    /**
-     * @notice Creates a Primitive RMM-01 pool on the risky and stable assets
-     * @notice Deposits liquidity to mint Primitive LP tokens
-     * --
-     * @param depositRisky is the amount of risky asset to deposit into RMM
-     * @param depositStable is the amount of stable asset to deposit into RMM
-     * --
-     * @return mint is the amount of LP token
-     */
-    function createPosition(
-        uint256 depositRisky,
-        uint256 depositStable
-    ) external returns (uint256) {
-    }
-
-    /**
-     * @notice Burns Primitives LP tokens in exchange for risky and stable
-     * assets. This should include any premium earned by Primitive fees
-     * --
-     * @return risky is the amount of risky token retrieved
-     * @return stable is the amount of risky token retrieved
-     */
-    function settlePosition() external returns (uint256, uint256) {}
 }

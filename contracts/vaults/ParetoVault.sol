@@ -10,9 +10,14 @@ import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/se
 // Basic access control mechanism where there is an account (an owner) that an be
 // granted exclusive access to specific functions
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-// implementation of ERC20 token
+// Implementation of ERC20 token
 import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
-
+// Strike selection
+import {IParetoManager} from "../interfaces/IParetoManager.sol";
+// Manage Primitive pools
+import {IPrimitiveManager} from "@primitivefi/rmm-manager/contracts/interfaces/IPrimitiveManager.sol";
+import {IPrimitiveEngineView} from "@primitivefi/rmm-core/contracts/interfaces/engine/IPrimitiveEngineView.sol";
+import {EngineAddress} from "@primitivefi/rmm-manager/contracts/libraries/EngineAddress.sol";
 // Relative imports
 import {Vault} from "../libraries/Vault.sol";
 import {VaultMath} from "../libraries/VaultMath.sol";
@@ -39,25 +44,25 @@ contract ParetoVault is
      * TODO: some of these should probably be made upgradeable!
      ***********************************************/
 
-    // User's pending deposit for the round
+    // @notice User's pending deposit for the round
     mapping(address => Vault.DepositReceipt) public depositReceipts;
 
-    // When round closes, the share price of a receipt token is stored
+    // @notice When round closes, the share price of a receipt token is stored
     // This is used to determine the number of shares to be returned to a user
     mapping(uint256 => uint256) public roundSharePriceRisky;
     mapping(uint256 => uint256) public roundSharePriceStable;
 
-    // Pending user withdrawals
+    // @notice Pending user withdrawals
     mapping(address => Vault.Withdrawal) public withdrawals;
 
-    // Vault's parameters
+    // @notice Vault's parameters
     Vault.VaultParams public vaultParams;
 
-    // Vault's lifecycle state
+    // @notice Vault's lifecycle state
     Vault.VaultState public vaultState;
 
-    // State of the option in the Vault
-    Vault.OptionState public optionState;
+    // @notice State of the option in the Vault
+    Vault.PoolState public poolState;
 
     // Recipient of performance and management fees
     address public feeRecipient;
@@ -76,6 +81,11 @@ contract ParetoVault is
     /************************************************
      * Immutables and Constants
      ***********************************************/
+
+    // PRIMITIVE_MANAGER is Primitive's contract for creating, allocating 
+    // liquidity to, and withdrawing liquidity from pools
+    // https://github.com/primitivefinance/rmm-manager/blob/main/contracts/PrimitiveManager.sol
+    address public immutable PRIMITIVE_MANAGER;
 
     // Number of weeks per year = 52.142857 weeks * FEE_MULTIPLIER = 52142857
     // Dividing by weeks per year requires doing num.mul(FEE_MULTIPLIER).div(WEEKS_PER_YEAR)
@@ -122,6 +132,16 @@ contract ParetoVault is
     /************************************************
      * Constructor and Initialization
      ***********************************************/
+
+    /**
+     * @notice Initializes the contract with immutable variables
+     * --
+     * @param _primitiveManager is the contract address for primitive manager
+     */
+    constructor(address _primitiveManager) {
+        require (_primitiveManager != address(0), "!_primitiveManager");
+        PRIMITIVE_MANAGER = _primitiveManager;
+    }
 
     /**
      * @notice Initializes the contract with storage variables
@@ -423,6 +443,7 @@ contract ParetoVault is
      *  minting new shares and transferring vault fees. The actual calls to
      *  Primitive are not made in this function but require the outputs
      * --
+     * @return newPoolId is the bytes32 id of the next Primitive pool
      * @return lockedRisky is the amount of risky asset locked for next round
      * @return lockedStable is the amount of stable asset locked for next round
      * @return queuedWithdrawRisky is the new queued withdraw amount of risky
@@ -433,13 +454,17 @@ contract ParetoVault is
     function _prepareRollover()
         internal
         returns (
+            address newPoolId,
             uint256 lockedRisky,
             uint256 lockedStable,
             uint256 queuedWithdrawRisky,
             uint256 queuedWithdrawStable
         )
     {
-        require(block.timestamp >= optionState.maturity, "Too early");
+        require(block.timestamp >= poolState.nextPoolReadyAt, "Too early");
+
+        newPoolId = poolState.nextPoolId;
+        require(newPoolId != "", "!newPoolId");
 
         uint256 mintShares;
         uint256 vaultFeeRisky;
@@ -536,6 +561,9 @@ contract ParetoVault is
             vaultState.unusedRisky = uint128(unusedRisky);
             vaultState.unusedStable = uint128(unusedStable);
 
+            poolState.currPoolId = newPoolId;
+            poolState.nextPoolId = "";
+
             // record the share price
             roundSharePriceRisky[vaultState.round] = newRiskyPrice;
             roundSharePriceStable[vaultState.round] = newStablePrice;
@@ -573,11 +601,47 @@ contract ParetoVault is
         }
 
         return (
+            newPoolId,
             lockedRisky,
             lockedStable,
             queuedWithdrawRisky,
             queuedWithdrawStable
         );
+    }
+
+    /**
+     * @notice Setup the next Primitive pool (i.e. the next option)
+     * @notice Replaces the `commitAndClose` function in Ribbon.
+     * --
+     * @param currPoolId is the id of the current pool
+     * @param strikeSelection is the address of a contract for strike selection
+     * @param vaultParams is the struct with general vault data
+     * @param vaultState is the struct with current vault state
+     */
+    function _prepareNextPool(
+        bytes32 currPoolId,
+        address strikeSelection,
+        Vault.VaultParams storage vaultParams,
+        Vault.VaultState storage vaultState
+    )
+        external
+        returns (bytes32)
+    {
+        // Compute the maturity date for the next pool
+        uint32 nextMaturity = getNextMaturity(currPoolId);
+
+        // Manager is responsible for setting up the next pool
+        IParetoManager manager = IParetoManager();
+
+        Vault.PoolParams poolParams = Vault.PoolParams({
+            strike: manager.getNextStrikePrice(),
+            sigma: manager.getNextVolatility(),
+            maturity: nextMaturity
+        });
+
+        // Deploy the pool
+        bytes32 nextPoolId = _deployPool(poolParams, vaultParams);
+        return nextPoolId;
     }
 
     /**
@@ -627,7 +691,61 @@ contract ParetoVault is
     }
 
     /************************************************
-     * Helper and Getter functions (frontend)
+     * Primitive Bindings
+     ***********************************************/
+
+    /**
+     * @notice Get the underlying Primitive engine of the Manager
+     * --
+     * @return engine is the address of the engine contract
+     */
+    function _getPrimitiveEngine() internal returns (address) {
+        address engine = EngineAddress.computeAddress(
+            IPrimitiveManager(PRIMITIVE_MANAGER).factory(),
+            vaultParams.risky,
+            vaultParams.stable
+        );
+        return engine;
+    }
+
+    /**
+     * @notice Fetch the maturity timestamp of the current Primitive pool
+     * --
+     * @param poolId is the identifier of the current pool
+     * --
+     * @return maturity is the expiry date of the current pool
+     */
+    function _getPoolMaturity(bytes32 poolId) internal returns (uint32) {
+        address engine = _getPrimitiveEngine();
+        (,,uint32 maturity,,) = 
+            IPrimitiveEngineView(engine).calibrations(poolId);
+        return maturity;
+    }
+
+    /** 
+     * @notice Creates a new Primitive pool using OptionParams
+     * --
+     */
+    function _deployPool(
+        Vault.PoolParams calldata poolParams,
+        Vault.VaultParams storage vaultParams
+    ) internal returns (bytes32) {
+        bytes32 poolId;
+        (poolId,,) = IPrimitiveManager(PRIMITIVE_MANAGER).create(
+            vaultParams.risky,
+            vaultParams.stable,
+            poolParams.strike,
+            poolParams.sigma,
+            poolParams.maturity,
+            poolParams.gamma,
+            poolParams.riskyPerLp,
+            poolParams.delLiquidity
+        );
+        return poolId;
+    }
+
+    /************************************************
+     * Getter functions (frontend)
      ***********************************************/
 
     /**
@@ -699,5 +817,58 @@ contract ParetoVault is
             uint256(vaultState.lockedStable).add(
                 IERC20(vaultParams.stable).balanceOf(address(this))
             );
+    }
+
+    /************************************************
+     * Utility functions
+     ***********************************************/
+
+    /**
+     * @notice Gets the next expiry timestamp
+     * --
+     * @param poolId is the identifier of the current Primitive pool
+     * --
+     * @return nextMaturity is the maturity of the next pool
+     */
+    function getNextMaturity(bytes32 poolId) 
+        internal 
+        view 
+        returns (uint32)
+    {
+        if (poolId == "") {  // uninitialized state
+            return getNextFriday(block.timestamp);
+        }
+        uint32 currMaturity = _getPoolMaturity(poolId);
+        
+        // If its past one week since last option
+        if (block.timestamp > currMaturity + 7 days) {
+            return getNextFriday(block.timestamp);
+        }
+        return getNextFriday(currMaturity);
+    }
+
+    /**
+     * @notice Gets the next options expiry timestamp
+     * --
+     * @param timestamp is the expiry timestamp of the current option
+     * --
+     * Reference: https://codereview.stackexchange.com/a/33532
+     * Examples:
+     * getNextFriday(week 1 thursday) -> week 1 friday
+     * getNextFriday(week 1 friday) -> week 2 friday
+     * getNextFriday(week 1 saturday) -> week 2 friday
+     */
+    function getNextFriday(uint32 timestamp) internal pure returns (uint32) {
+        // dayOfWeek = 0 (sunday) - 6 (saturday)
+        uint256 dayOfWeek = ((timestamp / 1 days) + 4) % 7;
+        uint256 nextFriday = timestamp + ((7 + 5 - dayOfWeek) % 7) * 1 days;
+        uint256 friday8am = nextFriday - (nextFriday % (24 hours)) + (8 hours);
+
+        // If the passed timestamp is day=Friday hour>8am, we simply 
+        // increment it by a week to next Friday
+        if (timestamp >= friday8am) {
+            friday8am += 7 days;
+        }
+        return friday8am;
     }
 }

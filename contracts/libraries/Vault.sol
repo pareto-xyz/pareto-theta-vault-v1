@@ -19,19 +19,32 @@ library Vault {
         address stable;
     }
 
+    struct PoolState {
+        // Primitive pool that the vault is depositing into next cycle
+        bytes32 nextPoolId;
+        // Primitive pool that the vault is currently depositing into
+        bytes32 currPoolId;
+        // The timestamp when the `nextPoolId` can be used by the vault
+        uint32 nextPoolReadyAt; 
+    }
+
     /**
-     * @param decimals is the decimals for vault shares
      * @param strike is the strike price of the pool
      * @param sigma is the implied volatility of the pool
      * @param maturity is the timestamp when the option pool expires
      * @param gamma is the gamma of the pool (1 - fee)
+     * @param riskyPerLp is the risky reserve per liq. with risky decimals, 
+     *  = 1 - N(d1), d1 = (ln(S/K)+(r*sigma^2/2))/sigma*sqrt(tau)
+     * @param delLiquidity is the amount of liquidity to allocate to the curve 
+     * wei value with 18 decimals of precision
      */
-    struct OptionState {
-        uint8 decimals;
+    struct PoolParams {
         uint128 strike;
         uint32 sigma;
         uint32 maturity;
         uint32 gamma;
+        uint256 riskyPerLp;
+        uint256 delLiquidity;
     }
 
     /**
