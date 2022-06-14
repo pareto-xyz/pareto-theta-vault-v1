@@ -27,17 +27,16 @@ contract ParetoThetaVault is ParetoVault {
      * Events
      ***********************************************/
 
-    event CreatePoolEvent(
-        address indexed keeper
-    );
-
     event OpenPositionEvent(
+        bytes32 poolId,
         uint256 depositRisky,
         uint256 depositStable,
+        uint256 optionLiquidity,
         address indexed keeper
     );
 
     event ClosePositionEvent(
+        bytes32 poolId,
         uint256 withdrawRisky,
         uint256 withdrawStable,
         address indexed keeper
@@ -190,5 +189,20 @@ contract ParetoThetaVault is ParetoVault {
         VaultMath.assertUint104(lockedStable);
         vaultState.lockedRisky = uint104(lockedRisky);
         vaultState.lockedStable = uint104(lockedStable);
+
+        // Deposit locked liquidity into Primitive pools
+        uint256 optionLiquidity = _depositLiquidity(
+            newPoolId,
+            lockedRisky,
+            lockedStable
+        );
+
+        emit OpenPositionEvent(
+            newPoolId,
+            lockedRisky,
+            lockedStable,
+            optionLiquidity,
+            msg.sender
+        );
     }
 }

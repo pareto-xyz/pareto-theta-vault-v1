@@ -729,13 +729,16 @@ contract ParetoVault is
     /** 
      * @notice Creates a new Primitive pool using OptionParams
      * --
+     * @param poolParams are the Black-Scholes parameters for the pool
+     * @param vaultParams are fixed constants for vaults
+     * --
+     * @return poolId is the pool identifier of the created pool
      */
     function _deployPool(
         Vault.PoolParams calldata poolParams,
         Vault.VaultParams storage vaultParams
     ) internal returns (bytes32) {
-        bytes32 poolId;
-        (poolId,,) = IPrimitiveManager(PRIMITIVE_MANAGER).create(
+        (bytes32 poolId,,) = IPrimitiveManager(PRIMITIVE_MANAGER).create(
             vaultParams.risky,
             vaultParams.stable,
             poolParams.strike,
@@ -746,6 +749,65 @@ contract ParetoVault is
             poolParams.delLiquidity
         );
         return poolId;
+    }
+
+    /**
+     * @notice Deposits a pair of assets in a Primitive pool
+     * @notice Stores the liquidity tokens in this contract
+     * @notice TODO: do we need minimums?
+     * --
+     * @param poolId is the identifier of the pool to deposit in
+     * @param riskyAmount is the amount of risky assets to deposit
+     * @param stableAmount is the amount of stable assets to deposit
+     * -- 
+     * @return liquidity is the amount of LP tokens returned from deposit
+     */
+    function _depositLiquidity(
+        bytes32 poolId,
+        uint256 riskyAmount,
+        uint256 stableAmount
+    ) internal returns (uint256) {
+        uint256 liquidity = IPrimitiveManager(PRIMITIVE_MANAGER).allocate(
+            address(this),
+            poolId,
+            vaultParams.risky,   // address of risky address
+            vaultParams.stable,  // address of stable address
+            riskyAmount,
+            stableAmount,
+            true,
+            0
+        );
+        return liquidity;
+    }
+
+    /** 
+     * @notice Removes a pair of assets from a Primitive pool
+     * @notice Takes liquidity tokens from this contract
+     * @notice TODO: do we need minimums?
+     * --
+     * @param poolId is the identifier of the pool to deposit in
+     * @param liquidity is the amount of LP tokens returned from deposit
+     * --
+     * @return riskyAmount is the amount of risky assets to deposit
+     * @return stableAmount is the amount of stable assets to deposit
+     */
+    function _removeLiquidity(
+        bytes32 poolId,
+        uint256 liquidity
+    ) internal returns (uint256, uint256) {
+        if (liquidity == 0) return (0, 0);
+
+        address engine = _getPrimitiveEngine();  // fetch engine
+        (uint256 riskyAmount, uint256 stableAmount) = 
+            IPrimitiveManager(PRIMITIVE_MANAGER).allocate(
+                engine,
+                poolId,
+                liquidity,
+                0,
+                0
+            );
+
+        return (riskyAmount, stableAmount);
     }
 
     /************************************************
