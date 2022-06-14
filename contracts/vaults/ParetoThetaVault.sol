@@ -23,6 +23,18 @@ contract ParetoThetaVault is ParetoVault {
     
     address public paretoManager;
 
+    // Owner manually sets strike price
+    uint128 public manualStrike;
+
+    // Round that owner manually sets strike price
+    uint16 public manualStrikeRound;
+
+    // Owner manually sets implied volatility
+    uint128 public manualVolatility;
+
+    // Round that owner manually sets volatility
+    uint16 public manualVolatilityRound;
+
     /************************************************
      * Events
      ***********************************************/
@@ -148,6 +160,17 @@ contract ParetoThetaVault is ParetoVault {
      */
     function deployVault() external onlyKeeper nonReentrant {
         bytes32 currPoolId = poolState.currPoolId;
+
+        Vault.DeployParams memory deployParams = 
+            Vault.DeployParams({
+                currPoolId: currPoolId,
+                manualStrike: manualStrike,
+                manualStrikeRound: manualStrikeRound,
+                manualVolatility: manualVolatility,
+                manualVolatilityRound: manualVolatilityRound,
+                paretoManager: paretoManager
+            });
+
         (bytes32 nextPoolId, uint256 strikePrice) = _prepareNextPool(
             currPoolId,
             paretoManager,
@@ -190,6 +213,7 @@ contract ParetoThetaVault is ParetoVault {
         // Reset properties in PoolState
         poolState.currPoolId = "";
         poolState.currLiquidity = 0;
+
         delete poolState.currPoolParams;
     }
 
@@ -240,5 +264,45 @@ contract ParetoThetaVault is ParetoVault {
 
         // Save the liquidity into PoolState
         poolState.currLiquidity = optionLiquidity;
+    }
+
+    /************************************************
+     * Owner operations
+     ***********************************************/
+
+    /**
+     * @notice Optionality to manually set strike price
+     * --
+     * @param strikePrice is the strike price of the new pool (decimals = 8)
+     */
+    function setStrikePrice(uint128 strikePrice) external onlyOwner {
+        require(strikePrice > 0, "!strikePrice");
+
+        // Record into global variables
+        manualStrike = strikePrice;
+        manualStrikeRound = vaultState.round;
+    }
+
+    /**
+     * @notice Optionality to manually set implied volatility
+     * --
+     * @param volatility is the sigma of the new pool (decimals = 8)
+     */
+    function setVolatility(uint128 volatility) external onlyOwner {
+        require(volatility > 0, "!volatility");
+
+        // Record into global variables
+        manualVolatility = Volatility;
+        manualVolatilityRound = vaultState.round;
+    }
+
+    /**
+     * @notice Sets the new Pareto Manager contract
+     * --
+     * @param newParetoManager is the address of the new manager contract
+     */
+    function setParetoManager(address newParetoManager) external onlyOwner {
+        require(newParetoManager != address(0), "!newParetoManager");
+        paretoManager = newParetoManager;
     }
 }

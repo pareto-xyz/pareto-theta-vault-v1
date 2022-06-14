@@ -54,6 +54,24 @@ library Vault {
     }
 
     /**
+     * @param currPoolId is the identifier of the pool
+     * @param manualStrike is a manually specified strike price
+     * @param manualStrikeRound is the round of a manual strike
+     * @param manualVolatility is a manually specified IV
+     * @param manualVolatilityRound is the round of a manual IV
+     * @param paretoManager is the address of a manager contract
+     */
+    struct DeployParams {
+        bytes32 currPoolId;
+        uint128 manualStrike;
+        uint16 manualStrikeRound;
+        uint128 manualVolatility;
+        uint16 manualVolatilityRound;
+        address paretoManager;
+    }
+    
+
+    /**
      * @param round is the current round number
      * @param lockedRisky is the amount of risky asset locked away in
      *  a covered call short position

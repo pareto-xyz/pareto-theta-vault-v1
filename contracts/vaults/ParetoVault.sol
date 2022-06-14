@@ -442,15 +442,15 @@ contract ParetoVault is
      * @notice Setup the next Primitive pool (i.e. the next option)
      * @notice Replaces the `commitAndClose` function in Ribbon.
      * --
-     * @param currPoolId is the id of the current pool
+     * @param deployParams is the struct with details on previous pool and
+     *  settings for new pool
      * @param paretoManager is the address of a contract for strike selection
      * @param delay is the delay between _prepareNextPool and _prepareRollover
      * @param vaultParams is the struct with general vault data
      * @param vaultState is the struct with current vault state
      */
     function _prepareNextPool(
-        bytes32 currPoolId,
-        address paretoManager,
+        Vault.DeployParams calldata deployParams,
         Vault.VaultParams storage vaultParams
     )
         external
@@ -461,12 +461,25 @@ contract ParetoVault is
         )
     {
         // Compute the maturity date for the next pool
-        uint32 nextMaturity = getNextMaturity(currPoolId);
+        uint32 nextMaturity = getNextMaturity(deployParams.currPoolId);
 
         // Manager is responsible for setting up the next pool
-        IParetoManager manager = IParetoManager(paretoManager);
-        nextStrikePrice = manager.getNextStrikePrice();
-        nextVolatility = manager.getNextVolatility();
+        IParetoManager manager = IParetoManager(deployParams.paretoManager);
+
+        // Check if we manually set strike price, overwise call manager
+        nextStrikePrice = deployParams.manualStrikeRound == vaultState.round
+            ? deployParams.manualStrike
+            : manager.getNextStrikePrice();
+
+        require(nextStrikePrice != 0, "!nextStrikePrice");
+
+        // Check if we manually set volatility, overwise call manager
+        nextVolatility = deployParams.manualVolatilityRound == 
+            vaultState.round
+            ? deployParams.manualVolatility
+            : manager.getNextVolatility();
+
+        require(nextVolatility != 0, "!nextVolatility");
 
         // Fetch parameters of current pool
         Vault.PoolParams memory currParams = poolState.currPoolParams;
@@ -616,6 +629,7 @@ contract ParetoVault is
             // Update properties of poolState
             poolState.currPoolId = newPoolId;
             poolState.nextPoolId = "";
+
             poolState.currPoolParams = poolState.nextPoolParams;
             delete poolState.nextPoolParams;
 
