@@ -125,6 +125,14 @@ library VaultMath {
     }
 
     /**
+     * Helper function to assert number is uint32
+     */
+    function assertUint32(uint256 num) internal pure {
+        require(num <= type(uint32).max, "Overflow uint32");
+    }
+
+
+    /**
      * Helper function to assert number is uint104
      */
     function assertUint104(uint256 num) internal pure {

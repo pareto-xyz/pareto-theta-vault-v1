@@ -439,6 +439,45 @@ contract ParetoVault is
      ***********************************************/
 
     /**
+     * @notice Setup the next Primitive pool (i.e. the next option)
+     * @notice Replaces the `commitAndClose` function in Ribbon.
+     * --
+     * @param currPoolId is the id of the current pool
+     * @param paretoManager is the address of a contract for strike selection
+     * @param delay is the delay between _prepareNextPool and _prepareRollover
+     * @param vaultParams is the struct with general vault data
+     * @param vaultState is the struct with current vault state
+     */
+    function _prepareNextPool(
+        bytes32 currPoolId,
+        address paretoManager,
+        Vault.VaultParams storage vaultParams
+    )
+        external
+        returns (
+            bytes32 nextPoolId,
+            uint256 nextStrikePrice
+        )
+    {
+        // Compute the maturity date for the next pool
+        uint32 nextMaturity = getNextMaturity(currPoolId);
+
+        // Manager is responsible for setting up the next pool
+        IParetoManager manager = IParetoManager(paretoManager);
+
+        nextStrikePrice = manager.getNextStrikePrice();
+        Vault.PoolParams poolParams = Vault.PoolParams({
+            strike: nextStrikePrice,
+            sigma: manager.getNextVolatility(),
+            maturity: nextMaturity
+        });
+
+        // Deploy the Primitive pool
+        nextPoolId = _deployPool(poolParams, vaultParams);
+        return (nextPoolId, nextStrikePrice);
+    }
+
+    /**
      * @notice Logistic operations for rolling to the next option, such as
      *  minting new shares and transferring vault fees. The actual calls to
      *  Primitive are not made in this function but require the outputs
@@ -607,41 +646,6 @@ contract ParetoVault is
             queuedWithdrawRisky,
             queuedWithdrawStable
         );
-    }
-
-    /**
-     * @notice Setup the next Primitive pool (i.e. the next option)
-     * @notice Replaces the `commitAndClose` function in Ribbon.
-     * --
-     * @param currPoolId is the id of the current pool
-     * @param strikeSelection is the address of a contract for strike selection
-     * @param vaultParams is the struct with general vault data
-     * @param vaultState is the struct with current vault state
-     */
-    function _prepareNextPool(
-        bytes32 currPoolId,
-        address strikeSelection,
-        Vault.VaultParams storage vaultParams,
-        Vault.VaultState storage vaultState
-    )
-        external
-        returns (bytes32)
-    {
-        // Compute the maturity date for the next pool
-        uint32 nextMaturity = getNextMaturity(currPoolId);
-
-        // Manager is responsible for setting up the next pool
-        IParetoManager manager = IParetoManager();
-
-        Vault.PoolParams poolParams = Vault.PoolParams({
-            strike: manager.getNextStrikePrice(),
-            sigma: manager.getNextVolatility(),
-            maturity: nextMaturity
-        });
-
-        // Deploy the pool
-        bytes32 nextPoolId = _deployPool(poolParams, vaultParams);
-        return nextPoolId;
     }
 
     /**

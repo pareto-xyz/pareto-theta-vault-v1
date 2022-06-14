@@ -43,6 +43,8 @@ contract ParetoThetaVault is ParetoVault {
         address indexed keeper
     );
 
+    event DeployVaultEvent(uint256 strikePrice);
+
     /************************************************
      * Constructor and Initialization
      ***********************************************/
@@ -135,6 +137,28 @@ contract ParetoThetaVault is ParetoVault {
         vaultState.lastQueuedWithdrawStable = vaultState
             .lastQueuedWithdrawStable
             .sub(withdrawStable);
+    }
+
+    /**
+     * @notice Sets up the vault condition on the current vault
+     */
+    function deployVault() external nonReentrant {
+        (bytes32 poolId, uint256 strikePrice) = _prepareNextPool(
+            poolState.currPoolId,
+            paretoManager,
+            vaultParams
+        );
+
+        emit DeployVaultEvent(strikePrice);
+
+        // Update pool identifier in PoolState
+        poolState.nextPoolId = poolId;
+
+        // Update timestamp for next pool in PoolState
+        // TODO: add delay?
+        uint256 nextPoolReadyAt = block.timestamp;
+        VaultMath.assertUint32(nextPoolReadyAt);
+        poolState.nextPoolReadyAt = uint32(nextPoolReadyAt);
     }
 
     /**
