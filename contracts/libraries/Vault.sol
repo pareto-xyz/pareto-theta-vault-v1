@@ -24,6 +24,8 @@ library Vault {
         bytes32 nextPoolId;
         // Primitive pool that the vault is currently depositing into
         bytes32 currPoolId;
+        // Amount of liquidity deposited into the current pool
+        uint256 liquidity;
         // The timestamp when the `nextPoolId` can be used by the vault
         uint32 nextPoolReadyAt; 
     }

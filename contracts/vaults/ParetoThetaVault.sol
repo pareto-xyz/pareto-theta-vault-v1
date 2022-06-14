@@ -31,12 +31,13 @@ contract ParetoThetaVault is ParetoVault {
         bytes32 poolId,
         uint256 depositRisky,
         uint256 depositStable,
-        uint256 optionLiquidity,
+        uint256 returnLiquidity,
         address indexed keeper
     );
 
     event ClosePositionEvent(
         bytes32 poolId,
+        uint256 burnLiquidity,
         uint256 withdrawRisky,
         uint256 withdrawStable,
         address indexed keeper
@@ -141,9 +142,10 @@ contract ParetoThetaVault is ParetoVault {
     /**
      * @notice Sets up the vault condition on the current vault
      */
-    function deployVault() external nonReentrant {
-        (bytes32 poolId, uint256 strikePrice) = _prepareNextPool(
-            poolState.currPoolId,
+    function deployVault() external onlyKeeper nonReentrant {
+        bytes32 currPoolId = poolState.currPoolId;
+        (bytes32 nextPoolId, uint256 strikePrice) = _prepareNextPool(
+            currPoolId,
             paretoManager,
             vaultParams
         );
@@ -151,13 +153,36 @@ contract ParetoThetaVault is ParetoVault {
         emit DeployVaultEvent(strikePrice);
 
         // Update pool identifier in PoolState
-        poolState.nextPoolId = poolId;
+        poolState.nextPoolId = nextPoolId;
 
         // Update timestamp for next pool in PoolState
         // TODO: add delay?
         uint256 nextPoolReadyAt = block.timestamp;
         VaultMath.assertUint32(nextPoolReadyAt);
         poolState.nextPoolReadyAt = uint32(nextPoolReadyAt);
+
+        // Reset properties in VaultState
+        vaultState.lockedRisky = 0;
+        vaultState.lockedStable = 0;
+
+        // Reset properties in PoolState
+        poolState.currPoolId = ""; 
+
+        // Prevent bad things if we already called function
+        if (currPoolId != "") {
+            // Remove liquidity from Primitive pool for token assets
+            (uint256 riskyAmount, uint256 stableAmount) = 
+                _removeLiquidity(currPoolId, poolState.liquidity);
+
+            emit ClosePositionEvent(
+                currPoolId,
+                riskyAmount,
+                stableAmount,
+                msg.sender
+            );
+
+            poolState.liquidity = 0;  // Reset poolState params
+        }
     }
 
     /**
@@ -204,5 +229,8 @@ contract ParetoThetaVault is ParetoVault {
             optionLiquidity,
             msg.sender
         );
+
+        // Save the liquidity into PoolState
+        poolState.liquidity = optionLiquidity;
     }
 }
