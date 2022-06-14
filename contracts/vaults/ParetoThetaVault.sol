@@ -43,7 +43,11 @@ contract ParetoThetaVault is ParetoVault {
         address indexed keeper
     );
 
-    event DeployVaultEvent(uint256 strikePrice);
+    event DeployVaultEvent(
+        bytes32 poolId,
+        uint256 strikePrice,
+        address indexed keeper
+    );
 
     /************************************************
      * Constructor and Initialization
@@ -150,7 +154,11 @@ contract ParetoThetaVault is ParetoVault {
             vaultParams
         );
 
-        emit DeployVaultEvent(strikePrice);
+        emit DeployVaultEvent(
+            nextPoolId,
+            strikePrice,
+            msg.sender
+        );
 
         // Update pool identifier in PoolState
         poolState.nextPoolId = nextPoolId;
@@ -165,14 +173,11 @@ contract ParetoThetaVault is ParetoVault {
         vaultState.lockedRisky = 0;
         vaultState.lockedStable = 0;
 
-        // Reset properties in PoolState
-        poolState.currPoolId = ""; 
-
         // Prevent bad things if we already called function
         if (currPoolId != "") {
             // Remove liquidity from Primitive pool for token assets
             (uint256 riskyAmount, uint256 stableAmount) = 
-                _removeLiquidity(currPoolId, poolState.liquidity);
+                _removeLiquidity(currPoolId, poolState.currLiquidity);
 
             emit ClosePositionEvent(
                 currPoolId,
@@ -180,9 +185,12 @@ contract ParetoThetaVault is ParetoVault {
                 stableAmount,
                 msg.sender
             );
-
-            poolState.liquidity = 0;  // Reset poolState params
         }
+
+        // Reset properties in PoolState
+        poolState.currPoolId = "";
+        poolState.currLiquidity = 0;
+        delete poolState.currPoolParams;
     }
 
     /**
@@ -231,6 +239,6 @@ contract ParetoThetaVault is ParetoVault {
         );
 
         // Save the liquidity into PoolState
-        poolState.liquidity = optionLiquidity;
+        poolState.currLiquidity = optionLiquidity;
     }
 }

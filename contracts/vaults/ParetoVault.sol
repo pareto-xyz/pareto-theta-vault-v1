@@ -456,7 +456,8 @@ contract ParetoVault is
         external
         returns (
             bytes32 nextPoolId,
-            uint256 nextStrikePrice
+            uint256 nextStrikePrice,
+            uint32 nextVolatility
         )
     {
         // Compute the maturity date for the next pool
@@ -464,16 +465,28 @@ contract ParetoVault is
 
         // Manager is responsible for setting up the next pool
         IParetoManager manager = IParetoManager(paretoManager);
-
         nextStrikePrice = manager.getNextStrikePrice();
-        Vault.PoolParams poolParams = Vault.PoolParams({
+        nextVolatility = manager.getNextVolatility();
+
+        // Fetch parameters of current pool
+        Vault.PoolParams memory currParams = poolState.currPoolParams;
+
+        Vault.PoolParams memory nextParams = Vault.PoolParams({
             strike: nextStrikePrice,
-            sigma: manager.getNextVolatility(),
-            maturity: nextMaturity
+            sigma: nextVolatility,
+            maturity: nextMaturity,
+            // For the rest, propagate forward
+            gamma: currParams.gamma,
+            riskyPerLp: currParams.riskyPerLp,
+            delLiquidity: currParams.delLiquidity
         });
 
         // Deploy the Primitive pool
-        nextPoolId = _deployPool(poolParams, vaultParams);
+        nextPoolId = _deployPool(nextParams, vaultParams);
+        
+        // Save params 
+        poolState.nextPoolParams = nextParams;
+
         return (nextPoolId, nextStrikePrice);
     }
 
@@ -600,8 +613,11 @@ contract ParetoVault is
             vaultState.unusedRisky = uint128(unusedRisky);
             vaultState.unusedStable = uint128(unusedStable);
 
+            // Update properties of poolState
             poolState.currPoolId = newPoolId;
             poolState.nextPoolId = "";
+            poolState.currPoolParams = poolState.nextPoolParams;
+            delete poolState.nextPoolParams;
 
             // record the share price
             roundSharePriceRisky[vaultState.round] = newRiskyPrice;
