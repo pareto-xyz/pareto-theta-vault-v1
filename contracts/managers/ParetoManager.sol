@@ -22,10 +22,18 @@ contract ParetoManager is Ownable {
     // Strike multiplier has 2 decimal places. For example: 150 = 1.5x spot price
     uint256 private constant STRIKE_DECIMALS = 10**2;
 
+    /************************************************
+     * Constructor and initializers
+     ***********************************************/
+
     constructor(uint256 _strikeMultiplier) {
         require(_strikeMultiplier > STRIKE_DECIMALS, "_strikeMultiplier < 1");
         strikeMultiplier = _strikeMultiplier;
     }
+
+    /************************************************
+     * Manager Operations
+     ***********************************************/
 
     /**
      * @notice Computes the strike price for the next pool by multiplying 
@@ -37,7 +45,7 @@ contract ParetoManager is Ownable {
     function getNextStrikePrice() 
         external 
         pure
-        returns (uint256 strikePrice) 
+        returns (uint128 strikePrice) 
     {
         return strikePrice; 
     }
@@ -54,6 +62,20 @@ contract ParetoManager is Ownable {
         returns (uint32 sigma)
     {
         return sigma;
+    }
+
+    /**
+     * @notice Computes the gamma (or 1 - fee) for the next pool
+     * @notice TODO
+     * --
+     * @return gamma is the Gamma for the next pool
+     */
+    function getNextGamma()
+        external
+        pure
+        returns (uint32 gamma)
+    {
+        return gamma;
     }
 
     /**

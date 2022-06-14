@@ -456,8 +456,9 @@ contract ParetoVault is
         external
         returns (
             bytes32 nextPoolId,
-            uint256 nextStrikePrice,
-            uint32 nextVolatility
+            uint128 nextStrikePrice,
+            uint32 nextVolatility,
+            uint32 nextGamma
         )
     {
         // Compute the maturity date for the next pool
@@ -481,6 +482,14 @@ contract ParetoVault is
 
         require(nextVolatility != 0, "!nextVolatility");
 
+        // Check if we manually set gamma, overwise call manager
+        nextGamma = deployParams.manualGammaRound == 
+            vaultState.round
+            ? deployParams.manualGamma
+            : manager.getNextGamma();
+
+        require(nextGamma != 0, "!nextGamma");
+
         // Fetch parameters of current pool
         Vault.PoolParams memory currParams = poolState.currPoolParams;
 
@@ -489,7 +498,7 @@ contract ParetoVault is
             sigma: nextVolatility,
             maturity: nextMaturity,
             // For the rest, propagate forward
-            gamma: currParams.gamma,
+            gamma: nextGamma,
             riskyPerLp: currParams.riskyPerLp,
             delLiquidity: currParams.delLiquidity
         });
@@ -500,7 +509,12 @@ contract ParetoVault is
         // Save params 
         poolState.nextPoolParams = nextParams;
 
-        return (nextPoolId, nextStrikePrice);
+        return (
+            nextPoolId,
+            nextStrikePrice,
+            nextVolatility,
+            nextGamma
+        );
     }
 
     /**

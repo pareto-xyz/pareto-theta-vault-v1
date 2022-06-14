@@ -35,6 +35,12 @@ contract ParetoThetaVault is ParetoVault {
     // Round that owner manually sets volatility
     uint16 public manualVolatilityRound;
 
+    // Owner manually sets fee rate
+    uint128 public manualGamma;
+
+    // Round that owner manually sets fee rate
+    uint16 public manualGammaRound;
+
     /************************************************
      * Events
      ***********************************************/
@@ -57,7 +63,9 @@ contract ParetoThetaVault is ParetoVault {
 
     event DeployVaultEvent(
         bytes32 poolId,
-        uint256 strikePrice,
+        uint128 strikePrice,
+        uint32 volatility,
+        uint32 gamma,
         address indexed keeper
     );
 
@@ -168,18 +176,23 @@ contract ParetoThetaVault is ParetoVault {
                 manualStrikeRound: manualStrikeRound,
                 manualVolatility: manualVolatility,
                 manualVolatilityRound: manualVolatilityRound,
+                manualGamma: manualGamma,
+                manualGammaRound: manualGammaRound,
                 paretoManager: paretoManager
             });
 
-        (bytes32 nextPoolId, uint256 strikePrice) = _prepareNextPool(
-            currPoolId,
-            paretoManager,
-            vaultParams
-        );
+        (
+            bytes32 nextPoolId,
+            uint256 nextStrikePrice,
+            uint32 nextVolatility,
+            uint32 nextGamma
+        ) = _prepareNextPool(deployParams, vaultParams);
 
         emit DeployVaultEvent(
             nextPoolId,
-            strikePrice,
+            nextStrikePrice,
+            nextVolatility,
+            nextGamma,
             msg.sender
         );
 

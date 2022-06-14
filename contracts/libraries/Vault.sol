@@ -59,6 +59,8 @@ library Vault {
      * @param manualStrikeRound is the round of a manual strike
      * @param manualVolatility is a manually specified IV
      * @param manualVolatilityRound is the round of a manual IV
+     * @param manualGamma is a manually specified fee rate
+     * @param manualGammaRound is the round of a manual fee rate
      * @param paretoManager is the address of a manager contract
      */
     struct DeployParams {
@@ -67,6 +69,8 @@ library Vault {
         uint16 manualStrikeRound;
         uint128 manualVolatility;
         uint16 manualVolatilityRound;
+        uint128 manualGamma;
+        uint16 manualGammaRound;
         address paretoManager;
     }
     
