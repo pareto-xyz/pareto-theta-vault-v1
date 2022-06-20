@@ -9,9 +9,10 @@ module.exports = {
     sources: "./contracts",
     cache: "./cache",
     tests: "./test",
+    artifacts: "./artifacts"
   },
   solidity: {
-    version: "0.8.4",
+    version: "0.8.6",
     settings: {
       optimizer: {
         runs: 200,

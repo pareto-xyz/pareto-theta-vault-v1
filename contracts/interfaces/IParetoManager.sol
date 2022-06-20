@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: GPL-3.0
-pragma solidity =0.8.4;
+// SPDX-License-Identifier: GPL-3.0-only
+pragma solidity =0.8.6;
 
 import {Vault} from "../libraries/Vault.sol";
 
@@ -10,6 +10,11 @@ interface IParetoManager {
         returns (uint128);
 
     function getNextVolatility()
+        external
+        view
+        returns (uint32);
+
+    function getNextGamma()
         external
         view
         returns (uint32);

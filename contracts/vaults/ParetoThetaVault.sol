@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: GPL-3.0
-pragma solidity =0.8.4;
+// SPDX-License-Identifier: GPL-3.0-only
+pragma solidity =0.8.6;
 
 import {SafeMath} from "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -72,6 +72,12 @@ contract ParetoThetaVault is ParetoVault {
     /************************************************
      * Constructor and Initialization
      ***********************************************/
+
+    /**
+     * @notice Initializes the contract
+     */
+    constructor(address _primitiveManager)
+        ParetoVault(_primitiveManager) {}
     
     /**
      * @notice Initialization parameters for the vault
@@ -117,19 +123,6 @@ contract ParetoThetaVault is ParetoVault {
         );
         require(_initParams._paretoManager != address(0), "!_paretoManager");
         paretoManager = _initParams._paretoManager;
-    }
-
-    /************************************************
-     * Setters
-     ***********************************************/
-    
-    /**
-     * @notice Sets the new Pareto manager contract
-     * @param newManager is the address of the new Pareto manager contract
-     */
-    function setParetoManager(address newManager) external onlyOwner {
-        require(newManager != address(0), "!newManager");
-        paretoManager = newManager;
     }
 
     /************************************************
@@ -186,7 +179,7 @@ contract ParetoThetaVault is ParetoVault {
             uint256 nextStrikePrice,
             uint32 nextVolatility,
             uint32 nextGamma
-        ) = _prepareNextPool(deployParams, vaultParams);
+        ) = _prepareNextPool(deployParams);
 
         emit DeployVaultEvent(
             nextPoolId,
@@ -305,7 +298,7 @@ contract ParetoThetaVault is ParetoVault {
         require(volatility > 0, "!volatility");
 
         // Record into global variables
-        manualVolatility = Volatility;
+        manualVolatility = volatility;
         manualVolatilityRound = vaultState.round;
     }
 

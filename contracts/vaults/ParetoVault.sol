@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: GPL-3.0
-pragma solidity =0.8.4;
+// SPDX-License-Identifier: GPL-3.0-only
+pragma solidity =0.8.6;
 
 // Standard imports from OpenZeppelin
 import {SafeMath} from "@openzeppelin/contracts/utils/math/SafeMath.sol";
@@ -16,6 +16,7 @@ import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/
 import {IParetoManager} from "../interfaces/IParetoManager.sol";
 // Manage Primitive pools
 import {IPrimitiveManager} from "@primitivefi/rmm-manager/contracts/interfaces/IPrimitiveManager.sol";
+import {IManagerBase} from "@primitivefi/rmm-manager/contracts/interfaces/IManagerBase.sol";
 import {IPrimitiveEngineView} from "@primitivefi/rmm-core/contracts/interfaces/engine/IPrimitiveEngineView.sol";
 import {EngineAddress} from "@primitivefi/rmm-manager/contracts/libraries/EngineAddress.sol";
 // Relative imports
@@ -444,16 +445,9 @@ contract ParetoVault is
      * --
      * @param deployParams is the struct with details on previous pool and
      *  settings for new pool
-     * @param paretoManager is the address of a contract for strike selection
-     * @param delay is the delay between _prepareNextPool and _prepareRollover
-     * @param vaultParams is the struct with general vault data
-     * @param vaultState is the struct with current vault state
      */
-    function _prepareNextPool(
-        Vault.DeployParams calldata deployParams,
-        Vault.VaultParams storage vaultParams
-    )
-        external
+    function _prepareNextPool(Vault.DeployParams memory deployParams)
+        internal
         returns (
             bytes32 nextPoolId,
             uint128 nextStrikePrice,
@@ -475,16 +469,14 @@ contract ParetoVault is
         require(nextStrikePrice != 0, "!nextStrikePrice");
 
         // Check if we manually set volatility, overwise call manager
-        nextVolatility = deployParams.manualVolatilityRound == 
-            vaultState.round
+        nextVolatility = deployParams.manualVolatilityRound == vaultState.round
             ? deployParams.manualVolatility
             : manager.getNextVolatility();
 
         require(nextVolatility != 0, "!nextVolatility");
 
         // Check if we manually set gamma, overwise call manager
-        nextGamma = deployParams.manualGammaRound == 
-            vaultState.round
+        nextGamma = deployParams.manualGammaRound == vaultState.round
             ? deployParams.manualGamma
             : manager.getNextGamma();
 
@@ -504,7 +496,7 @@ contract ParetoVault is
         });
 
         // Deploy the Primitive pool
-        nextPoolId = _deployPool(nextParams, vaultParams);
+        nextPoolId = _deployPool(nextParams);
         
         // Save params 
         poolState.nextPoolParams = nextParams;
@@ -533,7 +525,7 @@ contract ParetoVault is
     function _prepareRollover()
         internal
         returns (
-            address newPoolId,
+            bytes32 newPoolId,
             uint256 lockedRisky,
             uint256 lockedStable,
             uint256 queuedWithdrawRisky,
@@ -747,9 +739,9 @@ contract ParetoVault is
      * --
      * @return engine is the address of the engine contract
      */
-    function _getPrimitiveEngine() internal returns (address) {
+    function _getPrimitiveEngine() internal view returns (address) {
         address engine = EngineAddress.computeAddress(
-            IPrimitiveManager(PRIMITIVE_MANAGER).factory(),
+            IManagerBase(PRIMITIVE_MANAGER).factory(),
             vaultParams.risky,
             vaultParams.stable
         );
@@ -763,7 +755,7 @@ contract ParetoVault is
      * --
      * @return maturity is the expiry date of the current pool
      */
-    function _getPoolMaturity(bytes32 poolId) internal returns (uint32) {
+    function _getPoolMaturity(bytes32 poolId) internal view returns (uint32) {
         address engine = _getPrimitiveEngine();
         (,,uint32 maturity,,) = 
             IPrimitiveEngineView(engine).calibrations(poolId);
@@ -774,14 +766,13 @@ contract ParetoVault is
      * @notice Creates a new Primitive pool using OptionParams
      * --
      * @param poolParams are the Black-Scholes parameters for the pool
-     * @param vaultParams are fixed constants for vaults
      * --
      * @return poolId is the pool identifier of the created pool
      */
-    function _deployPool(
-        Vault.PoolParams calldata poolParams,
-        Vault.VaultParams storage vaultParams
-    ) internal returns (bytes32) {
+    function _deployPool(Vault.PoolParams memory poolParams) 
+        internal
+        returns (bytes32) 
+    {
         (bytes32 poolId,,) = IPrimitiveManager(PRIMITIVE_MANAGER).create(
             vaultParams.risky,
             vaultParams.stable,
@@ -843,7 +834,7 @@ contract ParetoVault is
 
         address engine = _getPrimitiveEngine();  // fetch engine
         (uint256 riskyAmount, uint256 stableAmount) = 
-            IPrimitiveManager(PRIMITIVE_MANAGER).allocate(
+            IPrimitiveManager(PRIMITIVE_MANAGER).remove(
                 engine,
                 poolId,
                 liquidity,
@@ -968,7 +959,7 @@ contract ParetoVault is
      * getNextFriday(week 1 friday) -> week 2 friday
      * getNextFriday(week 1 saturday) -> week 2 friday
      */
-    function getNextFriday(uint32 timestamp) internal pure returns (uint32) {
+    function getNextFriday(uint256 timestamp) internal pure returns (uint32) {
         // dayOfWeek = 0 (sunday) - 6 (saturday)
         uint256 dayOfWeek = ((timestamp / 1 days) + 4) % 7;
         uint256 nextFriday = timestamp + ((7 + 5 - dayOfWeek) % 7) * 1 days;
@@ -979,6 +970,7 @@ contract ParetoVault is
         if (timestamp >= friday8am) {
             friday8am += 7 days;
         }
-        return friday8am;
+        VaultMath.assertUint32(friday8am);
+        return uint32(friday8am);
     }
 }

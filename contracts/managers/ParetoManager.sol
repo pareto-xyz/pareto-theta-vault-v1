@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: GPL-3.0
-pragma solidity =0.8.4;
+// SPDX-License-Identifier: GPL-3.0-only
+pragma solidity =0.8.6;
 
 import {SafeMath} from "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
@@ -62,7 +62,7 @@ contract ParetoManager is Ownable {
         pure
         returns (uint32 sigma)
     {
-        sigma = 0.8;  // TODO - placeholder constant
+        sigma = 8000000;  // TODO - placeholder constant
         return sigma;
     }
 

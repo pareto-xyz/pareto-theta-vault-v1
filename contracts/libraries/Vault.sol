@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: GPL-3.0
-pragma solidity =0.8.4;
+// SPDX-License-Identifier: GPL-3.0-only
+pragma solidity =0.8.6;
 
 /**
  * @notice Collection of constants and structs describing a theta vault
@@ -67,9 +67,9 @@ library Vault {
         bytes32 currPoolId;
         uint128 manualStrike;
         uint16 manualStrikeRound;
-        uint128 manualVolatility;
+        uint32 manualVolatility;
         uint16 manualVolatilityRound;
-        uint128 manualGamma;
+        uint32 manualGamma;
         uint16 manualGammaRound;
         address paretoManager;
     }
