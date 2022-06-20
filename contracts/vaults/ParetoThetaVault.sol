@@ -20,7 +20,7 @@ contract ParetoThetaVault is ParetoVault {
      * Non-upgradeable storage
      * TODO: some of these should probably be made upgradeable!
      ***********************************************/
-    
+
     address public paretoManager;
 
     // Owner manually sets strike price
@@ -76,9 +76,8 @@ contract ParetoThetaVault is ParetoVault {
     /**
      * @notice Initializes the contract
      */
-    constructor(address _primitiveManager)
-        ParetoVault(_primitiveManager) {}
-    
+    constructor(address _primitiveManager) ParetoVault(_primitiveManager) {}
+
     /**
      * @notice Initialization parameters for the vault
      * --
@@ -162,17 +161,16 @@ contract ParetoThetaVault is ParetoVault {
     function deployVault() external onlyKeeper nonReentrant {
         bytes32 currPoolId = poolState.currPoolId;
 
-        Vault.DeployParams memory deployParams = 
-            Vault.DeployParams({
-                currPoolId: currPoolId,
-                manualStrike: manualStrike,
-                manualStrikeRound: manualStrikeRound,
-                manualVolatility: manualVolatility,
-                manualVolatilityRound: manualVolatilityRound,
-                manualGamma: manualGamma,
-                manualGammaRound: manualGammaRound,
-                paretoManager: paretoManager
-            });
+        Vault.DeployParams memory deployParams = Vault.DeployParams({
+            currPoolId: currPoolId,
+            manualStrike: manualStrike,
+            manualStrikeRound: manualStrikeRound,
+            manualVolatility: manualVolatility,
+            manualVolatilityRound: manualVolatilityRound,
+            manualGamma: manualGamma,
+            manualGammaRound: manualGammaRound,
+            paretoManager: paretoManager
+        });
 
         (
             bytes32 nextPoolId,
@@ -205,8 +203,10 @@ contract ParetoThetaVault is ParetoVault {
         // Prevent bad things if we already called function
         if (currPoolId != "") {
             // Remove liquidity from Primitive pool for token assets
-            (uint256 riskyAmount, uint256 stableAmount) = 
-                _removeLiquidity(currPoolId, poolState.currLiquidity);
+            (uint256 riskyAmount, uint256 stableAmount) = _removeLiquidity(
+                currPoolId,
+                poolState.currLiquidity
+            );
 
             emit ClosePositionEvent(
                 currPoolId,

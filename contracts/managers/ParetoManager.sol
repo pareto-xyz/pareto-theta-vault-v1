@@ -16,7 +16,7 @@ contract ParetoManager is Ownable {
      * Immutables and Constants
      ***********************************************/
 
-     // multiplier for strike selection
+    // multiplier for strike selection
     uint256 public strikeMultiplier;
 
     // Strike multiplier has 2 decimal places. For example: 150 = 1.5x spot price
@@ -36,19 +36,15 @@ contract ParetoManager is Ownable {
      ***********************************************/
 
     /**
-     * @notice Computes the strike price for the next pool by multiplying 
-     * the current price - requires an oracle 
+     * @notice Computes the strike price for the next pool by multiplying
+     * the current price - requires an oracle
      * @notice TODO
      * --
      * @return strikePrice is the relative price of risky in stable
      */
-    function getNextStrikePrice() 
-        external 
-        pure
-        returns (uint128 strikePrice) 
-    {
-        strikePrice = 1000;  // TODO - placeholder constant
-        return strikePrice; 
+    function getNextStrikePrice() external pure returns (uint128 strikePrice) {
+        strikePrice = 1000; // TODO - placeholder constant
+        return strikePrice;
     }
 
     /**
@@ -57,12 +53,8 @@ contract ParetoManager is Ownable {
      * --
      * @return sigma is the implied volatility estimate
      */
-    function getNextVolatility()
-        external
-        pure
-        returns (uint32 sigma)
-    {
-        sigma = 8000000;  // TODO - placeholder constant
+    function getNextVolatility() external pure returns (uint32 sigma) {
+        sigma = 8000000; // TODO - placeholder constant
         return sigma;
     }
 
@@ -72,12 +64,8 @@ contract ParetoManager is Ownable {
      * --
      * @return gamma is the Gamma for the next pool
      */
-    function getNextGamma()
-        external
-        pure
-        returns (uint32 gamma)
-    {
-        gamma = 9900;  // TODO - placeholder 99% gamma = 1% fee
+    function getNextGamma() external pure returns (uint32 gamma) {
+        gamma = 9900; // TODO - placeholder 99% gamma = 1% fee
         return gamma;
     }
 
@@ -86,10 +74,7 @@ contract ParetoManager is Ownable {
      * --
      * @param _strikeMultiplier is the strike multiplier (decimals = 2)
      */
-    function setStrikeMultiplier(uint256 _strikeMultiplier)
-        external
-        onlyOwner
-    {
+    function setStrikeMultiplier(uint256 _strikeMultiplier) external onlyOwner {
         require(_strikeMultiplier > STRIKE_DECIMALS, "_strikeMultiplier < 1");
         strikeMultiplier = _strikeMultiplier;
     }

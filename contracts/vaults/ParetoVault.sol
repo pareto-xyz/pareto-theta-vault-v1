@@ -83,7 +83,7 @@ contract ParetoVault is
      * Immutables and Constants
      ***********************************************/
 
-    // PRIMITIVE_MANAGER is Primitive's contract for creating, allocating 
+    // PRIMITIVE_MANAGER is Primitive's contract for creating, allocating
     // liquidity to, and withdrawing liquidity from pools
     // https://github.com/primitivefinance/rmm-manager/blob/main/contracts/PrimitiveManager.sol
     address public immutable PRIMITIVE_MANAGER;
@@ -140,7 +140,7 @@ contract ParetoVault is
      * @param _primitiveManager is the contract address for primitive manager
      */
     constructor(address _primitiveManager) {
-        require (_primitiveManager != address(0), "!_primitiveManager");
+        require(_primitiveManager != address(0), "!_primitiveManager");
         PRIMITIVE_MANAGER = _primitiveManager;
     }
 
@@ -489,7 +489,6 @@ contract ParetoVault is
             strike: nextStrikePrice,
             sigma: nextVolatility,
             maturity: nextMaturity,
-            // For the rest, propagate forward
             gamma: nextGamma,
             riskyPerLp: currParams.riskyPerLp,
             delLiquidity: currParams.delLiquidity
@@ -497,16 +496,11 @@ contract ParetoVault is
 
         // Deploy the Primitive pool
         nextPoolId = _deployPool(nextParams);
-        
-        // Save params 
+
+        // Save params
         poolState.nextPoolParams = nextParams;
 
-        return (
-            nextPoolId,
-            nextStrikePrice,
-            nextVolatility,
-            nextGamma
-        );
+        return (nextPoolId, nextStrikePrice, nextVolatility, nextGamma);
     }
 
     /**
@@ -757,23 +751,24 @@ contract ParetoVault is
      */
     function _getPoolMaturity(bytes32 poolId) internal view returns (uint32) {
         address engine = _getPrimitiveEngine();
-        (,,uint32 maturity,,) = 
-            IPrimitiveEngineView(engine).calibrations(poolId);
+        (, , uint32 maturity, , ) = IPrimitiveEngineView(engine).calibrations(
+            poolId
+        );
         return maturity;
     }
 
-    /** 
+    /**
      * @notice Creates a new Primitive pool using OptionParams
      * --
      * @param poolParams are the Black-Scholes parameters for the pool
      * --
      * @return poolId is the pool identifier of the created pool
      */
-    function _deployPool(Vault.PoolParams memory poolParams) 
+    function _deployPool(Vault.PoolParams memory poolParams)
         internal
-        returns (bytes32) 
+        returns (bytes32)
     {
-        (bytes32 poolId,,) = IPrimitiveManager(PRIMITIVE_MANAGER).create(
+        (bytes32 poolId, , ) = IPrimitiveManager(PRIMITIVE_MANAGER).create(
             vaultParams.risky,
             vaultParams.stable,
             poolParams.strike,
@@ -794,7 +789,7 @@ contract ParetoVault is
      * @param poolId is the identifier of the pool to deposit in
      * @param riskyAmount is the amount of risky assets to deposit
      * @param stableAmount is the amount of stable assets to deposit
-     * -- 
+     * --
      * @return liquidity is the amount of LP tokens returned from deposit
      */
     function _depositLiquidity(
@@ -805,8 +800,8 @@ contract ParetoVault is
         uint256 liquidity = IPrimitiveManager(PRIMITIVE_MANAGER).allocate(
             address(this),
             poolId,
-            vaultParams.risky,   // address of risky address
-            vaultParams.stable,  // address of stable address
+            vaultParams.risky, // address of risky address
+            vaultParams.stable, // address of stable address
             riskyAmount,
             stableAmount,
             true,
@@ -815,7 +810,7 @@ contract ParetoVault is
         return liquidity;
     }
 
-    /** 
+    /**
      * @notice Removes a pair of assets from a Primitive pool
      * @notice Takes liquidity tokens from this contract
      * @notice TODO: do we need minimums?
@@ -826,21 +821,16 @@ contract ParetoVault is
      * @return riskyAmount is the amount of risky assets to deposit
      * @return stableAmount is the amount of stable assets to deposit
      */
-    function _removeLiquidity(
-        bytes32 poolId,
-        uint256 liquidity
-    ) internal returns (uint256, uint256) {
+    function _removeLiquidity(bytes32 poolId, uint256 liquidity)
+        internal
+        returns (uint256, uint256)
+    {
         if (liquidity == 0) return (0, 0);
 
-        address engine = _getPrimitiveEngine();  // fetch engine
-        (uint256 riskyAmount, uint256 stableAmount) = 
-            IPrimitiveManager(PRIMITIVE_MANAGER).remove(
-                engine,
-                poolId,
-                liquidity,
-                0,
-                0
-            );
+        address engine = _getPrimitiveEngine(); // fetch engine
+        (uint256 riskyAmount, uint256 stableAmount) = IPrimitiveManager(
+            PRIMITIVE_MANAGER
+        ).remove(engine, poolId, liquidity, 0, 0);
 
         return (riskyAmount, stableAmount);
     }
@@ -931,16 +921,13 @@ contract ParetoVault is
      * --
      * @return nextMaturity is the maturity of the next pool
      */
-    function getNextMaturity(bytes32 poolId) 
-        internal 
-        view 
-        returns (uint32)
-    {
-        if (poolId == "") {  // uninitialized state
+    function getNextMaturity(bytes32 poolId) internal view returns (uint32) {
+        if (poolId == "") {
+            // uninitialized state
             return getNextFriday(block.timestamp);
         }
         uint32 currMaturity = _getPoolMaturity(poolId);
-        
+
         // If its past one week since last option
         if (block.timestamp > currMaturity + 7 days) {
             return getNextFriday(block.timestamp);
@@ -965,7 +952,7 @@ contract ParetoVault is
         uint256 nextFriday = timestamp + ((7 + 5 - dayOfWeek) % 7) * 1 days;
         uint256 friday8am = nextFriday - (nextFriday % (24 hours)) + (8 hours);
 
-        // If the passed timestamp is day=Friday hour>8am, we simply 
+        // If the passed timestamp is day=Friday hour>8am, we simply
         // increment it by a week to next Friday
         if (timestamp >= friday8am) {
             friday8am += 7 days;

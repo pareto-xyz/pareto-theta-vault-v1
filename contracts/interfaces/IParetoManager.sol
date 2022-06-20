@@ -4,18 +4,9 @@ pragma solidity =0.8.6;
 import {Vault} from "../libraries/Vault.sol";
 
 interface IParetoManager {
-    function getNextStrikePrice() 
-        external
-        view
-        returns (uint128);
+    function getNextStrikePrice() external view returns (uint128);
 
-    function getNextVolatility()
-        external
-        view
-        returns (uint32);
+    function getNextVolatility() external view returns (uint32);
 
-    function getNextGamma()
-        external
-        view
-        returns (uint32);
+    function getNextGamma() external view returns (uint32);
 }

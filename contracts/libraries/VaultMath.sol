@@ -131,7 +131,6 @@ library VaultMath {
         require(num <= type(uint32).max, "Overflow uint32");
     }
 
-
     /**
      * Helper function to assert number is uint104
      */
