@@ -16,7 +16,9 @@
     }
   },
   "lint-staged": {
-    "*": "yarn lint:prettier"
+    "*.{js,json,css,scss,html,md}": [
+      "yarn lint:prettier"
+    ]
   },
   "repository": {
     "type": "git",
