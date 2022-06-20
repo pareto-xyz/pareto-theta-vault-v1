@@ -10,6 +10,11 @@
     "lint:prettier": "./node_modules/.bin/prettier --write contracts/**/*.sol",
     "prepare": "husky install"
   },
+  "husky": {
+    "hooks": {
+        "pre-commit": "yarn lint:prettier && git add -A ."
+    }
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/pareto-xyz/pareto-theta-vault-v1.git"
