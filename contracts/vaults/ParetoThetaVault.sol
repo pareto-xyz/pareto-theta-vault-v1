@@ -30,13 +30,13 @@ contract ParetoThetaVault is ParetoVault {
     uint16 public manualStrikeRound;
 
     // Owner manually sets implied volatility
-    uint128 public manualVolatility;
+    uint32 public manualVolatility;
 
     // Round that owner manually sets volatility
     uint16 public manualVolatilityRound;
 
     // Owner manually sets fee rate
-    uint128 public manualGamma;
+    uint32 public manualGamma;
 
     // Round that owner manually sets fee rate
     uint16 public manualGammaRound;
@@ -174,7 +174,7 @@ contract ParetoThetaVault is ParetoVault {
 
         (
             bytes32 nextPoolId,
-            uint256 nextStrikePrice,
+            uint128 nextStrikePrice,
             uint32 nextVolatility,
             uint32 nextGamma
         ) = _prepareNextPool(deployParams);
@@ -210,6 +210,7 @@ contract ParetoThetaVault is ParetoVault {
 
             emit ClosePositionEvent(
                 currPoolId,
+                poolState.currLiquidity,
                 riskyAmount,
                 stableAmount,
                 msg.sender
@@ -294,7 +295,7 @@ contract ParetoThetaVault is ParetoVault {
      * --
      * @param volatility is the sigma of the new pool (decimals = 8)
      */
-    function setVolatility(uint128 volatility) external onlyOwner {
+    function setVolatility(uint32 volatility) external onlyOwner {
         require(volatility > 0, "!volatility");
 
         // Record into global variables

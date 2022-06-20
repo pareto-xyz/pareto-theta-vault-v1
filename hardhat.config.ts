@@ -1,5 +1,12 @@
 import "@nomiclabs/hardhat-waffle";
 import "@nomiclabs/hardhat-ethers";
+import "hardhat-deploy";
+import "hardhat-deploy-ethers";
+
+const chainIds = {
+  ganache: 1337,
+  hardhat: 31337,
+};
 
 /**
  * @type import('hardhat/config').HardhatUserConfig
@@ -19,6 +26,9 @@ module.exports = {
         enabled: true,
       },
     },
+  },
+  namedAccounts: {
+    deployer: 0,
   },
   mocha: {
     timeout: 500000,
