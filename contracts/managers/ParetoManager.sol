@@ -47,6 +47,7 @@ contract ParetoManager is Ownable {
         pure
         returns (uint128 strikePrice) 
     {
+        strikePrice = 1000;  // TODO - placeholder constant
         return strikePrice; 
     }
 
@@ -61,6 +62,7 @@ contract ParetoManager is Ownable {
         pure
         returns (uint32 sigma)
     {
+        sigma = 0.8;  // TODO - placeholder constant
         return sigma;
     }
 
@@ -75,6 +77,7 @@ contract ParetoManager is Ownable {
         pure
         returns (uint32 gamma)
     {
+        gamma = 9900;  // TODO - placeholder 99% gamma = 1% fee
         return gamma;
     }
 
