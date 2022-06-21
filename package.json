@@ -60,6 +60,8 @@
     "solc": "^0.8.6",
     "solhint": "^3.3.7",
     "solhint-plugin-prettier": "^0.0.5",
+    "truffle": "^5.5.18",
+    "truffle-contract-size": "^2.0.1",
     "ts-node": "^10.8.1",
     "typescript": "^4.7.4"
   },

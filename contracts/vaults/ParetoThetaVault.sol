@@ -8,9 +8,6 @@ import {Vault} from "../libraries/Vault.sol";
 import {VaultMath} from "../libraries/VaultMath.sol";
 import {ParetoVault} from "./ParetoVault.sol";
 
-/**
- * TODO: Add upgradeable storage for this to inherit from.
- */
 contract ParetoThetaVault is ParetoVault {
     using SafeERC20 for IERC20;
     using SafeMath for uint256;
@@ -80,7 +77,6 @@ contract ParetoThetaVault is ParetoVault {
 
     /**
      * @notice Initialization parameters for the vault
-     * --
      * @param _owner is the owner of the vault with critical permissions
      * @param _feeRecipient is the address to recieve vault performance and management fees
      * @param _managementFeeRisky is the management fee pct for risky assets
@@ -102,7 +98,6 @@ contract ParetoThetaVault is ParetoVault {
 
     /**
      * @notice Initialize the contract with storage variables
-     * --
      * @param _initParams is the struct with vault initialization params
      * @param _vaultParams with general data about the vault
      */
@@ -130,7 +125,6 @@ contract ParetoThetaVault is ParetoVault {
 
     /**
      * @notice Requests a withdraw that is processed after the current round
-     * --
      * @param shares is the number of shares to withdraw
      */
     function requestWithdraw(uint256 shares) external nonReentrant {
@@ -279,33 +273,26 @@ contract ParetoThetaVault is ParetoVault {
 
     /**
      * @notice Optionality to manually set strike price
-     * --
      * @param strikePrice is the strike price of the new pool (decimals = 8)
      */
     function setStrikePrice(uint128 strikePrice) external onlyOwner {
         require(strikePrice > 0, "!strikePrice");
-
-        // Record into global variables
         manualStrike = strikePrice;
         manualStrikeRound = vaultState.round;
     }
 
     /**
      * @notice Optionality to manually set implied volatility
-     * --
      * @param volatility is the sigma of the new pool (decimals = 8)
      */
     function setVolatility(uint32 volatility) external onlyOwner {
         require(volatility > 0, "!volatility");
-
-        // Record into global variables
         manualVolatility = volatility;
         manualVolatilityRound = vaultState.round;
     }
 
     /**
      * @notice Sets the new Pareto Manager contract
-     * --
      * @param newParetoManager is the address of the new manager contract
      */
     function setParetoManager(address newParetoManager) external onlyOwner {

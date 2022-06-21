@@ -1,35 +1,23 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity =0.8.6;
 
-// Standard imports from OpenZeppelin
 import {SafeMath} from "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-// Helps prevent reentract calls to a function
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
-// Basic access control mechanism where there is an account (an owner) that an be
-// granted exclusive access to specific functions
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-// Implementation of ERC20 token
 import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
-// Strike selection
 import {IParetoManager} from "../interfaces/IParetoManager.sol";
-// Manage Primitive pools
 import {IPrimitiveManager} from "@primitivefi/rmm-manager/contracts/interfaces/IPrimitiveManager.sol";
 import {IManagerBase} from "@primitivefi/rmm-manager/contracts/interfaces/IManagerBase.sol";
 import {IPrimitiveEngineView} from "@primitivefi/rmm-core/contracts/interfaces/engine/IPrimitiveEngineView.sol";
 import {EngineAddress} from "@primitivefi/rmm-manager/contracts/libraries/EngineAddress.sol";
-// Relative imports
 import {Vault} from "../libraries/Vault.sol";
 import {VaultMath} from "../libraries/VaultMath.sol";
 
 /**
  * @notice Based on RibbonVault.sol
  * See https://docs.ribbon.finance/developers/ribbon-v2
- * @notice This is a token! You might see it tagged as pTHETA.
- * Special functions include `_mint` and `_burn` to increase
- * and decrease the supply.
- * @notice We expect to inherit from this class.
  */
 contract ParetoVault is
     ReentrancyGuardUpgradeable,
@@ -49,7 +37,6 @@ contract ParetoVault is
     mapping(address => Vault.DepositReceipt) public depositReceipts;
 
     // @notice When round closes, the share price of a receipt token is stored
-    // This is used to determine the number of shares to be returned to a user
     mapping(uint256 => uint256) public roundSharePriceRisky;
     mapping(uint256 => uint256) public roundSharePriceStable;
 
@@ -65,31 +52,30 @@ contract ParetoVault is
     // @notice State of the option in the Vault
     Vault.PoolState public poolState;
 
-    // Recipient of performance and management fees
+    // @notice Recipient of performance and management fees
     address public feeRecipient;
 
-    // Role in charge of weekly vault operations
-    // No access to critical vault changes
+    // @notice Role in charge of weekly vault operations
+    // @notice No access to critical vault changes
     address public keeper;
 
-    /// Management fee charged on entire AUM.
+    // @notice Management fee charged on entire AUM
     uint256 public managementFeeRisky;
     uint256 public managementFeeStable;
 
-    // Gap is left to avoid storage collisions
+    // @notice Gap is left to avoid storage collisions
     uint256[30] private ____gap;
 
     /************************************************
      * Immutables and Constants
      ***********************************************/
 
-    // PRIMITIVE_MANAGER is Primitive's contract for creating, allocating
+    // @notice PRIMITIVE_MANAGER is Primitive's contract for creating, allocating
     // liquidity to, and withdrawing liquidity from pools
-    // https://github.com/primitivefinance/rmm-manager/blob/main/contracts/PrimitiveManager.sol
     address public immutable PRIMITIVE_MANAGER;
 
-    // Number of weeks per year = 52.142857 weeks * FEE_MULTIPLIER = 52142857
-    // Dividing by weeks per year requires doing num.mul(FEE_MULTIPLIER).div(WEEKS_PER_YEAR)
+    // @notice Number of weeks per year = 52.142857 weeks * FEE_MULTIPLIER = 52142857
+    // @notice Dividing by weeks per year requires doing num.mul(FEE_MULTIPLIER).div(WEEKS_PER_YEAR)
     uint256 private constant WEEKS_PER_YEAR = 52142857;
 
     /************************************************
@@ -136,7 +122,6 @@ contract ParetoVault is
 
     /**
      * @notice Initializes the contract with immutable variables
-     * --
      * @param _primitiveManager is the contract address for primitive manager
      */
     constructor(address _primitiveManager) {
@@ -146,7 +131,6 @@ contract ParetoVault is
 
     /**
      * @notice Initializes the contract with storage variables
-     * --
      * @param _owner is the Owner address
      * @param _keeper is the Keeper address
      * @param _feeRecipient is the address that receives fees
@@ -166,13 +150,11 @@ contract ParetoVault is
         string memory _tokenSymbol,
         Vault.VaultParams calldata _vaultParams
     ) internal initializer {
-        // Init calls are required for upgradeable contracts
         __ReentrancyGuard_init();
         __ERC20_init(_tokenName, _tokenSymbol);
         __Ownable_init();
         transferOwnership(_owner);
 
-        // Set global variables
         keeper = _keeper;
         feeRecipient = _feeRecipient;
         managementFeeRisky = _managementFeeRisky.mul(Vault.FEE_MULTIPLIER).div(
@@ -199,7 +181,6 @@ contract ParetoVault is
 
     /**
      * @notice Sets the keeper. Only accessible by owner
-     * --
      * @param newKeeper is the address of the new keeper
      */
     function setKeeper(address newKeeper) external onlyOwner {
@@ -209,7 +190,6 @@ contract ParetoVault is
 
     /**
      * Sets the fee recipient. Only accessible by owner
-     * --
      * @param newFeeRecipient is the address of the new fee recipient
      *  This must be different than the current `feeRecipient`
      */
@@ -221,7 +201,6 @@ contract ParetoVault is
 
     /**
      * Sets the management fee for the vault
-     * --
      * @param newManagementFeeRisky is the management fee in risky asset
      * @param newManagementFeeStable is the management fee in stable asset
      */
@@ -247,7 +226,6 @@ contract ParetoVault is
             .mul(Vault.FEE_MULTIPLIER)
             .div(WEEKS_PER_YEAR);
 
-        // Log event
         emit ManagementFeeSetEvent(
             managementFeeRisky,
             managementFeeStable,
@@ -265,7 +243,6 @@ contract ParetoVault is
 
     /**
      * @notice Deposits risky asset from msg.sender.
-     * --
      * @param risky is the amount of risky asset to deposit
      * @param stable is the amount of stable asset to deposit
      *  in stable
@@ -292,7 +269,6 @@ contract ParetoVault is
     /**
      * @notice Updates receipts and internal variables
      * @notice Minting will be done in the next rollover
-     * --
      * @param risky is the amount of risky asset to be deposited
      * @param stable is the amount of stable asset to be deposited
      * @param creditor is the address to receive the deposit
@@ -320,17 +296,14 @@ contract ParetoVault is
         uint256 depositStable = stable;
 
         // If another pending deposit exists for current round, add to it
-        // This effectively rolls two deposits into one
         if (receipt.round == currRound) {
             depositRisky = uint256(receipt.risky).add(risky);
             depositStable = uint256(receipt.stable).add(stable);
         }
 
-        // Sanity check type-casting prior to doing so
         VaultMath.assertUint104(depositRisky);
         VaultMath.assertUint104(depositStable);
 
-        // Update the receipt
         depositReceipts[creditor] = Vault.DepositReceipt({
             round: uint16(currRound),
             risky: uint104(depositRisky),
@@ -353,7 +326,6 @@ contract ParetoVault is
     /**
      * @notice Initiates a withdraw to be processed after round completes
      * @notice This function does not make the actual withdrawl
-     * --
      * @param shares is the amount of shares to withdraw
      */
     function _requestWithdraw(uint256 shares) internal {
@@ -370,20 +342,17 @@ contract ParetoVault is
             // If the user requested a withdrawal recently, merge
             withdrawnShares = uint256(withdrawal.shares).add(shares);
         } else {
-            // If we find a withdrawal request from an old round, something
-            // bad has happened
+            // If we find a withdrawal request from an old round, bad
             require(uint256(withdrawal.shares) == 0, "Abandoned withdraw");
             withdrawnShares = shares;
-            // Update cached withdrawal request
             withdrawals[msg.sender].round = uint16(currRound);
         }
-        VaultMath.assertUint128(withdrawnShares); // check typecasting
+        VaultMath.assertUint128(withdrawnShares);
         withdrawals[msg.sender].shares = uint128(withdrawnShares);
     }
 
     /**
      * @notice Complete a scheduled withdrawal from past round
-     * --
      * @return withdrawRisky is the withdrawn amount of risky asset
      * @return withdrawStable is the withdrawn amount of stable asset
      */
@@ -414,7 +383,6 @@ contract ParetoVault is
                 vaultParams.decimals
             );
 
-        // Log withdraw event
         emit WithdrawEvent(
             msg.sender,
             withdrawRisky,
@@ -422,7 +390,6 @@ contract ParetoVault is
             withdrawShares
         );
 
-        // Burn the shares
         _burn(address(this), withdrawShares);
 
         require(withdrawRisky > 0, "!withdrawRisky");
@@ -442,9 +409,7 @@ contract ParetoVault is
     /**
      * @notice Setup the next Primitive pool (i.e. the next option)
      * @notice Replaces the `commitAndClose` function in Ribbon.
-     * --
-     * @param deployParams is the struct with details on previous pool and
-     *  settings for new pool
+     * @param deployParams has details on previous pool and settings for new pool
      */
     function _prepareNextPool(Vault.DeployParams memory deployParams)
         internal
@@ -482,9 +447,7 @@ contract ParetoVault is
 
         require(nextGamma != 0, "!nextGamma");
 
-        // Fetch parameters of current pool
         Vault.PoolParams memory currParams = poolState.currPoolParams;
-
         Vault.PoolParams memory nextParams = Vault.PoolParams({
             strike: nextStrikePrice,
             sigma: nextVolatility,
@@ -496,8 +459,6 @@ contract ParetoVault is
 
         // Deploy the Primitive pool
         nextPoolId = _deployPool(nextParams);
-
-        // Save params
         poolState.nextPoolParams = nextParams;
 
         return (nextPoolId, nextStrikePrice, nextVolatility, nextGamma);
@@ -507,7 +468,6 @@ contract ParetoVault is
      * @notice Logistic operations for rolling to the next option, such as
      *  minting new shares and transferring vault fees. The actual calls to
      *  Primitive are not made in this function but require the outputs
-     * --
      * @return newPoolId is the bytes32 id of the next Primitive pool
      * @return lockedRisky is the amount of risky asset locked for next round
      * @return lockedStable is the amount of stable asset locked for next round
@@ -637,7 +597,6 @@ contract ParetoVault is
             roundSharePriceRisky[vaultState.round] = newRiskyPrice;
             roundSharePriceStable[vaultState.round] = newStablePrice;
 
-            // Log that vault fees are being collected
             emit VaultFeesCollectionEvent(
                 vaultFeeRisky,
                 vaultFeeStable,
@@ -645,10 +604,9 @@ contract ParetoVault is
                 feeRecipient
             );
 
-            // Reset pending to zero
+            // Reset vault state variables
             vaultState.pendingRisky = 0;
             vaultState.pendingStable = 0;
-
             vaultState.round = uint16(vaultState.round + 1);
         }
 
@@ -680,7 +638,6 @@ contract ParetoVault is
 
     /**
      * @notice Calculates performance and management fee for this week's round
-     * --
      * @param currentRisky is the balance of risky assets in vault
      * @param currentStable is the balance of stable assets in vault
      * @param pendingRisky is the pending deposit amount of risky asset
@@ -709,8 +666,7 @@ contract ParetoVault is
         uint256 _vaultFeeRisky;
         uint256 _vaultFeeStable;
 
-        // TODO: For future versions, we should consider a price oracle to
-        // compute performance w/ conditional fees
+        // TODO: add price oracle for performance fee
         _vaultFeeRisky = _managementFeeRisky > 0
             ? riskyMinusPending.mul(_managementFeeRisky).div(
                 100 * Vault.FEE_MULTIPLIER
@@ -730,7 +686,6 @@ contract ParetoVault is
 
     /**
      * @notice Get the underlying Primitive engine of the Manager
-     * --
      * @return engine is the address of the engine contract
      */
     function _getPrimitiveEngine() internal view returns (address) {
@@ -744,9 +699,7 @@ contract ParetoVault is
 
     /**
      * @notice Fetch the maturity timestamp of the current Primitive pool
-     * --
      * @param poolId is the identifier of the current pool
-     * --
      * @return maturity is the expiry date of the current pool
      */
     function _getPoolMaturity(bytes32 poolId) internal view returns (uint32) {
@@ -759,9 +712,7 @@ contract ParetoVault is
 
     /**
      * @notice Creates a new Primitive pool using OptionParams
-     * --
      * @param poolParams are the Black-Scholes parameters for the pool
-     * --
      * @return poolId is the pool identifier of the created pool
      */
     function _deployPool(Vault.PoolParams memory poolParams)
@@ -785,11 +736,9 @@ contract ParetoVault is
      * @notice Deposits a pair of assets in a Primitive pool
      * @notice Stores the liquidity tokens in this contract
      * @notice TODO: do we need minimums?
-     * --
      * @param poolId is the identifier of the pool to deposit in
      * @param riskyAmount is the amount of risky assets to deposit
      * @param stableAmount is the amount of stable assets to deposit
-     * --
      * @return liquidity is the amount of LP tokens returned from deposit
      */
     function _depositLiquidity(
@@ -800,8 +749,8 @@ contract ParetoVault is
         uint256 liquidity = IPrimitiveManager(PRIMITIVE_MANAGER).allocate(
             address(this),
             poolId,
-            vaultParams.risky, // address of risky address
-            vaultParams.stable, // address of stable address
+            vaultParams.risky,
+            vaultParams.stable,
             riskyAmount,
             stableAmount,
             true,
@@ -814,10 +763,8 @@ contract ParetoVault is
      * @notice Removes a pair of assets from a Primitive pool
      * @notice Takes liquidity tokens from this contract
      * @notice TODO: do we need minimums?
-     * --
      * @param poolId is the identifier of the pool to deposit in
      * @param liquidity is the amount of LP tokens returned from deposit
-     * --
      * @return riskyAmount is the amount of risky assets to deposit
      * @return stableAmount is the amount of stable assets to deposit
      */
@@ -841,9 +788,7 @@ contract ParetoVault is
 
     /**
      * @notice Returns the asset balance held in the vault for one account
-     * --
      * @param account is the address to lookup balance for
-     * --
      * @return the amount of `asset` owned by the vault for the user
      */
     function getAccountBalance(address account)
@@ -870,11 +815,8 @@ contract ParetoVault is
     }
 
     /**
-     * @notice Returns the number of shares (including unredeemed shares) for
-     * one account
-     * --
+     * @notice Returns the number of shares (+unredeemed shares) for one account
      * @param account is the address to lookup balance for
-     * --
      * @return the share balance
      */
     function getAccountShares(address account) public view returns (uint256) {
@@ -916,9 +858,7 @@ contract ParetoVault is
 
     /**
      * @notice Gets the next expiry timestamp
-     * --
      * @param poolId is the identifier of the current Primitive pool
-     * --
      * @return nextMaturity is the maturity of the next pool
      */
     function getNextMaturity(bytes32 poolId) internal view returns (uint32) {
@@ -937,10 +877,7 @@ contract ParetoVault is
 
     /**
      * @notice Gets the next options expiry timestamp
-     * --
      * @param timestamp is the expiry timestamp of the current option
-     * --
-     * Reference: https://codereview.stackexchange.com/a/33532
      * Examples:
      * getNextFriday(week 1 thursday) -> week 1 friday
      * getNextFriday(week 1 friday) -> week 2 friday

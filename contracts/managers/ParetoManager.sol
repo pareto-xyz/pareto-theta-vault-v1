@@ -39,7 +39,6 @@ contract ParetoManager is Ownable {
      * @notice Computes the strike price for the next pool by multiplying
      * the current price - requires an oracle
      * @notice TODO
-     * --
      * @return strikePrice is the relative price of risky in stable
      */
     function getNextStrikePrice() external pure returns (uint128 strikePrice) {
@@ -50,7 +49,6 @@ contract ParetoManager is Ownable {
     /**
      * @notice Computes the volatility for the next pool
      * @notice TODO
-     * --
      * @return sigma is the implied volatility estimate
      */
     function getNextVolatility() external pure returns (uint32 sigma) {
@@ -61,7 +59,6 @@ contract ParetoManager is Ownable {
     /**
      * @notice Computes the gamma (or 1 - fee) for the next pool
      * @notice TODO
-     * --
      * @return gamma is the Gamma for the next pool
      */
     function getNextGamma() external pure returns (uint32 gamma) {
@@ -71,7 +68,6 @@ contract ParetoManager is Ownable {
 
     /**
      * @notice Set the multiplier for setting the strike price
-     * --
      * @param _strikeMultiplier is the strike multiplier (decimals = 2)
      */
     function setStrikeMultiplier(uint256 _strikeMultiplier) external onlyOwner {
