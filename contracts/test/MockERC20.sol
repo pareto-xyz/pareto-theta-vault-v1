@@ -12,7 +12,7 @@ contract MockERC20 is ERC20 {
     ) ERC20(_name, _symbol, _decimals) {}
 
     function testLog() public view {
-      console.log("hi");
+        console.log("hi");
     }
 
     function mint(address to, uint256 value) public virtual {
