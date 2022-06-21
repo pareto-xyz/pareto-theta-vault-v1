@@ -2,7 +2,7 @@ import "@nomiclabs/hardhat-waffle";
 import "@nomiclabs/hardhat-ethers";
 import "hardhat-deploy";
 import "hardhat-deploy-ethers";
-// import "hardhat-tracer";
+import "hardhat-tracer";
 import "hardhat-dependency-compiler";
 
 const chainIds = {
