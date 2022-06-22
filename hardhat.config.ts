@@ -5,11 +5,6 @@ import "hardhat-deploy-ethers";
 import "hardhat-tracer";
 import "hardhat-dependency-compiler";
 
-const chainIds = {
-  ganache: 1337,
-  hardhat: 31337,
-};
-
 module.exports = {
   paths: {
     sources: "./contracts",
