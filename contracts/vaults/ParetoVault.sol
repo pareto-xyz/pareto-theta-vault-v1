@@ -814,13 +814,15 @@ contract ParetoVault is
             {
                 // Compute vault fees in two assets
                 (feeInRisky, feeInStable) = _getVaultFees(
-                    currRisky.sub(vaultState.lastQueuedWithdrawRisky),
-                    currStable.sub(vaultState.lastQueuedWithdrawStable),
-                    vaultState.lastLockedRisky,
-                    vaultState.lastLockedStable,
-                    vaultState.pendingRisky,
-                    managementFee,
-                    performanceFee
+                    Vault.FeeCalculatorParams({
+                        currRisky: currRisky.sub(vaultState.lastQueuedWithdrawRisky),
+                        currStable: currStable.sub(vaultState.lastQueuedWithdrawStable),
+                        lastLockedRisky: vaultState.lastLockedRisky,
+                        lastLockedStable: vaultState.lastLockedStable,
+                        pendingRisky: vaultState.pendingRisky,
+                        managementFeePercent: managementFee,
+                        performanceFeePercent: performanceFee
+                    })
                 );
             }
 
@@ -921,33 +923,20 @@ contract ParetoVault is
 
     /**
      * @notice Calculates performance and management fee for this week's round
-     * @param currRisky is the balance of risky assets in vault
-     * @param currStable is the balance of stable assets in vault
-     * @param lastLockedRisky is the amount of risky assets locked from last round
-     * @param lastLockedStable is the amount of stable assets locked from last round
-     * @param pendingRisky is the pending deposit amount of risky asset
-     * @param managementFeePercent is the fee percent on the AUM in both assets
-     * @param performanceFeePercent is the fee percent on the premium in both assets
+     * @param feeParams is the parameters for fee computation
      * @return feeInRisky is the fees awarded to owner in risky
      * @return feeInStable is the fees awarded to owner in stable
      * --
      * TODO: check if vault made money
      */
     function _getVaultFees(
-        uint256 currRisky,
-        uint256 currStable,
-        uint256 lastLockedRisky,
-        uint256 lastLockedStable,
-        uint256 pendingRisky,
-        uint256 managementFeePercent,
-        uint256 performanceFeePercent
+        Vault.FeeCalculatorParams memory feeParams
     ) internal pure returns (uint256 feeInRisky, uint256 feeInStable) {
         // Locked amount should not include pending amount
-        uint256 currLockedRisky = currRisky > pendingRisky
-            ? currRisky.sub(pendingRisky)
+        uint256 currLockedRisky = feeParams.currRisky > feeParams.pendingRisky
+            ? feeParams.currRisky.sub(feeParams.pendingRisky)
             : 0;
         // Users cannot deposit stable tokens
-        uint256 currLockedStable = currStable;
         uint256 _performanceFeeInRisky;
         uint256 _performanceFeeInStable;
         uint256 _managementFeeInRisky;
@@ -957,25 +946,23 @@ contract ParetoVault is
         // last week and this week's vault deposits (taking into account pending
         // deposits and withdrawals), is positive. This is to infer if the vault
         // make money last week: if difference < 0, vault look a loss.
-        _performanceFeeInRisky = performanceFeePercent > 0
-            ? currLockedRisky
-                .sub(lastLockedRisky)
-                .mul(performanceFeePercent)
+        _performanceFeeInRisky = feeParams.performanceFeePercent > 0
+            ? currLockedRisky.sub(feeParams.lastLockedRisky)
+                .mul(feeParams.performanceFeePercent)
                 .div(100 * Vault.FEE_MULTIPLIER)
             : 0;
-        _performanceFeeInStable = performanceFeePercent > 0
-            ? currLockedStable
-                .sub(lastLockedStable)
-                .mul(performanceFeePercent)
+        _performanceFeeInStable = feeParams.performanceFeePercent > 0
+            ? feeParams.currStable.sub(feeParams.lastLockedStable)
+                .mul(feeParams.performanceFeePercent)
                 .div(100 * Vault.FEE_MULTIPLIER)
             : 0;
-        _managementFeeInRisky = managementFeePercent > 0
-            ? currLockedRisky.mul(managementFeePercent).div(
+        _managementFeeInRisky = feeParams.managementFeePercent > 0
+            ? currLockedRisky.mul(feeParams.managementFeePercent).div(
                 100 * Vault.FEE_MULTIPLIER
             )
             : 0;
-        _managementFeeInStable = managementFeePercent > 0
-            ? currLockedStable.mul(managementFeePercent).div(
+        _managementFeeInStable = feeParams.managementFeePercent > 0
+            ? feeParams.currStable.mul(feeParams.managementFeePercent).div(
                 100 * Vault.FEE_MULTIPLIER
             )
             : 0;

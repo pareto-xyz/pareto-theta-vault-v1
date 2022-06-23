@@ -113,4 +113,23 @@ library Vault {
         uint16 round;
         uint128 shares;
     }
+
+    /**
+     * @param currRisky is the balance of risky assets in vault
+     * @param currStable is the balance of stable assets in vault
+     * @param lastLockedRisky is the amount of risky assets locked from last round
+     * @param lastLockedStable is the amount of stable assets locked from last round
+     * @param pendingRisky is the pending deposit amount of risky asset
+     * @param managementFeePercent is the fee percent on the AUM in both assets
+     * @param performanceFeePercent is the fee percent on the premium in both assets
+     */
+    struct FeeCalculatorParams {
+        uint256 currRisky;
+        uint256 currStable;
+        uint256 lastLockedRisky;
+        uint256 lastLockedStable;
+        uint256 pendingRisky;
+        uint256 managementFeePercent;
+        uint256 performanceFeePercent;
+    }
 }
