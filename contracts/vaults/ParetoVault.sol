@@ -58,14 +58,14 @@ contract ParetoVault is
     Vault.ManagerState public managerState;
 
     // Recipient of performance and management fees
-    address public feeRecipient;
+    address public override feeRecipient;
 
     // Role in charge of weekly vault operations
     // No access to critical vault changes
-    address public keeper;
+    address public override keeper;
 
     // Address for the vault manager contract
-    address public vaultManager;
+    address public override vaultManager;
 
     // Address for the Primitive manager contract
     address public immutable primitiveManager;
@@ -74,10 +74,10 @@ contract ParetoVault is
     address public immutable primitiveEngine;
 
     // Address for the risky asset
-    address public risky;
+    address public override risky;
 
     // Address for the stable asset
-    address public stable;
+    address public override stable;
 
     uint8 public riskyDecimals;
     uint8 public stableDecimals;
@@ -414,7 +414,7 @@ contract ParetoVault is
      * @notice Deposits risky asset from msg.sender.
      * @param riskyAmount is the amount of risky asset to deposit
      */
-    function deposit(uint256 riskyAmount) external nonReentrant {
+    function deposit(uint256 riskyAmount) external override nonReentrant {
         require(riskyAmount > 0, "!riskyAmount");
 
         emit DepositEvent(msg.sender, riskyAmount, vaultState.round);
@@ -428,7 +428,7 @@ contract ParetoVault is
      * @notice Requests a withdraw that is processed after the current round
      * @param shares is the number of shares to withdraw
      */
-    function requestWithdraw(uint256 shares) external nonReentrant {
+    function requestWithdraw(uint256 shares) external override nonReentrant {
         _requestWithdraw(shares);
 
         // Update global variable caching shares queued for withdrawal
@@ -440,7 +440,7 @@ contract ParetoVault is
     /**
      * @notice Completes a requested withdraw from past round.
      */
-    function completeWithdraw() external nonReentrant {
+    function completeWithdraw() external override nonReentrant {
         (uint256 riskyWithdrawn, uint256 stableWithdrawn) = _completeWithdraw();
 
         // Update globals caching withdrawal amounts from last round
@@ -1090,6 +1090,7 @@ contract ParetoVault is
     function getAccountBalance(address account)
         external
         view
+        override
         returns (uint256 riskyAmount, uint256 stableAmount)
     {
         uint256 sharePriceInRisky = VaultMath.getSharePrice(
