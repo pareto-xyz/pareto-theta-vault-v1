@@ -36,9 +36,24 @@ contract ParetoManager is Ownable {
      ***********************************************/
 
     /**
+     * @notice Calls Uniswap to get relative price between risky and stable asset
+     *  Assumes a pool exists between risky and stable asset
+     * @param risky is the address of the risky token
+     * @param stable is the address of the stable token
+     * @return price is the current exchange rate between the two tokens
+     */
+    function getOraclePrice(address risky, address stable) 
+        external
+        pure
+        returns (uint128 price) 
+    {
+        price = 1;  // TODO - placeholder constant
+        return price;
+    }
+
+    /**
      * @notice Computes the strike price for the next pool by multiplying
      * the current price - requires an oracle
-     * @notice TODO
      * @return strikePrice is the relative price of risky in stable
      */
     function getNextStrikePrice() external pure returns (uint128 strikePrice) {
@@ -48,7 +63,6 @@ contract ParetoManager is Ownable {
 
     /**
      * @notice Computes the volatility for the next pool
-     * @notice TODO
      * @return sigma is the implied volatility estimate
      */
     function getNextVolatility() external pure returns (uint32 sigma) {
@@ -58,7 +72,6 @@ contract ParetoManager is Ownable {
 
     /**
      * @notice Computes the gamma (or 1 - fee) for the next pool
-     * @notice TODO
      * @return gamma is the Gamma for the next pool
      */
     function getNextGamma() external pure returns (uint32 gamma) {
