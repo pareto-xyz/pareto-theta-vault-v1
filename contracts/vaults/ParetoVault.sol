@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity =0.8.6;
 
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IERC20} from "../interfaces/IERC20.sol";
 import {SafeMath} from "@openzeppelin/contracts/utils/math/SafeMath.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {SafeERC20} from "../libraries/SafeERC20.sol";
 import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
@@ -78,9 +78,6 @@ contract ParetoVault is
 
     // Address for the stable asset
     address public override stable;
-
-    uint8 public riskyDecimals;
-    uint8 public stableDecimals;
 
     // Management fee charged on entire AUM
     uint256 public managementFee;
@@ -243,8 +240,6 @@ contract ParetoVault is
      * @param _primitiveEngine is the address for primitive engine
      * @param _risky is the address for the risky token
      * @param _stable is the address for the stable token
-     * @param _riskyDecimals is the decimals for risky token
-     * @param _stableDecimals is the decimals for stable token
      * @param _managementFee is the management fee percent per year
      * @param _performanceFee is the management fee percent per round
      * @param _tokenName is the name of the asset
@@ -258,8 +253,6 @@ contract ParetoVault is
         address _primitiveEngine,
         address _risky,
         address _stable,
-        uint8 _riskyDecimals,
-        uint8 _stableDecimals,
         uint256 _managementFee,
         uint256 _performanceFee,
         string memory _tokenName,
@@ -280,8 +273,6 @@ contract ParetoVault is
         primitiveEngine = _primitiveEngine;
         risky = _risky;
         stable = _stable;
-        riskyDecimals = _riskyDecimals;
-        stableDecimals = _stableDecimals;
         performanceFee = _performanceFee;
         // Compute management to charge per week by yearly amount
         managementFee = _managementFee.mul(Vault.FEE_MULTIPLIER).div(
@@ -591,7 +582,7 @@ contract ParetoVault is
         uint256 shares = receipt.getSharesFromReceipt(
             currRound,
             roundSharePriceInRisky[receipt.round], // round of deposit
-            riskyDecimals
+            IERC20(risky).decimals()
         );
 
         uint256 depositAmount = riskyAmount;
@@ -684,12 +675,12 @@ contract ParetoVault is
         uint256 riskyWithdrawn = VaultMath.shareToAsset(
             sharesToWithdraw,
             roundSharePriceInRisky[withdrawRound],
-            riskyDecimals
+            IERC20(risky).decimals()
         );
         uint256 stableWithdrawn = VaultMath.shareToAsset(
             sharesToWithdraw,
             roundSharePriceInStable[withdrawRound],
-            stableDecimals
+            IERC20(stable).decimals()
         );
 
         require(riskyWithdrawn > 0, "!riskyWithdrawn");
@@ -843,13 +834,13 @@ contract ParetoVault is
                     currSupply,
                     currRisky.sub(vaultState.lastQueuedWithdrawRisky),
                     vaultState.pendingRisky,
-                    riskyDecimals
+                    IERC20(risky).decimals()
                 );
                 newSharePriceInStable = VaultMath.getSharePrice(
                     currSupply,
                     currStable.sub(vaultState.lastQueuedWithdrawStable),
                     0,
-                    stableDecimals
+                    IERC20(stable).decimals()
                 );
 
                 // Update the amount of risky and stable asset to be withdrawn
@@ -858,14 +849,14 @@ contract ParetoVault is
                     VaultMath.shareToAsset(
                         vaultState.currQueuedWithdrawShares,
                         newSharePriceInRisky,
-                        riskyDecimals
+                        IERC20(risky).decimals()
                     )
                 );
                 queuedWithdrawStable = vaultState.lastQueuedWithdrawStable.add(
                     VaultMath.shareToAsset(
                         vaultState.currQueuedWithdrawShares,
                         newSharePriceInStable,
-                        stableDecimals
+                        IERC20(stable).decimals()
                     )
                 );
 
@@ -874,7 +865,7 @@ contract ParetoVault is
                 sharesToMint = VaultMath.assetToShare(
                     vaultState.pendingRisky,
                     newSharePriceInRisky,
-                    riskyDecimals
+                    IERC20(risky).decimals()
                 );
             }
 
@@ -1097,23 +1088,23 @@ contract ParetoVault is
             totalSupply(),
             totalRisky(),
             vaultState.pendingRisky,
-            riskyDecimals
+            IERC20(risky).decimals()
         );
         uint256 sharePriceInStable = VaultMath.getSharePrice(
             totalSupply(),
             totalStable(),
             0,
-            stableDecimals
+            IERC20(stable).decimals()
         );
         riskyAmount = VaultMath.shareToAsset(
             getAccountShares(account),
             sharePriceInRisky,
-            riskyDecimals
+            IERC20(risky).decimals()
         );
         stableAmount = VaultMath.shareToAsset(
             getAccountShares(account),
             sharePriceInStable,
-            stableDecimals
+            IERC20(stable).decimals()
         );
         return (riskyAmount, stableAmount);
     }
@@ -1132,7 +1123,7 @@ contract ParetoVault is
         shares = receipt.getSharesFromReceipt(
             vaultState.round,
             roundSharePriceInRisky[receipt.round],
-            riskyDecimals
+            IERC20(risky).decimals()
         );
         return shares;
     }
