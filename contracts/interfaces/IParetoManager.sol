@@ -2,14 +2,35 @@
 pragma solidity >=0.8.6;
 
 interface IParetoManager {
-    function getOraclePrice(
-        address risky, 
-        address stable
-    ) external pure returns (uint256);
+    /**
+     * @notice Query oracle for price of risky to stable asset
+     */
+    function getOraclePrice() external view returns (uint256);
 
-    function getNextStrikePrice() external pure returns (uint128);
+    /**
+     * @notice Compute next strike price using fixed multiplier
+     */
+    function getNextStrikePrice() external view returns (uint256);
 
-    function getNextVolatility() external pure returns (uint32);
+    /**
+     * @notice Compute next volatility using a constant for now
+     */
+    function getNextVolatility() external view returns (uint256);
 
-    function getNextGamma() external pure returns (uint32);
+    /**
+     * @notice Compute next fee for pool
+     */
+    function getNextGamma() external view returns (uint256);
+
+    /**
+     * @notice Risky token of the risky / stable pair
+     * @return Address of the risky token contract
+     */
+    function risky() external view returns (address);
+
+    /**
+     * @notice Stable token of the risky / stable pair
+     * @return Address of the stable token contract
+     */
+    function stable() external view returns (address);
 }

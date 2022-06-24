@@ -265,6 +265,14 @@ contract ParetoVault is
         require(_stable != address(0), "!_stable");
         require(_managementFee > 0, "!_stable");
         require(_performanceFee > 0, "!_stable");
+        require(
+            IParetoManager(_vaultManager).risky() == _risky,
+            "Risky asset does not match"
+        );
+        require(
+            IParetoManager(_vaultManager).stable() == _stable,
+            "Stable asset does not match"
+        );
 
         keeper = _keeper;
         feeRecipient = _feeRecipient;
