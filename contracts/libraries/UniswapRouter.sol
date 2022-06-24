@@ -6,7 +6,7 @@ import {IERC20} from "../interfaces/IERC20.sol";
 import {SafeERC20} from "./SafeERC20.sol";
 import {ISwapRouter} from "../interfaces/ISwapRouter.sol";
 import {IUniswapV3Factory} from "../interfaces/IUniswapV3Factory.sol";
-import {Path} from "@uniswap/v3-periphery/contracts/libraries/Path.sol";
+import {Path} from "./Path.sol";
 
 /**
  * @notice Used to make swaps between tokens
@@ -20,7 +20,7 @@ library UniswapRouter {
     /**
      * @notice Maximum amount of time to wait for swap
      */
-    uint256 public swapBufferTime = 10 minutes;
+    uint256 public constant swapBufferTime = 10 minutes;
 
     /**
      * @notice Check if the path set for swap is valid
