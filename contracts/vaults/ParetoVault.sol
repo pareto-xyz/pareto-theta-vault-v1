@@ -823,8 +823,12 @@ contract ParetoVault is
                 // Compute vault fees in two assets
                 (feeInRisky, feeInStable) = _getVaultFees(
                     Vault.FeeCalculatorInput({
-                        currRisky: currRisky.sub(vaultState.lastQueuedWithdrawRisky),
-                        currStable: currStable.sub(vaultState.lastQueuedWithdrawStable),
+                        currRisky: currRisky.sub(
+                            vaultState.lastQueuedWithdrawRisky
+                        ),
+                        currStable: currStable.sub(
+                            vaultState.lastQueuedWithdrawStable
+                        ),
                         lastLockedRisky: vaultState.lastLockedRisky,
                         lastLockedStable: vaultState.lastLockedStable,
                         pendingRisky: vaultState.pendingRisky,
@@ -937,9 +941,11 @@ contract ParetoVault is
      * --
      * TODO: check if vault made money
      */
-    function _getVaultFees(
-        Vault.FeeCalculatorInput memory feeParams
-    ) internal pure returns (uint256 feeInRisky, uint256 feeInStable) {
+    function _getVaultFees(Vault.FeeCalculatorInput memory feeParams)
+        internal
+        pure
+        returns (uint256 feeInRisky, uint256 feeInStable)
+    {
         // Locked amount should not include pending amount
         uint256 currLockedRisky = feeParams.currRisky > feeParams.pendingRisky
             ? feeParams.currRisky.sub(feeParams.pendingRisky)
@@ -955,12 +961,15 @@ contract ParetoVault is
         // deposits and withdrawals), is positive. This is to infer if the vault
         // make money last week: if difference < 0, vault look a loss.
         _performanceFeeInRisky = feeParams.performanceFeePercent > 0
-            ? currLockedRisky.sub(feeParams.lastLockedRisky)
+            ? currLockedRisky
+                .sub(feeParams.lastLockedRisky)
                 .mul(feeParams.performanceFeePercent)
                 .div(100 * Vault.FEE_MULTIPLIER)
             : 0;
         _performanceFeeInStable = feeParams.performanceFeePercent > 0
-            ? feeParams.currStable.sub(feeParams.lastLockedStable)
+            ? feeParams
+                .currStable
+                .sub(feeParams.lastLockedStable)
                 .mul(feeParams.performanceFeePercent)
                 .div(100 * Vault.FEE_MULTIPLIER)
             : 0;

@@ -24,15 +24,15 @@ contract ParetoManager is IParetoManager, Ownable {
     // Address for the stable asset
     address public override stable;
 
-    /** 
+    /**
      * @notice Address for the ChainLink oracle
      * 
      * Network: Kovan
      * USDC-ETH: 0x64EaC61A2DFda2c3Fa04eED49AA33D021AeC8838
-     * 
+     *
      * Network: Rinkeby
      * USDC-ETH: 0xdCA36F27cbC4E38aE16C4E9f99D39b42337F6dcf
-     * 
+     *
      * Network: MainNet
      * USDC-ETH: 0x986b5E1e1755e3C2440e960477f25201B0a8bbD4
      */
@@ -63,7 +63,7 @@ contract ParetoManager is IParetoManager, Ownable {
         address _chainlinkOracle
     ) {
         require(
-            _strikeMultiplier > STRIKE_DECIMALS, 
+            _strikeMultiplier > STRIKE_DECIMALS,
             "_strikeMultiplier too small"
         );
         require(_risky != address(0), "!_risky");
@@ -95,14 +95,18 @@ contract ParetoManager is IParetoManager, Ownable {
      */
     function _getOraclePrice() public view returns (uint256 price) {
         (
-            /* uint80 roundID */,
+            ,
+            /* uint80 roundID */
             int256 rawPrice,
-            /* uint startedAt */,
-            /* uint timeStamp */,
+            ,
+            ,
+
+        ) = /* uint startedAt */
+            /* uint timeStamp */
             /* uint80 answeredInRound */
-        ) = chainlinkFeed.latestRoundData();
+            chainlinkFeed.latestRoundData();
         require(rawPrice > 0, "!rawPrice");
-        price = uint256(rawPrice);  // make unsigned
+        price = uint256(rawPrice); // make unsigned
         return price;
     }
 
@@ -111,11 +115,11 @@ contract ParetoManager is IParetoManager, Ownable {
      * the current price - requires an oracle
      * @return strikePrice is the relative price of risky in stable
      */
-    function getNextStrikePrice() 
-        external 
-        view 
+    function getNextStrikePrice()
+        external
+        view
         override
-        returns (uint256 strikePrice) 
+        returns (uint256 strikePrice)
     {
         uint256 spotPrice = _getOraclePrice();
         strikePrice = spotPrice.mul(strikeMultiplier).div(STRIKE_DECIMALS);
@@ -127,10 +131,10 @@ contract ParetoManager is IParetoManager, Ownable {
      * @return sigma is the implied volatility estimate
      */
     function getNextVolatility()
-        external 
-        view 
+        external
+        view
         override
-        returns (uint256 sigma) 
+        returns (uint256 sigma)
     {
         sigma = 8000000; // TODO - placeholder constant
         return sigma;
@@ -140,12 +144,7 @@ contract ParetoManager is IParetoManager, Ownable {
      * @notice Computes the gamma (or 1 - fee) for the next pool
      * @return gamma is the Gamma for the next pool
      */
-    function getNextGamma()
-        external
-        view 
-        override
-        returns (uint256 gamma) 
-    {
+    function getNextGamma() external view override returns (uint256 gamma) {
         gamma = 9900; // TODO - placeholder 99% gamma = 1% fee
         return gamma;
     }
@@ -154,10 +153,7 @@ contract ParetoManager is IParetoManager, Ownable {
      * @notice Set the multiplier for setting the strike price
      * @param _strikeMultiplier is the strike multiplier (decimals = 2)
      */
-    function setStrikeMultiplier(uint256 _strikeMultiplier) 
-        external 
-        onlyOwner 
-    {
+    function setStrikeMultiplier(uint256 _strikeMultiplier) external onlyOwner {
         require(_strikeMultiplier > STRIKE_DECIMALS, "_strikeMultiplier < 1");
         strikeMultiplier = _strikeMultiplier;
     }

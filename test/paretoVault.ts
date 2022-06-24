@@ -8,10 +8,10 @@ import { DEFAULT_CALIBRATION } from "./shared/config";
 let paretoVault: Contract;
 let poolId: string;
 
-runTest('paretoVault', function() {
+runTest("paretoVault", function() {
   beforeEach(async function() {
     const ParetoVault = 
-      await hre.ethers.getContractFactory('ParetoVault');
+      await hre.ethers.getContractFactory("ParetoVault");
     
       paretoVault = await ParetoVault.deploy(
         this.contracts.primitiveManager.address

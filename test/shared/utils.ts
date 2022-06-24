@@ -1,4 +1,4 @@
-import { utils, BigNumber } from 'ethers';
+import { utils, BigNumber } from "ethers";
 
 export function computePoolId(
   engine: string,
@@ -9,7 +9,7 @@ export function computePoolId(
 ): string {
   return utils.keccak256(
     utils.solidityPack(
-      ['address', 'uint128', 'uint32', 'uint32', 'uint32'], 
+      ["address", "uint128", "uint32", "uint32", "uint32"], 
       [engine, strike, sigma, maturity, gamma]
     )
   );
@@ -30,8 +30,8 @@ export function computeEngineAddress(
   bytecode: string
 ): string {
   const salt = utils.solidityKeccak256(
-    ['bytes'],
-    [utils.defaultAbiCoder.encode(['address', 'address'], [risky, stable])]
+    ["bytes"],
+    [utils.defaultAbiCoder.encode(["address", "address"], [risky, stable])]
   );
   return utils.getCreate2Address(factory, salt, utils.keccak256(bytecode))
 }
