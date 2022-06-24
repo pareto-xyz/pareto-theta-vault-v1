@@ -12,7 +12,7 @@ runTest("paretoVault", function() {
   beforeEach(async function() {
     const ParetoVault = 
       await hre.ethers.getContractFactory("ParetoVault");
-    
+
       paretoVault = await ParetoVault.deploy(
         this.contracts.primitiveManager.address
       );

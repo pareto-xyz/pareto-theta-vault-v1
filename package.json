@@ -74,6 +74,8 @@
     "@primitivefi/rmm-core": "^1.0.0",
     "@primitivefi/rmm-ethers": "^1.2.0-rc.1",
     "@primitivefi/rmm-manager": "^1.1.0",
+    "@uniswap/v3-core": "^1.0.1",
+    "@uniswap/v3-periphery": "^1.4.1",
     "axios": "^0.27.2"
   },
   "mocha": {
