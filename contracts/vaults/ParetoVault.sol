@@ -940,7 +940,7 @@ contract ParetoVault is
      * @param preVaultStable is the amount of stable before the vault
      * @param postVaultRisky is the amount of risky after the vault
      * @param postVaultStable is the amount of stable after the vault
-     * @return success is true if current value is higher than before the vault 
+     * @return success is true if current value is higher than before the vault
      *  at the same oracle price; otherwise false
      */
     function _checkVaultSuccess(
@@ -948,23 +948,15 @@ contract ParetoVault is
         uint256 preVaultStable,
         uint256 postVaultRisky,
         uint256 postVaultStable
-    ) 
-        internal
-        view
-        returns (bool success) 
-    {
+    ) internal view returns (bool success) {
         uint8 oracleDecimals = IParetoManager(vaultManager).getOracleDecimals();
-        uint256 stableToRiskyPrice = 
-            IParetoManager(vaultManager).getStableToRiskyPrice();
+        uint256 stableToRiskyPrice = IParetoManager(vaultManager)
+            .getStableToRiskyPrice();
         uint256 preVaultValue = preVaultRisky.add(
-            preVaultStable
-                .mul(stableToRiskyPrice)
-                .div(10**oracleDecimals)
+            preVaultStable.mul(stableToRiskyPrice).div(10**oracleDecimals)
         );
         uint256 postVaultValue = postVaultRisky.add(
-            postVaultStable
-                .mul(stableToRiskyPrice)
-                .div(10**oracleDecimals)
+            postVaultStable.mul(stableToRiskyPrice).div(10**oracleDecimals)
         );
         success = postVaultValue >= preVaultValue;
         return success;
@@ -994,7 +986,7 @@ contract ParetoVault is
         uint256 _managementFeeInStable;
 
         // Take performance fee and management fee ONLY if the value of vault's
-        // current assets (at current oracle price) is higher than the value of 
+        // current assets (at current oracle price) is higher than the value of
         // vault before the round (at the same oracle price).
         bool vaultSuccess = _checkVaultSuccess(
             feeParams.lastLockedRisky,

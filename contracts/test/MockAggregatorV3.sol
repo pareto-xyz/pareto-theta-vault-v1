@@ -2,7 +2,7 @@
 pragma solidity >=0.8.6;
 
 contract MockAggregatorV3 {
-    /**  
+    /**
      * @notice Hardcoded answer to return
      */
     int256 public savedAnswer;
@@ -25,7 +25,7 @@ contract MockAggregatorV3 {
             uint256 startedAt,
             uint256 updatedAt,
             uint80 answeredInRound
-        ) 
+        )
     {
         roundId = round;
         answer = savedAnswer;

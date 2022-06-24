@@ -27,7 +27,7 @@ contract ParetoManager is IParetoManager, Ownable {
 
     /**
      * @notice Address for the ChainLink oracle
-     * 
+     *
      * Network: Kovan
      * USDC-ETH: 0x64EaC61A2DFda2c3Fa04eED49AA33D021AeC8838
      *
@@ -40,7 +40,7 @@ contract ParetoManager is IParetoManager, Ownable {
     address public immutable chainlinkOracle;
 
     AggregatorV3Interface internal chainlinkFeed;
-    
+
     bool public immutable riskyFirst;
 
     // Multiplier for strike selection
@@ -58,7 +58,7 @@ contract ParetoManager is IParetoManager, Ownable {
      * @param _risky is the address for the risky token
      * @param _stable is the address for the stable token
      * @param _chainlinkOracle is the address for the risky-stable price oracle
-     * @param _riskyFirst is true if the oracle gives price risky-stable 
+     * @param _riskyFirst is true if the oracle gives price risky-stable
      *  and false if the oracle gives price stable-risky
      */
     constructor(
@@ -88,11 +88,21 @@ contract ParetoManager is IParetoManager, Ownable {
      * Manager Operations
      ***********************************************/
 
-    function getStableToRiskyPrice() external view override returns (uint256 price) {
+    function getStableToRiskyPrice()
+        external
+        view
+        override
+        returns (uint256 price)
+    {
         return _getOraclePrice(true);
     }
 
-    function getRiskyToStablePrice() external view override returns (uint256 price) {
+    function getRiskyToStablePrice()
+        external
+        view
+        override
+        returns (uint256 price)
+    {
         return _getOraclePrice(false);
     }
 
@@ -102,22 +112,25 @@ contract ParetoManager is IParetoManager, Ownable {
 
     /**
      * @notice Calls Chainlink to get relative price between risky and stable asset
-     *  Returns the price of the stable asset in terms of the risky 
+     *  Returns the price of the stable asset in terms of the risky
      *  For example, USDC in terms of ETH
-     * @param stableToRisky if True return oracle price for stable to risky 
+     * @param stableToRisky if True return oracle price for stable to risky
      *  asset. If false, return oracle price for risky to stable asset
      * @return price is the current exchange rate between the two tokens
      */
-    function _getOraclePrice(bool stableToRisky) public view returns (uint256 price) {
+    function _getOraclePrice(bool stableToRisky)
+        public
+        view
+        returns (uint256 price)
+    {
         (
             ,
             /* uint80 roundID */
-            int256 signedPrice,
+            int256 signedPrice, /* uint startedAt */
             ,
             ,
 
-        ) = /* uint startedAt */
-            /* uint timeStamp */
+        ) = /* uint timeStamp */
             /* uint80 answeredInRound */
             chainlinkFeed.latestRoundData();
 
@@ -126,11 +139,11 @@ contract ParetoManager is IParetoManager, Ownable {
 
         uint256 oracleDecimals = uint256(chainlinkFeed.decimals());
 
-        // If riskyFirst is true, then the oracle returns price of risky 
+        // If riskyFirst is true, then the oracle returns price of risky
         // in terms of stable. We need to invert the price
         if (riskyFirst && stableToRisky) {
             uint256 fixedOne = 10**oracleDecimals;
-            price = fixedOne * fixedOne / price;
+            price = (fixedOne * fixedOne) / price;
         }
 
         // Check if we need to change decimals to convert to risky token
@@ -153,8 +166,9 @@ contract ParetoManager is IParetoManager, Ownable {
     {
         // Get price of risky in stable asset
         uint256 spotPrice = _getOraclePrice(false);
-        uint256 rawStrike = spotPrice.mul(strikeMultiplier)
-            .div(STRIKE_DECIMALS);
+        uint256 rawStrike = spotPrice.mul(strikeMultiplier).div(
+            STRIKE_DECIMALS
+        );
         strikePrice = uint128(rawStrike);
         return strikePrice;
     }
@@ -163,12 +177,7 @@ contract ParetoManager is IParetoManager, Ownable {
      * @notice Computes the volatility for the next pool
      * @return sigma is the implied volatility estimate
      */
-    function getNextVolatility()
-        external
-        pure
-        override
-        returns (uint32 sigma)
-    {
+    function getNextVolatility() external pure override returns (uint32 sigma) {
         sigma = 8000; // TODO - placeholder 0.8 sigma
         return sigma;
     }
@@ -186,10 +195,7 @@ contract ParetoManager is IParetoManager, Ownable {
      * @notice Set the multiplier for setting the strike price
      * @param _strikeMultiplier is the strike multiplier (decimals = 2)
      */
-    function setStrikeMultiplier(uint256 _strikeMultiplier) 
-        external 
-        onlyOwner 
-    {
+    function setStrikeMultiplier(uint256 _strikeMultiplier) external onlyOwner {
         require(_strikeMultiplier > STRIKE_DECIMALS, "_strikeMultiplier < 1");
         strikeMultiplier = _strikeMultiplier;
     }
