@@ -46,7 +46,7 @@ contract ParetoManager is IParetoManager, Ownable {
     // Multiplier for strike selection
     uint256 public strikeMultiplier;
 
-    // Strike multiplier has 2 decimal places. For example: 150 = 1.5x spot price
+    // Strike multiplier has 2 decimal places e.g. 150 = 1.5x spot price
     uint256 private constant STRIKE_DECIMALS = 10**2;
 
     /************************************************
@@ -88,19 +88,23 @@ contract ParetoManager is IParetoManager, Ownable {
      * Manager Operations
      ***********************************************/
 
-    /**
-     * External endpoint for _getOraclePrice
-     */
-    function getOraclePrice() external view override returns (uint256 price) {
-        return _getOraclePrice();
+    function getStableToRiskyPrice() external view override returns (uint256 price) {
+        return _getOraclePrice(true);
+    }
+
+    function getRiskyToStablePrice() external view override returns (uint256 price) {
+        return _getOraclePrice(false);
     }
 
     /**
-     * @notice Calls Uniswap to get relative price between risky and stable asset
-     *  Assumes a pool exists between risky and stable asset
+     * @notice Calls Chainlink to get relative price between risky and stable asset
+     *  Returns the price of the stable asset in terms of the risky 
+     *  For example, USDC in terms of ETH
+     * @param stableToRisky if True return oracle price for stable to risky 
+     *  asset. If false, return oracle price for risky to stable asset
      * @return price is the current exchange rate between the two tokens
      */
-    function _getOraclePrice() public view returns (uint256 price) {
+    function _getOraclePrice(bool stableToRisky) public view returns (uint256 price) {
         (
             ,
             /* uint80 roundID */
@@ -118,8 +122,9 @@ contract ParetoManager is IParetoManager, Ownable {
 
         uint256 oracleDecimals = uint256(chainlinkFeed.decimals());
 
-        if (!riskyFirst) {
-            // Invert the price to get risky in terms of stable
+        // If riskyFirst is true, then the oracle returns price of risky 
+        // in terms of stable. We need to invert the price
+        if (riskyFirst && stableToRisky) {
             uint256 fixedOne = 10**oracleDecimals;
             price = fixedOne * fixedOne / price;
         }
@@ -142,7 +147,8 @@ contract ParetoManager is IParetoManager, Ownable {
         override
         returns (uint128 strikePrice)
     {
-        uint256 spotPrice = _getOraclePrice();
+        // Get price of risky in stable asset
+        uint256 spotPrice = _getOraclePrice(false);
         uint256 rawStrike = spotPrice.mul(strikeMultiplier)
             .div(STRIKE_DECIMALS);
         strikePrice = uint128(rawStrike);

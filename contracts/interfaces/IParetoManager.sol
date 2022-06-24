@@ -3,9 +3,14 @@ pragma solidity >=0.8.6;
 
 interface IParetoManager {
     /**
+     * @notice Query oracle for price of stable to risky asset
+     */
+    function getStableToRiskyPrice() external view returns (uint256);
+
+    /**
      * @notice Query oracle for price of risky to stable asset
      */
-    function getOraclePrice() external view returns (uint256);
+    function getRiskyToStablePrice() external view returns (uint256);
 
     /**
      * @notice Compute next strike price using fixed multiplier
