@@ -10,7 +10,7 @@ contract MockAggregatorV3 is IUniswapV3Factory {
         savedPool = pool;
     }
 
-    /** 
+    /**
      * @param tokenA The contract address of either token0 or token1
      * @param tokenB The contract address of the other token
      * @param fee The fee collected upon every swap in the pool, denominated in hundredths of a bip
@@ -20,12 +20,7 @@ contract MockAggregatorV3 is IUniswapV3Factory {
         address tokenA,
         address tokenB,
         uint24 fee
-    ) 
-        external 
-        view 
-        override 
-        returns (address)
-    {
+    ) external view override returns (address) {
         return savedPool;
     }
 }

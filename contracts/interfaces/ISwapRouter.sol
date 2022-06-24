@@ -17,7 +17,7 @@ interface ISwapRouter {
     }
 
     /**
-     * @notice Swaps `amountIn` of one token for as much as possible of 
+     * @notice Swaps `amountIn` of one token for as much as possible of
      *  another along the specified path
      * @param params The parameters necessary for the multi-hop swap,
      *  encoded as `ExactInputParams` in calldata

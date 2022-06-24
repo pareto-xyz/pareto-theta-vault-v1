@@ -20,7 +20,7 @@ library UniswapRouter {
     /**
      * @notice Maximum amount of time to wait for swap
      */
-    uint public swapBufferTime = 10 minutes;
+    uint256 public swapBufferTime = 10 minutes;
 
     /**
      * @notice Check if the path set for swap is valid
@@ -83,7 +83,7 @@ library UniswapRouter {
      * @param amountIn is the amount of tokenIn given to the router
      * @param minAmountOut is the minimum acceptable amount of tokenOut received from swap
      * @param router is the contract address of UniswapV3 router
-     * @param swapPath is the swap path 
+     * @param swapPath is the swap path
      *  Compute this by abi.encodePacked(tokenIn, poolFee, tokenOut)
      * @return amountOut is the amount of tokenOut received from the swap
      */
@@ -99,8 +99,8 @@ library UniswapRouter {
         IERC20(tokenIn).safeApprove(router, amountIn);
 
         // Swap assets using UniswapV3 router
-        ISwapRouter.ExactInputParams memory swapParams = 
-            ISwapRouter.ExactInputParams({
+        ISwapRouter.ExactInputParams memory swapParams = ISwapRouter
+            .ExactInputParams({
                 recipient: recipient,
                 path: swapPath,
                 deadline: block.timestamp.add(swapBufferTime),

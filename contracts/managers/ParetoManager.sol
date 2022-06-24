@@ -126,12 +126,11 @@ contract ParetoManager is IParetoManager, Ownable {
         (
             ,
             /* uint80 roundID */
-            int256 signedPrice, /* uint startedAt */ /* uint timeStamp */
+            int256 signedPrice, /* uint startedAt */ /* uint timeStamp */ /* uint80 answeredInRound */
             ,
             ,
 
-        ) = /* uint80 answeredInRound */
-            chainlinkFeed.latestRoundData();
+        ) = chainlinkFeed.latestRoundData();
 
         require(signedPrice > 0, "!signedPrice");
         price = uint256(signedPrice);
