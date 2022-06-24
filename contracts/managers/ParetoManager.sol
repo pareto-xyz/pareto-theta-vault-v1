@@ -40,6 +40,8 @@ contract ParetoManager is IParetoManager, Ownable {
     address public immutable chainlinkOracle;
 
     AggregatorV3Interface internal chainlinkFeed;
+    
+    bool public immutable riskyFirst;
 
     // Multiplier for strike selection
     uint256 public strikeMultiplier;
@@ -56,12 +58,15 @@ contract ParetoManager is IParetoManager, Ownable {
      * @param _risky is the address for the risky token
      * @param _stable is the address for the stable token
      * @param _chainlinkOracle is the address for the risky-stable price oracle
+     * @param _riskyFirst is true if the oracle gives price risky-stable 
+     *  and false if the oracle gives price stable-risky
      */
     constructor(
         uint256 _strikeMultiplier,
         address _risky,
         address _stable,
-        address _chainlinkOracle
+        address _chainlinkOracle,
+        bool _riskyFirst
     ) {
         require(
             _strikeMultiplier > STRIKE_DECIMALS,
@@ -76,6 +81,7 @@ contract ParetoManager is IParetoManager, Ownable {
         stable = _stable;
         chainlinkOracle = _chainlinkOracle;
         chainlinkFeed = AggregatorV3Interface(_chainlinkOracle);
+        riskyFirst = _riskyFirst;
     }
 
     /************************************************
@@ -98,7 +104,7 @@ contract ParetoManager is IParetoManager, Ownable {
         (
             ,
             /* uint80 roundID */
-            int256 rawPrice,
+            int256 signedPrice,
             ,
             ,
 
@@ -106,11 +112,23 @@ contract ParetoManager is IParetoManager, Ownable {
             /* uint timeStamp */
             /* uint80 answeredInRound */
             chainlinkFeed.latestRoundData();
-        require(rawPrice > 0, "!rawPrice");
+
+        require(signedPrice > 0, "!signedPrice");
+        price = uint256(signedPrice);
+
         uint256 oracleDecimals = uint256(chainlinkFeed.decimals());
+
+        if (!riskyFirst) {
+            // Invert the price to get risky in terms of stable
+            uint256 fixedOne = 10**oracleDecimals;
+            price = fixedOne * fixedOne / price;
+        }
+
+        // Check if we need to change decimals to convert to risky token
         uint256 riskyDecimals = uint256(IERC20(risky).decimals());
-        uint8 diffDecimals = uint8(oracleDecimals.sub(riskyDecimals));
-        price = uint256(rawPrice).div(10**diffDecimals);
+        // risky - oracle decimals
+        uint8 diffDecimals = uint8(riskyDecimals.sub(oracleDecimals));
+        price = uint256(price).mul(10**diffDecimals);
     }
 
     /**
