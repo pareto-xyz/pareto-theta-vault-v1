@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-pragma solidity =0.8.6;
+pragma solidity >=0.8.6;
 
 /**
  * @notice Collection of constants and structs describing a theta vault
@@ -123,7 +123,7 @@ library Vault {
      * @param managementFeePercent is the fee percent on the AUM in both assets
      * @param performanceFeePercent is the fee percent on the premium in both assets
      */
-    struct FeeCalculatorParams {
+    struct FeeCalculatorInput {
         uint256 currRisky;
         uint256 currStable;
         uint256 lastLockedRisky;

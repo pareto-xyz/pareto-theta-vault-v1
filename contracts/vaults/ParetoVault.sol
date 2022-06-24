@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-pragma solidity =0.8.6;
+pragma solidity >=0.8.6;
 
 import {IERC20} from "../interfaces/IERC20.sol";
 import {SafeMath} from "@openzeppelin/contracts/utils/math/SafeMath.sol";
@@ -19,7 +19,7 @@ import {VaultMath} from "../libraries/VaultMath.sol";
 
 /**
  * @notice Based on RibbonVault.sol
- * See https://docs.ribbon.finance/developers/ribbon-v2
+ *  See https://docs.ribbon.finance/developers/ribbon-v2
  */
 contract ParetoVault is
     IParetoVault,
@@ -814,7 +814,7 @@ contract ParetoVault is
             {
                 // Compute vault fees in two assets
                 (feeInRisky, feeInStable) = _getVaultFees(
-                    Vault.FeeCalculatorParams({
+                    Vault.FeeCalculatorInput({
                         currRisky: currRisky.sub(vaultState.lastQueuedWithdrawRisky),
                         currStable: currStable.sub(vaultState.lastQueuedWithdrawStable),
                         lastLockedRisky: vaultState.lastLockedRisky,
@@ -930,7 +930,7 @@ contract ParetoVault is
      * TODO: check if vault made money
      */
     function _getVaultFees(
-        Vault.FeeCalculatorParams memory feeParams
+        Vault.FeeCalculatorInput memory feeParams
     ) internal pure returns (uint256 feeInRisky, uint256 feeInStable) {
         // Locked amount should not include pending amount
         uint256 currLockedRisky = feeParams.currRisky > feeParams.pendingRisky
