@@ -13,6 +13,11 @@ interface IParetoManager {
     function getRiskyToStablePrice() external view returns (uint256);
 
     /**
+     * @notice Query oracle for its decimals
+     */
+    function getOracleDecimals() external view returns (uint8);
+
+    /**
      * @notice Compute next strike price using fixed multiplier
      */
     function getNextStrikePrice() external view returns (uint128);

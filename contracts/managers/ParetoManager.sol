@@ -96,6 +96,10 @@ contract ParetoManager is IParetoManager, Ownable {
         return _getOraclePrice(false);
     }
 
+    function getOracleDecimals() external view override returns (uint8) {
+        return chainlinkFeed.decimals();
+    }
+
     /**
      * @notice Calls Chainlink to get relative price between risky and stable asset
      *  Returns the price of the stable asset in terms of the risky 
