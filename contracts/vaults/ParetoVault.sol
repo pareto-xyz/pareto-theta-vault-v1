@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: GPL-3.0-only
-pragma solidity =0.8.6;
+pragma solidity >=0.8.6;
 
+import {IERC20} from "../interfaces/IERC20.sol";
 import {SafeMath} from "@openzeppelin/contracts/utils/math/SafeMath.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
-import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
+import {SafeERC20} from "../libraries/SafeERC20.sol";
+import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IParetoManager} from "../interfaces/IParetoManager.sol";
+import {IParetoVault} from "../interfaces/IParetoVault.sol";
 import {IPrimitiveManager} from "@primitivefi/rmm-manager/contracts/interfaces/IPrimitiveManager.sol";
 import {IManagerBase} from "@primitivefi/rmm-manager/contracts/interfaces/IManagerBase.sol";
 import {IPrimitiveEngineView} from "@primitivefi/rmm-core/contracts/interfaces/engine/IPrimitiveEngineView.sol";
@@ -17,153 +19,273 @@ import {VaultMath} from "../libraries/VaultMath.sol";
 
 /**
  * @notice Based on RibbonVault.sol
- * See https://docs.ribbon.finance/developers/ribbon-v2
+ *  See https://docs.ribbon.finance/developers/ribbon-v2
  */
 contract ParetoVault is
-    ReentrancyGuardUpgradeable,
-    OwnableUpgradeable,
-    ERC20Upgradeable
+    IParetoVault,
+    ReentrancyGuard,
+    Ownable,
+    ERC20,
+    ERC1155Holder
 {
-    using SafeERC20 for IERC20;
     using SafeMath for uint256;
+    using SafeERC20 for IERC20;
     using VaultMath for Vault.DepositReceipt;
 
     /************************************************
      * Non-upgradeable storage
-     * TODO: some of these should probably be made upgradeable!
      ***********************************************/
 
-    // @notice User's pending deposit for the round
+    // User's pending deposit for the round
     mapping(address => Vault.DepositReceipt) public depositReceipts;
 
-    // @notice When round closes, the share price of a receipt token is stored
-    mapping(uint256 => uint256) public roundSharePriceRisky;
-    mapping(uint256 => uint256) public roundSharePriceStable;
+    // When round closes, the share price of a receipt token is stored
+    // We must store the price for all rounds since users can deposit at any
+    // round and withdrawal at any later round
+    mapping(uint256 => uint256) public roundSharePriceInRisky;
+    mapping(uint256 => uint256) public roundSharePriceInStable;
 
-    // @notice Pending user withdrawals
-    mapping(address => Vault.Withdrawal) public withdrawals;
+    // Map from user address to pending withdraw info
+    mapping(address => Vault.PendingWithdraw) public pendingWithdraw;
 
-    // @notice Vault's parameters
-    Vault.VaultParams public vaultParams;
-
-    // @notice Vault's lifecycle state
+    // Vault state containing round and asset amounts
     Vault.VaultState public vaultState;
 
-    // @notice State of the option in the Vault
+    // State of current and next option in the vault
     Vault.PoolState public poolState;
 
-    // @notice Recipient of performance and management fees
-    address public feeRecipient;
+    // State of the vault manager (manual overrides)
+    Vault.ManagerState public managerState;
 
-    // @notice Role in charge of weekly vault operations
-    // @notice No access to critical vault changes
-    address public keeper;
+    // Recipient of performance and management fees
+    address public override feeRecipient;
 
-    // @notice Management fee charged on entire AUM
-    uint256 public managementFeeRisky;
-    uint256 public managementFeeStable;
+    // Role in charge of weekly vault operations
+    // No access to critical vault changes
+    address public override keeper;
 
-    // @notice Gap is left to avoid storage collisions
-    uint256[30] private ____gap;
+    // Address for the vault manager contract
+    address public override vaultManager;
+
+    // Address for the Primitive manager contract
+    address public immutable primitiveManager;
+
+    // Address for the Primitive engine contract
+    address public immutable primitiveEngine;
+
+    // Address for the risky asset
+    address public override risky;
+
+    // Address for the stable asset
+    address public override stable;
+
+    // Management fee charged on entire AUM
+    uint256 public managementFee;
+
+    // Performance fee charged on premiums earned
+    uint256 public performanceFee;
 
     /************************************************
      * Immutables and Constants
      ***********************************************/
 
-    // @notice PRIMITIVE_MANAGER is Primitive's contract for creating, allocating
-    // liquidity to, and withdrawing liquidity from pools
-    address public immutable PRIMITIVE_MANAGER;
-
-    // @notice Number of weeks per year = 52.142857 weeks * FEE_MULTIPLIER = 52142857
-    // @notice Dividing by weeks per year requires doing num.mul(FEE_MULTIPLIER).div(WEEKS_PER_YEAR)
+    /**
+     * @notice Number of weeks per year = 52.142857 weeks * FEE_MULTIPLIER = 52142857
+     *  Dividing by weeks per year via num.mul(FEE_MULTIPLIER).div(WEEKS_PER_YEAR)
+     */
     uint256 private constant WEEKS_PER_YEAR = 52142857;
 
     /************************************************
      * Events
      ***********************************************/
 
+    /**
+     * @notice Emitted when user deposits risky asset into vault
+     */
     event DepositEvent(
         address indexed account,
-        uint256 risky,
-        uint256 stable,
-        uint256 round
+        uint256 riskyAmount,
+        uint16 round
     );
 
+    /**
+     * @notice Emitted when user requests a withdrawal
+     */
     event WithdrawRequestEvent(
         address indexed account,
         uint256 shares,
-        uint256 round
+        uint16 round
     );
 
-    event ManagementFeeSetEvent(
-        uint256 managementFeeRisky,
-        uint256 managementFeeStable,
-        uint256 newManagementFeeRisky,
-        uint256 newManagementFeeStable
-    );
-
-    event WithdrawEvent(
+    /**
+     * @notice Emitted when user's queued withdrawal is complete
+     */
+    event WithdrawCompleteEvent(
         address indexed account,
-        uint256 risky,
-        uint256 stable,
-        uint256 shares
+        uint256 shares,
+        uint256 riskyAmount,
+        uint256 stableAmount
     );
 
+    /**
+     * @notice Emitted when fees are transfered to feeRecipient
+     */
     event VaultFeesCollectionEvent(
-        uint256 vaultFeeRisky,
-        uint256 vaultFeeStable,
-        uint256 round,
+        uint256 feeInRisky,
+        uint256 feeInStable,
+        uint16 round,
         address indexed feeRecipient
     );
+
+    /**
+     * @notice Emitted when keeper deposits vault assets into RMM-01 pool
+     */
+    event OpenPositionEvent(
+        bytes32 poolId,
+        uint256 riskyAmount,
+        uint256 stableAmount,
+        uint256 returnLiquidity,
+        address indexed keeper
+    );
+
+    /**
+     * @notice Emitted when keeper burns RMM-01 LP tokens for assets
+     */
+    event ClosePositionEvent(
+        bytes32 poolId,
+        uint256 burnLiquidity,
+        uint256 riskyAmount,
+        uint256 stableAmount,
+        address indexed keeper
+    );
+
+    /**
+     * @notice Emitted when keeper creates a new RMM-01 pool
+     */
+    event DeployVaultEvent(
+        bytes32 poolId,
+        uint128 strikePrice,
+        uint32 volatility,
+        uint32 gamma,
+        address indexed keeper
+    );
+
+    /**
+     * @notice Emitted when vault swaps assets to deposit in RMM-01.
+     */
+    event SwapAssetsEvent(
+        uint256 riskyPreswap,
+        uint256 stablePreswap,
+        uint256 riskyPostswap,
+        uint256 stablePostswap,
+        address indexed keeper
+    );
+
+    /**
+     * @notice Emitted when keeper manually sets next round's strike price
+     */
+    event StrikePriceSetEvent(uint128 strikePrice, uint16 round);
+
+    /**
+     * @notice Emitted when keeper manually sets next round's implied volality
+     */
+    event VolatilitySetEvent(uint32 volatility, uint16 round);
+
+    /**
+     * @notice Emitted when keeper manually sets next round's trading fee
+     */
+    event GammaSetEvent(uint32 gamma, uint16 round);
+
+    /**
+     * @notice Emitted when owner sets new management fee
+     */
+    event ManagementFeeSetEvent(
+        uint256 managementFee,
+        uint256 newManagementFee
+    );
+
+    /**
+     * @notice Emitted when owner sets new performance fee
+     */
+    event PerformanceFeeSetEvent(
+        uint256 performanceFee,
+        uint256 newPerformanceFee
+    );
+
+    /**
+     * @notice Emitted when owner sets new keeper address
+     */
+    event KeeperSetEvent(address indexed keeper);
+
+    /**
+     * @notice Emitted when owner sets new recipient address for fees
+     */
+    event FeeRecipientSetEvent(address indexed keeper);
+
+    /**
+     * @notice Emitted when owner sets new vault manager contract
+     */
+    event VaultManagerSetEvent(address indexed vaultManager);
 
     /************************************************
      * Constructor and Initialization
      ***********************************************/
 
     /**
-     * @notice Initializes the contract with immutable variables
-     * @param _primitiveManager is the contract address for primitive manager
-     */
-    constructor(address _primitiveManager) {
-        require(_primitiveManager != address(0), "!_primitiveManager");
-        PRIMITIVE_MANAGER = _primitiveManager;
-    }
-
-    /**
-     * @notice Initializes the contract with storage variables
-     * @param _owner is the Owner address
+     * @notice Initializes the contract
      * @param _keeper is the Keeper address
      * @param _feeRecipient is the address that receives fees
-     * @param _managementFeeRisky is the management fee percent for risky
-     * @param _managementFeeStable is the management fee percent for stable
+     * @param _vaultManager is the address for pareto manager
+     * @param _primitiveManager is the address for primitive manager
+     * @param _primitiveEngine is the address for primitive engine
+     * @param _risky is the address for the risky token
+     * @param _stable is the address for the stable token
+     * @param _managementFee is the management fee percent per year
+     * @param _performanceFee is the management fee percent per round
      * @param _tokenName is the name of the asset
      * @param _tokenSymbol is the symbol of the asset
-     * @param _vaultParams is the parameters of the vault
      */
-    function baseInitialize(
-        address _owner,
+    constructor(
         address _keeper,
         address _feeRecipient,
-        uint256 _managementFeeRisky,
-        uint256 _managementFeeStable,
+        address _vaultManager,
+        address _primitiveManager,
+        address _primitiveEngine,
+        address _risky,
+        address _stable,
+        uint256 _managementFee,
+        uint256 _performanceFee,
         string memory _tokenName,
-        string memory _tokenSymbol,
-        Vault.VaultParams calldata _vaultParams
-    ) internal initializer {
-        __ReentrancyGuard_init();
-        __ERC20_init(_tokenName, _tokenSymbol);
-        __Ownable_init();
-        transferOwnership(_owner);
+        string memory _tokenSymbol
+    ) ERC20(_tokenName, _tokenSymbol) {
+        require(_keeper != address(0), "!_keeper");
+        require(_primitiveManager != address(0), "!_primitiveManager");
+        require(_primitiveEngine != address(0), "!_primitiveEngine");
+        require(_risky != address(0), "!_risky");
+        require(_stable != address(0), "!_stable");
+        require(_managementFee > 0, "!_stable");
+        require(_performanceFee > 0, "!_stable");
 
         keeper = _keeper;
         feeRecipient = _feeRecipient;
-        managementFeeRisky = _managementFeeRisky.mul(Vault.FEE_MULTIPLIER).div(
+        vaultManager = _vaultManager;
+        primitiveManager = _primitiveManager;
+        primitiveEngine = _primitiveEngine;
+        risky = _risky;
+        stable = _stable;
+        performanceFee = _performanceFee;
+        // Compute management to charge per week by yearly amount
+        managementFee = _managementFee.mul(Vault.FEE_MULTIPLIER).div(
             WEEKS_PER_YEAR
         );
-        managementFeeStable = _managementFeeStable
-            .mul(Vault.FEE_MULTIPLIER)
-            .div(WEEKS_PER_YEAR);
-        vaultParams = _vaultParams;
+        // Account for pre-existing funds
+        uint256 riskyBalance = IERC20(risky).balanceOf(address(this));
+        uint256 stableBalance = IERC20(stable).balanceOf(address(this));
+        VaultMath.assertUint104(riskyBalance);
+        VaultMath.assertUint104(stableBalance);
+        vaultState.lastLockedRisky = uint104(riskyBalance);
+        vaultState.lastLockedStable = uint104(stableBalance);
+        // Initialize round
         vaultState.round = 1;
     }
 
@@ -172,7 +294,7 @@ contract ParetoVault is
      ***********************************************/
 
     /**
-     * @notice Throws if called by any account other than the keeper.
+     * @notice Throws if called by any account other than the keeper
      */
     modifier onlyKeeper() {
         require(msg.sender == keeper, "!keeper");
@@ -180,226 +302,405 @@ contract ParetoVault is
     }
 
     /**
-     * @notice Sets the keeper. Only accessible by owner
+     * @notice Sets the keeper
      * @param newKeeper is the address of the new keeper
      */
     function setKeeper(address newKeeper) external onlyOwner {
         require(newKeeper != address(0), "!keeper`");
+        emit KeeperSetEvent(newKeeper);
         keeper = newKeeper;
     }
 
     /**
-     * Sets the fee recipient. Only accessible by owner
+     * Sets the fee recipient
      * @param newFeeRecipient is the address of the new fee recipient
-     *  This must be different than the current `feeRecipient`
      */
     function setFeeRecipient(address newFeeRecipient) external onlyOwner {
         require(newFeeRecipient != address(0), "!newFeeRecipient");
         require(newFeeRecipient != feeRecipient, "Old feeRecipient");
+        emit FeeRecipientSetEvent(newFeeRecipient);
         feeRecipient = newFeeRecipient;
     }
 
     /**
      * Sets the management fee for the vault
-     * @param newManagementFeeRisky is the management fee in risky asset
-     * @param newManagementFeeStable is the management fee in stable asset
+     * @param newManagementFee is the management fee
      */
-    function setManagementFee(
-        uint256 newManagementFeeRisky,
-        uint256 newManagementFeeStable
-    ) external onlyOwner {
+    function setManagementFee(uint256 newManagementFee) external onlyOwner {
         require(
-            newManagementFeeRisky < 100 * Vault.FEE_MULTIPLIER,
-            "newManagementFeeRisky > 100"
-        );
-        require(
-            newManagementFeeStable < 100 * Vault.FEE_MULTIPLIER,
-            "newManagementFeeStable > 100"
+            newManagementFee < 100 * Vault.FEE_MULTIPLIER,
+            "newManagementFee > 100"
         );
 
         // Divide annualized management fee by num weeks in a year
-        uint256 weekFeeRisky = newManagementFeeRisky
-            .mul(Vault.FEE_MULTIPLIER)
-            .div(WEEKS_PER_YEAR);
-
-        uint256 weekFeeStable = newManagementFeeStable
-            .mul(Vault.FEE_MULTIPLIER)
-            .div(WEEKS_PER_YEAR);
-
-        emit ManagementFeeSetEvent(
-            managementFeeRisky,
-            managementFeeStable,
-            newManagementFeeRisky,
-            newManagementFeeStable
+        uint256 weeklyFee = newManagementFee.mul(Vault.FEE_MULTIPLIER).div(
+            WEEKS_PER_YEAR
         );
 
-        managementFeeRisky = weekFeeRisky;
-        managementFeeStable = weekFeeStable;
+        emit ManagementFeeSetEvent(managementFee, newManagementFee);
+        managementFee = weeklyFee;
+    }
+
+    /**
+     * Sets the performance fee for the vault
+     * @param newPerformanceFee is the performance fee
+     */
+    function setPerformanceFee(uint256 newPerformanceFee) external onlyOwner {
+        require(
+            newPerformanceFee < 100 * Vault.FEE_MULTIPLIER,
+            "newPerformanceFee > 100"
+        );
+        emit PerformanceFeeSetEvent(performanceFee, newPerformanceFee);
+        performanceFee = newPerformanceFee;
+    }
+
+    /**
+     * @notice Optionality to manually set strike price
+     * @param strikePrice is the strike price of the new pool
+     */
+    function setStrikePrice(uint128 strikePrice) external onlyKeeper {
+        require(strikePrice > 0, "!strikePrice");
+        emit StrikePriceSetEvent(strikePrice, vaultState.round);
+        managerState.manualStrike = strikePrice;
+        managerState.manualStrikeRound = vaultState.round;
+    }
+
+    /**
+     * @notice Optionality to manually set implied volatility
+     * @param volatility is the sigma of the new pool
+     */
+    function setVolatility(uint32 volatility) external onlyKeeper {
+        require(volatility > 0, "!volatility");
+        emit VolatilitySetEvent(volatility, vaultState.round);
+        managerState.manualVolatility = volatility;
+        managerState.manualVolatilityRound = vaultState.round;
+    }
+
+    /**
+     * @notice Optionality to manually set gamma
+     * @param gamma is 1-fee of the new pool. Important for replication
+     */
+    function setGamma(uint32 gamma) external onlyKeeper {
+        require(gamma > 0, "!gamma");
+        emit GammaSetEvent(gamma, vaultState.round);
+        managerState.manualGamma = gamma;
+        managerState.manualGammaRound = vaultState.round;
+    }
+
+    /**
+     * @notice Sets the new Vault Manager contract
+     * @param newVaultManager is the address of the new manager contract
+     */
+    function setVaultManager(address newVaultManager) external onlyOwner {
+        require(newVaultManager != address(0), "!newVaultManager");
+        emit VaultManagerSetEvent(newVaultManager);
+        vaultManager = newVaultManager;
     }
 
     /************************************************
-     * Deposits and Withdrawals
+     * User-facing Vault Operations
      ***********************************************/
 
     /**
      * @notice Deposits risky asset from msg.sender.
-     * @param risky is the amount of risky asset to deposit
-     * @param stable is the amount of stable asset to deposit
-     *  in stable
+     * @param riskyAmount is the amount of risky asset to deposit
      */
-    function deposit(uint256 risky, uint256 stable) external nonReentrant {
-        require(risky > 0, "!risky");
-        require(stable > 0, "!stable");
+    function deposit(uint256 riskyAmount) external override nonReentrant {
+        require(riskyAmount > 0, "!riskyAmount");
 
-        _processDeposit(risky, stable, msg.sender);
+        emit DepositEvent(msg.sender, riskyAmount, vaultState.round);
+        _processDeposit(riskyAmount, msg.sender);
 
         // Make transfers from tx caller to contract
-        IERC20(vaultParams.risky).safeTransferFrom(
-            msg.sender,
-            address(this),
-            risky
-        );
-        IERC20(vaultParams.stable).safeTransferFrom(
-            msg.sender,
-            address(this),
-            stable
-        );
+        IERC20(risky).safeTransferFrom(msg.sender, address(this), riskyAmount);
     }
 
     /**
-     * @notice Updates receipts and internal variables
-     * @notice Minting will be done in the next rollover
-     * @param risky is the amount of risky asset to be deposited
-     * @param stable is the amount of stable asset to be deposited
-     * @param creditor is the address to receive the deposit
+     * @notice Requests a withdraw that is processed after the current round
+     * @param shares is the number of shares to withdraw
      */
-    function _processDeposit(
-        uint256 risky,
-        uint256 stable,
-        address creditor
-    ) private {
-        uint256 currRound = vaultState.round;
+    function requestWithdraw(uint256 shares) external override nonReentrant {
+        _requestWithdraw(shares);
 
-        // Emit to log
-        emit DepositEvent(creditor, risky, stable, currRound);
+        // Update global variable caching shares queued for withdrawal
+        vaultState.currQueuedWithdrawShares = vaultState
+            .currQueuedWithdrawShares
+            .add(shares);
+    }
 
-        // Find cached receipt for user & retrieve shares
-        Vault.DepositReceipt memory receipt = depositReceipts[creditor];
-        uint256 shares = receipt.getSharesFromReceipt(
-            currRound,
-            roundSharePriceRisky[receipt.round],
-            roundSharePriceStable[receipt.round],
-            vaultParams.decimals
+    /**
+     * @notice Completes a requested withdraw from past round.
+     */
+    function completeWithdraw() external override nonReentrant {
+        (uint256 riskyWithdrawn, uint256 stableWithdrawn) = _completeWithdraw();
+
+        // Update globals caching withdrawal amounts from last round
+        vaultState.lastQueuedWithdrawRisky = vaultState
+            .lastQueuedWithdrawRisky
+            .sub(riskyWithdrawn);
+        vaultState.lastQueuedWithdrawStable = vaultState
+            .lastQueuedWithdrawStable
+            .sub(stableWithdrawn);
+    }
+
+    /**
+     * @notice Sets up the vault condition on the current vault
+     */
+    function deployVault() external onlyKeeper nonReentrant {
+        bytes32 currPoolId = poolState.currPoolId;
+
+        (
+            bytes32 nextPoolId,
+            uint128 nextStrikePrice,
+            uint32 nextVolatility,
+            uint32 nextGamma
+        ) = _prepareNextPool(currPoolId);
+
+        emit DeployVaultEvent(
+            nextPoolId,
+            nextStrikePrice,
+            nextVolatility,
+            nextGamma,
+            msg.sender
         );
 
-        uint256 depositRisky = risky;
-        uint256 depositStable = stable;
+        // Update pool identifier in PoolState
+        poolState.nextPoolId = nextPoolId;
 
-        // If another pending deposit exists for current round, add to it
-        if (receipt.round == currRound) {
-            depositRisky = uint256(receipt.risky).add(risky);
-            depositStable = uint256(receipt.stable).add(stable);
+        // Update timestamp for next pool in PoolState
+        // TODO: add delay?
+        uint256 nextPoolReadyAt = block.timestamp;
+        VaultMath.assertUint32(nextPoolReadyAt);
+        poolState.nextPoolReadyAt = uint32(nextPoolReadyAt);
+
+        {
+            // Save last round's locked assets
+            uint104 lockedRisky = vaultState.lockedRisky;
+            uint104 lockedStable = vaultState.lockedStable;
+            if (currPoolId != "") {
+                vaultState.lastLockedRisky = lockedRisky;
+                vaultState.lastLockedStable = lockedStable;
+            }
         }
 
-        VaultMath.assertUint104(depositRisky);
-        VaultMath.assertUint104(depositStable);
+        // Reset properties in VaultState
+        vaultState.lockedRisky = 0;
+        vaultState.lockedStable = 0;
 
+        // Prevent bad things if we already called function
+        if (currPoolId != "") {
+            // Remove liquidity from Primitive pool for token assets
+            (uint256 riskyAmount, uint256 stableAmount) = _removeLiquidity(
+                currPoolId,
+                poolState.currLiquidity
+            );
+
+            emit ClosePositionEvent(
+                currPoolId,
+                poolState.currLiquidity,
+                riskyAmount,
+                stableAmount,
+                msg.sender
+            );
+        }
+
+        // Reset properties in PoolState
+        poolState.currPoolId = "";
+        poolState.currLiquidity = 0;
+
+        // Rollover will replace this with nextPoolParams
+        delete poolState.currPoolParams;
+    }
+
+    /**
+     * @notice Rolls the vault's funds into the next vault
+     */
+    function rollover() external onlyKeeper nonReentrant {
+        (
+            bytes32 newPoolId,
+            uint256 lockedRisky,
+            uint256 lockedStable,
+            uint256 queuedWithdrawRisky,
+            uint256 queuedWithdrawStable
+        ) = _prepareRollover();
+
+        // Queued withdraws from current round are set to last round
+        vaultState.lastQueuedWithdrawRisky = queuedWithdrawRisky;
+        vaultState.lastQueuedWithdrawStable = queuedWithdrawStable;
+
+        // Add queued withdraw shares for current round to cache and
+        // reset current queue to zero
+        uint256 totalQueuedWithdrawShares = vaultState
+            .totalQueuedWithdrawShares
+            .add(vaultState.currQueuedWithdrawShares);
+        vaultState.totalQueuedWithdrawShares = totalQueuedWithdrawShares;
+        vaultState.currQueuedWithdrawShares = 0;
+
+        // Update locked balances
+        VaultMath.assertUint104(lockedRisky);
+        VaultMath.assertUint104(lockedStable);
+        vaultState.lockedRisky = uint104(lockedRisky);
+        vaultState.lockedStable = uint104(lockedStable);
+
+        // Deposit locked liquidity into Primitive pools
+        uint256 optionLiquidity = _depositLiquidity(
+            newPoolId,
+            lockedRisky,
+            lockedStable
+        );
+
+        emit OpenPositionEvent(
+            newPoolId,
+            lockedRisky,
+            lockedStable,
+            optionLiquidity,
+            msg.sender
+        );
+
+        // Save the liquidity into PoolState
+        poolState.currLiquidity = optionLiquidity;
+    }
+
+    /************************************************
+     * Deposits and Withdrawal Utilities
+     ***********************************************/
+
+    /**
+     * @notice Updates receipts and internal variables
+     *  Minting will be done in the next rollover
+     *  Users only deposit risky assets. Swaps to stable assets is internal
+     * @param riskyAmount is the amount of risky asset to be deposited
+     * @param creditor is the address to receive the deposit
+     */
+    function _processDeposit(uint256 riskyAmount, address creditor) private {
+        uint16 currRound = vaultState.round;
+
+        // Find cached receipt for user if already deposited in a previous round
+        Vault.DepositReceipt memory receipt = depositReceipts[creditor];
+
+        // Compute owed shares from previous rounds
+        uint256 shares = receipt.getSharesFromReceipt(
+            currRound,
+            roundSharePriceInRisky[receipt.round], // round of deposit
+            IERC20(risky).decimals()
+        );
+
+        uint256 depositAmount = riskyAmount;
+        // If another pending deposit exists for current round, add to it
+        if (receipt.round == currRound) {
+            depositAmount = uint256(receipt.riskyAmount).add(riskyAmount);
+        }
+
+        VaultMath.assertUint104(depositAmount);
+        VaultMath.assertUint128(shares);
+
+        // New receipt has total deposited amount from current round and
+        // the number of owned shares from previous rounds
         depositReceipts[creditor] = Vault.DepositReceipt({
-            round: uint16(currRound),
-            risky: uint104(depositRisky),
-            stable: uint104(depositStable),
+            round: currRound,
+            riskyAmount: uint104(depositAmount),
             shares: uint128(shares)
         });
 
-        // Pending = money waiting to be converted to shares
-        uint256 newPendingRisky = uint256(vaultState.pendingRisky).add(risky);
+        // Pending = money waiting to be converted to shares. Use riskyAmount
+        // not depositAmount as a portion has already been accounted for
+        // This must be in risky asset. Users cannot deposit stable
+        uint256 newPendingRisky = uint256(vaultState.pendingRisky).add(
+            riskyAmount
+        );
         VaultMath.assertUint128(newPendingRisky);
         vaultState.pendingRisky = uint128(newPendingRisky);
-
-        uint256 newPendingStable = uint256(vaultState.pendingStable).add(
-            stable
-        );
-        VaultMath.assertUint128(newPendingStable);
-        vaultState.pendingStable = uint128(newPendingStable);
     }
 
     /**
      * @notice Initiates a withdraw to be processed after round completes
-     * @notice This function does not make the actual withdrawl
+     *  This function does not make the actual withdrawal but must be called
+     *  prior to _completeWithdraw
      * @param shares is the amount of shares to withdraw
      */
     function _requestWithdraw(uint256 shares) internal {
         require(shares > 0, "!shares");
+        uint16 currRound = vaultState.round;
 
-        uint256 currRound = vaultState.round;
-        Vault.Withdrawal storage withdrawal = withdrawals[msg.sender];
+        // Stores the round and amount of shares to be withdrawn
+        Vault.PendingWithdraw storage withdrawal = pendingWithdraw[msg.sender];
 
         emit WithdrawRequestEvent(msg.sender, shares, currRound);
 
-        uint256 withdrawnShares;
+        uint256 sharesToWithdraw;
 
         if (withdrawal.round == currRound) {
-            // If the user requested a withdrawal recently, merge
-            withdrawnShares = uint256(withdrawal.shares).add(shares);
+            // If the user has a pending withdrawal from same round, merge
+            sharesToWithdraw = uint256(withdrawal.shares).add(shares);
         } else {
-            // If we find a withdrawal request from an old round, bad
+            // If we find unfilled withdrawal request from old round, error
             require(uint256(withdrawal.shares) == 0, "Abandoned withdraw");
-            withdrawnShares = shares;
-            withdrawals[msg.sender].round = uint16(currRound);
+            sharesToWithdraw = shares;
+            pendingWithdraw[msg.sender].round = uint16(currRound);
         }
-        VaultMath.assertUint128(withdrawnShares);
-        withdrawals[msg.sender].shares = uint128(withdrawnShares);
+        VaultMath.assertUint128(sharesToWithdraw);
+        // pendingWithdraw is up-to-date
+        pendingWithdraw[msg.sender].shares = uint128(sharesToWithdraw);
     }
 
     /**
      * @notice Complete a scheduled withdrawal from past round
+     *  Users deposit risky assets only but can withdraw both risky and stable
      * @return withdrawRisky is the withdrawn amount of risky asset
      * @return withdrawStable is the withdrawn amount of stable asset
      */
     function _completeWithdraw() internal returns (uint256, uint256) {
-        Vault.Withdrawal storage withdrawal = withdrawals[msg.sender];
+        // withdrawal is guaranteed to be up-to-date b/c of _requestWithdraw
+        Vault.PendingWithdraw storage withdrawal = pendingWithdraw[msg.sender];
 
-        uint256 withdrawShares = withdrawal.shares;
+        uint256 sharesToWithdraw = withdrawal.shares;
         uint256 withdrawRound = withdrawal.round;
 
         // Check that a request to withdrawal has been made
-        require(withdrawShares > 0, "!withdrawShares");
+        require(sharesToWithdraw > 0, "!sharesToWithdraw");
         // Check that the withdraw request was made in a previous round
-        require(withdrawRound < vaultState.round, "Round incomplete");
+        require(withdrawRound < vaultState.round, "Too early to withdraw");
 
-        // Reset params back to 0
-        withdrawals[msg.sender].shares = 0;
+        // Reset params back to 0 to prevent over-withdrawal
+        // TODO: check for re-entrancy?
+        pendingWithdraw[msg.sender].shares = 0;
 
         // Remove portion from queued withdraws
         vaultState.totalQueuedWithdrawShares = uint128(
-            uint256(vaultState.totalQueuedWithdrawShares).sub(withdrawShares)
+            uint256(vaultState.totalQueuedWithdrawShares).sub(sharesToWithdraw)
         );
 
-        (uint256 withdrawRisky, uint256 withdrawStable) = VaultMath
-            .sharesToAssets(
-                withdrawShares,
-                roundSharePriceRisky[withdrawRound],
-                roundSharePriceStable[withdrawRound],
-                vaultParams.decimals
-            );
+        // A single share is traded for both risky and stable assets
+        // based on share price at the withdraw round
+        uint256 riskyWithdrawn = VaultMath.shareToAsset(
+            sharesToWithdraw,
+            roundSharePriceInRisky[withdrawRound],
+            IERC20(risky).decimals()
+        );
+        uint256 stableWithdrawn = VaultMath.shareToAsset(
+            sharesToWithdraw,
+            roundSharePriceInStable[withdrawRound],
+            IERC20(stable).decimals()
+        );
 
-        emit WithdrawEvent(
+        require(riskyWithdrawn > 0, "!riskyWithdrawn");
+        require(stableWithdrawn > 0, "!stableWithdrawn");
+
+        emit WithdrawCompleteEvent(
             msg.sender,
-            withdrawRisky,
-            withdrawStable,
-            withdrawShares
+            sharesToWithdraw,
+            riskyWithdrawn,
+            stableWithdrawn
         );
 
-        _burn(address(this), withdrawShares);
-
-        require(withdrawRisky > 0, "!withdrawRisky");
-        require(withdrawStable > 0, "!withdrawStable");
+        // Burn the Pareto ERC20 tokens
+        _burn(address(this), sharesToWithdraw);
 
         // Transfer tokens from contract to user
-        IERC20(vaultParams.risky).safeTransfer(msg.sender, withdrawRisky);
-        IERC20(vaultParams.stable).safeTransfer(msg.sender, withdrawStable);
+        IERC20(risky).safeTransfer(msg.sender, riskyWithdrawn);
+        IERC20(stable).safeTransfer(msg.sender, stableWithdrawn);
 
-        return (withdrawRisky, withdrawStable);
+        return (riskyWithdrawn, stableWithdrawn);
     }
 
     /************************************************
@@ -408,10 +709,11 @@ contract ParetoVault is
 
     /**
      * @notice Setup the next Primitive pool (i.e. the next option)
-     * @notice Replaces the `commitAndClose` function in Ribbon.
-     * @param deployParams has details on previous pool and settings for new pool
+     *  Updates all internal state variables; deploys a new pool but
+     *  does not perform rollover
+     * @param currPoolId is the id of the current Primitive pool
      */
-    function _prepareNextPool(Vault.DeployParams memory deployParams)
+    function _prepareNextPool(bytes32 currPoolId)
         internal
         returns (
             bytes32 nextPoolId,
@@ -421,43 +723,41 @@ contract ParetoVault is
         )
     {
         // Compute the maturity date for the next pool
-        uint32 nextMaturity = getNextMaturity(deployParams.currPoolId);
+        uint32 nextMaturity = getNextMaturity(currPoolId);
 
-        // Manager is responsible for setting up the next pool
-        IParetoManager manager = IParetoManager(deployParams.paretoManager);
+        // Manager contains logic to get params of the next pool
+        IParetoManager manager = IParetoManager(vaultManager);
 
-        // Check if we manually set strike price, overwise call manager
-        nextStrikePrice = deployParams.manualStrikeRound == vaultState.round
-            ? deployParams.manualStrike
+        // Check if we manually set strike price, otherwise call manager
+        nextStrikePrice = managerState.manualStrikeRound == vaultState.round
+            ? managerState.manualStrike
             : manager.getNextStrikePrice();
+        require(nextStrikePrice > 0, "!nextStrikePrice");
 
-        require(nextStrikePrice != 0, "!nextStrikePrice");
-
-        // Check if we manually set volatility, overwise call manager
-        nextVolatility = deployParams.manualVolatilityRound == vaultState.round
-            ? deployParams.manualVolatility
+        // Check if we manually set volatility, otherwise call manager
+        nextVolatility = managerState.manualVolatilityRound == vaultState.round
+            ? managerState.manualVolatility
             : manager.getNextVolatility();
+        require(nextVolatility > 0, "!nextVolatility");
 
-        require(nextVolatility != 0, "!nextVolatility");
-
-        // Check if we manually set gamma, overwise call manager
-        nextGamma = deployParams.manualGammaRound == vaultState.round
-            ? deployParams.manualGamma
+        // Check if we manually set gamma, otherwise call manager
+        nextGamma = managerState.manualGammaRound == vaultState.round
+            ? managerState.manualGamma
             : manager.getNextGamma();
+        require(nextGamma > 0, "!nextGamma");
 
-        require(nextGamma != 0, "!nextGamma");
-
-        Vault.PoolParams memory currParams = poolState.currPoolParams;
+        // Define params of next pool
         Vault.PoolParams memory nextParams = Vault.PoolParams({
             strike: nextStrikePrice,
             sigma: nextVolatility,
             maturity: nextMaturity,
             gamma: nextGamma,
-            riskyPerLp: currParams.riskyPerLp,
-            delLiquidity: currParams.delLiquidity
+            riskyPerLP: poolState.currPoolParams.riskyPerLP,
+            delLiquidity: poolState.currPoolParams.delLiquidity
         });
 
-        // Deploy the Primitive pool
+        // Deploy the next Primitive pool; this does not perform rollover
+        // The current pool is still the active one
         nextPoolId = _deployPool(nextParams);
         poolState.nextPoolParams = nextParams;
 
@@ -467,7 +767,7 @@ contract ParetoVault is
     /**
      * @notice Logistic operations for rolling to the next option, such as
      *  minting new shares and transferring vault fees. The actual calls to
-     *  Primitive are not made in this function but require the outputs
+     *  Primitive are not made in this function but require the outputs of this
      * @return newPoolId is the bytes32 id of the next Primitive pool
      * @return lockedRisky is the amount of risky asset locked for next round
      * @return lockedStable is the amount of stable asset locked for next round
@@ -486,105 +786,95 @@ contract ParetoVault is
             uint256 queuedWithdrawStable
         )
     {
-        require(block.timestamp >= poolState.nextPoolReadyAt, "Too early");
-
+        require(
+            block.timestamp >= poolState.nextPoolReadyAt,
+            "Too early to rollover"
+        );
         newPoolId = poolState.nextPoolId;
         require(newPoolId != "", "!newPoolId");
 
-        uint256 mintShares;
-        uint256 vaultFeeRisky;
-        uint256 vaultFeeStable;
-
+        // Use deposited tokens (from last week) to mint new shares
+        uint256 sharesToMint;
+        // Amount of fees to transfer to recipient (in two tokens)
+        uint256 feeInRisky;
+        uint256 feeInStable;
         {
-            uint256 unusedRisky;
-            uint256 unusedStable;
-            uint256 newRiskyPrice;
-            uint256 newStablePrice;
+            uint256 newSharePriceInRisky;
+            uint256 newSharePriceInStable;
 
-            uint256 currentRisky = IERC20(vaultParams.risky).balanceOf(
-                address(this)
-            );
-            uint256 currentStable = IERC20(vaultParams.stable).balanceOf(
-                address(this)
+            // Get the amount of assets owned by current token
+            uint256 currRisky = IERC20(risky).balanceOf(address(this));
+            uint256 currStable = IERC20(stable).balanceOf(address(this));
+
+            // Compute supply of Pareto tokens minus what is queued for withdrawal
+            uint256 currSupply = totalSupply().sub(
+                vaultState.totalQueuedWithdrawShares
             );
 
-            // Compute vault fees (consider moving this to a library)
-            (vaultFeeRisky, vaultFeeStable) = _getVaultFees(
-                currentRisky.sub(vaultState.lastQueuedWithdrawRisky),
-                currentStable.sub(vaultState.lastQueuedWithdrawStable),
-                vaultState.pendingRisky,
-                vaultState.pendingStable,
-                managementFeeRisky,
-                managementFeeStable
-            );
+            {
+                // Compute vault fees in two assets
+                (feeInRisky, feeInStable) = _getVaultFees(
+                    Vault.FeeCalculatorInput({
+                        currRisky: currRisky.sub(vaultState.lastQueuedWithdrawRisky),
+                        currStable: currStable.sub(vaultState.lastQueuedWithdrawStable),
+                        lastLockedRisky: vaultState.lastLockedRisky,
+                        lastLockedStable: vaultState.lastLockedStable,
+                        pendingRisky: vaultState.pendingRisky,
+                        managementFeePercent: managementFee,
+                        performanceFeePercent: performanceFee
+                    })
+                );
+            }
 
             // Remove fee from assets
-            currentRisky = currentRisky.sub(vaultFeeRisky);
-            currentStable = currentStable.sub(vaultFeeStable);
+            currRisky = currRisky.sub(feeInRisky);
+            currStable = currStable.sub(feeInStable);
 
             {
                 // Compute new share price after rollover
-                (newRiskyPrice, newStablePrice) = VaultMath.getSharePrice(
-                    totalSupply().sub(vaultState.totalQueuedWithdrawShares),
-                    currentRisky.sub(vaultState.lastQueuedWithdrawRisky),
-                    currentStable.sub(vaultState.lastQueuedWithdrawStable),
+                newSharePriceInRisky = VaultMath.getSharePrice(
+                    currSupply,
+                    currRisky.sub(vaultState.lastQueuedWithdrawRisky),
                     vaultState.pendingRisky,
-                    vaultState.pendingStable,
-                    vaultParams.decimals
+                    IERC20(risky).decimals()
                 );
-                (uint256 newRisky, uint256 newStable) = VaultMath
-                    .sharesToAssets(
-                        vaultState.currQueuedWithdrawShares,
-                        newRiskyPrice,
-                        newStablePrice,
-                        vaultParams.decimals
-                    );
+                newSharePriceInStable = VaultMath.getSharePrice(
+                    currSupply,
+                    currStable.sub(vaultState.lastQueuedWithdrawStable),
+                    0,
+                    IERC20(stable).decimals()
+                );
+
+                // Update the amount of risky and stable asset to be withdrawn
+                // based on new share price
                 queuedWithdrawRisky = vaultState.lastQueuedWithdrawRisky.add(
-                    newRisky
+                    VaultMath.shareToAsset(
+                        vaultState.currQueuedWithdrawShares,
+                        newSharePriceInRisky,
+                        IERC20(risky).decimals()
+                    )
                 );
                 queuedWithdrawStable = vaultState.lastQueuedWithdrawStable.add(
-                    newStable
+                    VaultMath.shareToAsset(
+                        vaultState.currQueuedWithdrawShares,
+                        newSharePriceInStable,
+                        IERC20(stable).decimals()
+                    )
                 );
 
-                // Compute number of shares that can be minded using the
-                // liquidity pending
-                mintShares = VaultMath.assetsToShares(
+                // Compute number of shares that can be minted from pending risky
+                // This solely uses the amount of pending deposits from new users
+                sharesToMint = VaultMath.assetToShare(
                     vaultState.pendingRisky,
-                    vaultState.pendingStable,
-                    newRiskyPrice,
-                    newStablePrice,
-                    vaultParams.decimals
+                    newSharePriceInRisky,
+                    IERC20(risky).decimals()
                 );
             }
 
-            {
-                // Compute liquidity remaining as some rounding is required
-                // to convert assets to shares
-                (uint256 reconRisky, uint256 reconStable) = VaultMath
-                    .sharesToAssets(
-                        mintShares,
-                        newRiskyPrice,
-                        newStablePrice,
-                        vaultParams.decimals
-                    );
-                unusedRisky = uint256(vaultState.pendingRisky).sub(reconRisky);
-                unusedStable = uint256(vaultState.pendingRisky).sub(
-                    reconStable
-                );
-                require(
-                    unusedRisky == 0 || unusedStable == 0,
-                    "One must be zero"
-                );
-
-                lockedRisky = currentRisky.sub(queuedWithdrawRisky);
-                lockedStable = currentStable.sub(queuedWithdrawStable);
-            }
-
-            // Record any liquidity not being used
-            VaultMath.assertUint128(unusedRisky);
-            VaultMath.assertUint128(unusedStable);
-            vaultState.unusedRisky = uint128(unusedRisky);
-            vaultState.unusedStable = uint128(unusedStable);
+            // Locked asset is the amount that we can deposit into RMM-01 pool
+            // Remove assets queued for withdraw
+            lockedRisky = currRisky.sub(queuedWithdrawRisky);
+            lockedStable = currStable.sub(queuedWithdrawStable);
 
             // Update properties of poolState
             poolState.currPoolId = newPoolId;
@@ -593,38 +883,33 @@ contract ParetoVault is
             poolState.currPoolParams = poolState.nextPoolParams;
             delete poolState.nextPoolParams;
 
-            // record the share price
-            roundSharePriceRisky[vaultState.round] = newRiskyPrice;
-            roundSharePriceStable[vaultState.round] = newStablePrice;
+            // Record the new share price
+            roundSharePriceInRisky[vaultState.round] = newSharePriceInRisky;
+            roundSharePriceInStable[vaultState.round] = newSharePriceInStable;
 
             emit VaultFeesCollectionEvent(
-                vaultFeeRisky,
-                vaultFeeStable,
+                feeInRisky,
+                feeInStable,
                 vaultState.round,
                 feeRecipient
             );
 
-            // Reset vault state variables
+            // All the pending risky will be used so reset to zereo
             vaultState.pendingRisky = 0;
-            vaultState.pendingStable = 0;
+
+            // Update the vault round
             vaultState.round = uint16(vaultState.round + 1);
         }
 
         // Mint new shares for next round
-        _mint(address(this), mintShares);
+        _mint(address(this), sharesToMint);
 
         // Make transfers for fee
-        if (vaultFeeRisky > 0) {
-            IERC20(vaultParams.risky).safeTransfer(
-                payable(feeRecipient),
-                vaultFeeRisky
-            );
+        if (feeInRisky > 0) {
+            IERC20(risky).safeTransfer(payable(feeRecipient), feeInRisky);
         }
-        if (vaultFeeStable > 0) {
-            IERC20(vaultParams.stable).safeTransfer(
-                payable(feeRecipient),
-                vaultFeeStable
-            );
+        if (feeInStable > 0) {
+            IERC20(stable).safeTransfer(payable(feeRecipient), feeInStable);
         }
 
         return (
@@ -638,46 +923,52 @@ contract ParetoVault is
 
     /**
      * @notice Calculates performance and management fee for this week's round
-     * @param currentRisky is the balance of risky assets in vault
-     * @param currentStable is the balance of stable assets in vault
-     * @param pendingRisky is the pending deposit amount of risky asset
-     * @param pendingStable is the pending deposit amount of stable asset
-     * @param _managementFeeRisky is the fee percent on the risky asset
-     * @param _managementFeeStable is the fee percent on the stable asset
+     * @param feeParams is the parameters for fee computation
+     * @return feeInRisky is the fees awarded to owner in risky
+     * @return feeInStable is the fees awarded to owner in stable
      * --
-     * @return vaultFeeRisky is the fees awarded to owner in risky
-     * @return vaultFeeStable is the fees awarded to owner in stable
+     * TODO: check if vault made money
      */
     function _getVaultFees(
-        uint256 currentRisky,
-        uint256 currentStable,
-        uint256 pendingRisky,
-        uint256 pendingStable,
-        uint256 _managementFeeRisky,
-        uint256 _managementFeeStable
-    ) internal pure returns (uint256, uint256) {
-        uint256 riskyMinusPending = currentRisky > pendingRisky
-            ? currentRisky.sub(pendingRisky)
+        Vault.FeeCalculatorInput memory feeParams
+    ) internal pure returns (uint256 feeInRisky, uint256 feeInStable) {
+        // Locked amount should not include pending amount
+        uint256 currLockedRisky = feeParams.currRisky > feeParams.pendingRisky
+            ? feeParams.currRisky.sub(feeParams.pendingRisky)
             : 0;
-        uint256 stableMinusPending = currentStable > pendingStable
-            ? currentStable.sub(pendingStable)
+        // Users cannot deposit stable tokens
+        uint256 _performanceFeeInRisky;
+        uint256 _performanceFeeInStable;
+        uint256 _managementFeeInRisky;
+        uint256 _managementFeeInStable;
+
+        // Take performance fee and management fee ONLY if difference between
+        // last week and this week's vault deposits (taking into account pending
+        // deposits and withdrawals), is positive. This is to infer if the vault
+        // make money last week: if difference < 0, vault look a loss.
+        _performanceFeeInRisky = feeParams.performanceFeePercent > 0
+            ? currLockedRisky.sub(feeParams.lastLockedRisky)
+                .mul(feeParams.performanceFeePercent)
+                .div(100 * Vault.FEE_MULTIPLIER)
             : 0;
-
-        uint256 _vaultFeeRisky;
-        uint256 _vaultFeeStable;
-
-        // TODO: add price oracle for performance fee
-        _vaultFeeRisky = _managementFeeRisky > 0
-            ? riskyMinusPending.mul(_managementFeeRisky).div(
+        _performanceFeeInStable = feeParams.performanceFeePercent > 0
+            ? feeParams.currStable.sub(feeParams.lastLockedStable)
+                .mul(feeParams.performanceFeePercent)
+                .div(100 * Vault.FEE_MULTIPLIER)
+            : 0;
+        _managementFeeInRisky = feeParams.managementFeePercent > 0
+            ? currLockedRisky.mul(feeParams.managementFeePercent).div(
                 100 * Vault.FEE_MULTIPLIER
             )
             : 0;
-        _vaultFeeStable = _managementFeeStable > 0
-            ? stableMinusPending.mul(_managementFeeStable).div(
+        _managementFeeInStable = feeParams.managementFeePercent > 0
+            ? feeParams.currStable.mul(feeParams.managementFeePercent).div(
                 100 * Vault.FEE_MULTIPLIER
             )
             : 0;
-        return (_vaultFeeRisky, _vaultFeeStable);
+        feeInRisky = _performanceFeeInRisky.add(_managementFeeInRisky);
+        feeInStable = _performanceFeeInStable.add(_managementFeeInStable);
+        return (feeInRisky, feeInStable);
     }
 
     /************************************************
@@ -685,28 +976,13 @@ contract ParetoVault is
      ***********************************************/
 
     /**
-     * @notice Get the underlying Primitive engine of the Manager
-     * @return engine is the address of the engine contract
-     */
-    function _getPrimitiveEngine() internal view returns (address) {
-        address engine = EngineAddress.computeAddress(
-            IManagerBase(PRIMITIVE_MANAGER).factory(),
-            vaultParams.risky,
-            vaultParams.stable
-        );
-        return engine;
-    }
-
-    /**
      * @notice Fetch the maturity timestamp of the current Primitive pool
      * @param poolId is the identifier of the current pool
      * @return maturity is the expiry date of the current pool
      */
     function _getPoolMaturity(bytes32 poolId) internal view returns (uint32) {
-        address engine = _getPrimitiveEngine();
-        (, , uint32 maturity, , ) = IPrimitiveEngineView(engine).calibrations(
-            poolId
-        );
+        (, , uint32 maturity, , ) = IPrimitiveEngineView(primitiveEngine)
+            .calibrations(poolId);
         return maturity;
     }
 
@@ -719,14 +995,14 @@ contract ParetoVault is
         internal
         returns (bytes32)
     {
-        (bytes32 poolId, , ) = IPrimitiveManager(PRIMITIVE_MANAGER).create(
-            vaultParams.risky,
-            vaultParams.stable,
+        (bytes32 poolId, , ) = IPrimitiveManager(primitiveManager).create(
+            risky,
+            stable,
             poolParams.strike,
             poolParams.sigma,
             poolParams.maturity,
             poolParams.gamma,
-            poolParams.riskyPerLp,
+            poolParams.riskyPerLP,
             poolParams.delLiquidity
         );
         return poolId;
@@ -734,8 +1010,7 @@ contract ParetoVault is
 
     /**
      * @notice Deposits a pair of assets in a Primitive pool
-     * @notice Stores the liquidity tokens in this contract
-     * @notice TODO: do we need minimums?
+     *  Stores the liquidity tokens in this contract
      * @param poolId is the identifier of the pool to deposit in
      * @param riskyAmount is the amount of risky assets to deposit
      * @param stableAmount is the amount of stable assets to deposit
@@ -746,14 +1021,14 @@ contract ParetoVault is
         uint256 riskyAmount,
         uint256 stableAmount
     ) internal returns (uint256) {
-        uint256 liquidity = IPrimitiveManager(PRIMITIVE_MANAGER).allocate(
+        uint256 liquidity = IPrimitiveManager(primitiveManager).allocate(
             address(this),
             poolId,
-            vaultParams.risky,
-            vaultParams.stable,
+            risky,
+            stable,
             riskyAmount,
             stableAmount,
-            true,
+            false,
             0
         );
         return liquidity;
@@ -762,7 +1037,6 @@ contract ParetoVault is
     /**
      * @notice Removes a pair of assets from a Primitive pool
      * @notice Takes liquidity tokens from this contract
-     * @notice TODO: do we need minimums?
      * @param poolId is the identifier of the pool to deposit in
      * @param liquidity is the amount of LP tokens returned from deposit
      * @return riskyAmount is the amount of risky assets to deposit
@@ -774,10 +1048,9 @@ contract ParetoVault is
     {
         if (liquidity == 0) return (0, 0);
 
-        address engine = _getPrimitiveEngine(); // fetch engine
         (uint256 riskyAmount, uint256 stableAmount) = IPrimitiveManager(
-            PRIMITIVE_MANAGER
-        ).remove(engine, poolId, liquidity, 0, 0);
+            primitiveManager
+        ).remove(primitiveEngine, poolId, liquidity, 0, 0);
 
         return (riskyAmount, stableAmount);
     }
@@ -789,45 +1062,57 @@ contract ParetoVault is
     /**
      * @notice Returns the asset balance held in the vault for one account
      * @param account is the address to lookup balance for
-     * @return the amount of `asset` owned by the vault for the user
+     * @return riskyAmount is the risky asset owned by the vault for the user
+     * @return stableAmount is the stable asset owned by the vault for the user
      */
     function getAccountBalance(address account)
         external
         view
-        returns (uint256, uint256)
+        override
+        returns (uint256 riskyAmount, uint256 stableAmount)
     {
-        uint256 _decimals = vaultParams.decimals;
-        (uint256 riskyPrice, uint256 stablePrice) = VaultMath.getSharePrice(
+        uint256 sharePriceInRisky = VaultMath.getSharePrice(
             totalSupply(),
             totalRisky(),
-            totalStable(),
             vaultState.pendingRisky,
-            vaultState.pendingStable,
-            _decimals
+            IERC20(risky).decimals()
         );
-        return
-            VaultMath.sharesToAssets(
-                getAccountShares(account),
-                riskyPrice,
-                stablePrice,
-                _decimals
-            );
+        uint256 sharePriceInStable = VaultMath.getSharePrice(
+            totalSupply(),
+            totalStable(),
+            0,
+            IERC20(stable).decimals()
+        );
+        riskyAmount = VaultMath.shareToAsset(
+            getAccountShares(account),
+            sharePriceInRisky,
+            IERC20(risky).decimals()
+        );
+        stableAmount = VaultMath.shareToAsset(
+            getAccountShares(account),
+            sharePriceInStable,
+            IERC20(stable).decimals()
+        );
+        return (riskyAmount, stableAmount);
     }
 
     /**
      * @notice Returns the number of shares (+unredeemed shares) for one account
      * @param account is the address to lookup balance for
-     * @return the share balance
+     * @return shares is the share balance for the account
      */
-    function getAccountShares(address account) public view returns (uint256) {
+    function getAccountShares(address account)
+        public
+        view
+        returns (uint256 shares)
+    {
         Vault.DepositReceipt memory receipt = depositReceipts[account];
-        return
-            receipt.getSharesFromReceipt(
-                vaultState.round,
-                roundSharePriceRisky[receipt.round],
-                roundSharePriceStable[receipt.round],
-                vaultParams.decimals
-            );
+        shares = receipt.getSharesFromReceipt(
+            vaultState.round,
+            roundSharePriceInRisky[receipt.round],
+            IERC20(risky).decimals()
+        );
+        return shares;
     }
 
     /**
@@ -837,7 +1122,7 @@ contract ParetoVault is
     function totalRisky() public view returns (uint256) {
         return
             uint256(vaultState.lockedRisky).add(
-                IERC20(vaultParams.risky).balanceOf(address(this))
+                IERC20(risky).balanceOf(address(this))
             );
     }
 
@@ -848,7 +1133,7 @@ contract ParetoVault is
     function totalStable() public view returns (uint256) {
         return
             uint256(vaultState.lockedStable).add(
-                IERC20(vaultParams.stable).balanceOf(address(this))
+                IERC20(stable).balanceOf(address(this))
             );
     }
 

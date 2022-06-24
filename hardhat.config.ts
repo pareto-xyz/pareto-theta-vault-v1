@@ -2,15 +2,9 @@ import "@nomiclabs/hardhat-waffle";
 import "@nomiclabs/hardhat-ethers";
 import "hardhat-deploy";
 import "hardhat-deploy-ethers";
+import "hardhat-tracer";
+import "hardhat-dependency-compiler";
 
-const chainIds = {
-  ganache: 1337,
-  hardhat: 31337,
-};
-
-/**
- * @type import('hardhat/config').HardhatUserConfig
- */
 module.exports = {
   paths: {
     sources: "./contracts",
@@ -33,4 +27,11 @@ module.exports = {
   mocha: {
     timeout: 500000,
   },
+  network: {
+    hardhat: {
+      blockGasLimit: 18e6,
+      gas: 12e6,
+      allowUnlimitedContractSize: true
+    }
+  }
 };

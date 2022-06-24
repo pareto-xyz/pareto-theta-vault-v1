@@ -50,8 +50,10 @@
     "ethers": "^5.6.9",
     "ganache-cli": "^6.12.2",
     "hardhat": "^2.9.7",
+    "hardhat-dependency-compiler": "^1.1.3",
     "hardhat-deploy": "^0.11.10",
     "hardhat-deploy-ethers": "^0.3.0-beta.13",
+    "hardhat-tracer": "^1.1.0-rc.6",
     "husky": "^8.0.1",
     "lint-staged": "^13.0.2",
     "mocha": "^10.0.0",
@@ -60,15 +62,15 @@
     "solc": "^0.8.6",
     "solhint": "^3.3.7",
     "solhint-plugin-prettier": "^0.0.5",
-    "truffle": "^5.5.18",
-    "truffle-contract-size": "^2.0.1",
     "ts-node": "^10.8.1",
-    "typescript": "^4.7.4"
+    "typescript": "^4.7.4",
+    "web3-units": "^1.4.0"
   },
   "dependencies": {
     "@openzeppelin/contracts": "^4.6.0",
     "@openzeppelin/contracts-upgradeable": "^4.6.0",
     "@primitivefi/rmm-core": "^1.0.0",
+    "@primitivefi/rmm-ethers": "^1.2.0-rc.1",
     "@primitivefi/rmm-manager": "^1.1.0",
     "axios": "^0.27.2"
   },

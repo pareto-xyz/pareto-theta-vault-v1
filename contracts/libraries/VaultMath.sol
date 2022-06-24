@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
-pragma solidity =0.8.6;
+pragma solidity >=0.8.6;
 
 import {SafeMath} from "@openzeppelin/contracts/utils/math/SafeMath.sol";
-import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {Vault} from "./Vault.sol";
 
 library VaultMath {
@@ -10,78 +9,55 @@ library VaultMath {
 
     /**
      * @notice Convert assets to shares.
-     * --
-     * @param risky is the amount of risky assets
-     * @param stable is the amount of stable assets
-     * @param riskyPrice is the price of one share in risky assets
-     * @param stablePrice is the price of one share in stable assets
-     * @param decimals is the decimals for vault shares
-     * --
+     * @param amount is the amount of assets
+     * @param sharePrice is the price of one share in assets
+     * @param decimals is the decimals for asset
      * @return shares is the amount of shares
      */
-    function assetsToShares(
-        uint256 risky,
-        uint256 stable,
-        uint256 riskyPrice,
-        uint256 stablePrice,
+    function assetToShare(
+        uint256 amount,
+        uint256 sharePrice,
         uint256 decimals
     ) internal pure returns (uint256) {
-        return
-            Math.min(
-                risky.mul(10**decimals).div(riskyPrice),
-                stable.mul(10**decimals).div(stablePrice)
-            );
+        return amount.mul(10**decimals).div(sharePrice);
     }
 
     /**
      * @notice Convert shares to risky assets
-     * --
      * @param shares is the amount of shares
-     * @param riskyPrice is the price of one share in risky assets
-     * @param stablePrice is the price of one share in stable assets
-     * @param decimals is the decimals for vault shares
-     * --
-     * @return risky is the amount of risky assets
-     * @return stable is the amount of stable assets
+     * @param sharePrice is the price of one share in risky assets
+     * @param decimals is the decimals for risky asset
+     * @return amount is the amount of risky assets
      */
-    function sharesToAssets(
+    function shareToAsset(
         uint256 shares,
-        uint256 riskyPrice,
-        uint256 stablePrice,
+        uint256 sharePrice,
         uint256 decimals
-    ) internal pure returns (uint256, uint256) {
-        uint256 risky = shares.mul(riskyPrice).div(10**decimals);
-        uint256 stable = shares.mul(stablePrice).div(10**decimals);
-        return (risky, stable);
+    ) internal pure returns (uint256) {
+        return shares.mul(sharePrice).div(10**decimals);
     }
 
     /**
      * @notice Returns the shares unredeemed by the user
      * These shares must roll over to the next vault
-     * --
      * @param depositReceipt is the user's deposit receipt
-     * @param currentRound is the `round` stored on the vault
-     * @param riskyPrice is the price of one share in risky assets
-     * @param stablePrice is the price of one share in stable assets
-     * @param decimals is the number of decimals the asset/shares use
-     * --
+     * @param currRound is the `round` stored on the vault
+     * @param sharePrice is the price of one share in assets
+     * @param decimals is the decimals for asset
      * @return shares is the user's virtual balance of shares that are owed
      */
     function getSharesFromReceipt(
         Vault.DepositReceipt memory depositReceipt,
-        uint256 currentRound,
-        uint256 riskyPrice,
-        uint256 stablePrice,
+        uint16 currRound,
+        uint256 sharePrice,
         uint256 decimals
     ) internal pure returns (uint256 shares) {
-        if (depositReceipt.round > 0 && depositReceipt.round < currentRound) {
+        if (depositReceipt.round > 0 && depositReceipt.round < currRound) {
             // If receipt is from earlier round, compute shares value
             // At max only one of these as continuously updated
-            uint256 currShares = assetsToShares(
-                depositReceipt.risky,
-                depositReceipt.stable,
-                riskyPrice,
-                stablePrice,
+            uint256 currShares = assetToShare(
+                depositReceipt.riskyAmount,
+                sharePrice,
                 decimals
             );
             // added with shares from current round
@@ -95,33 +71,26 @@ library VaultMath {
     /**
      * @notice Returns the price of a single share in risky and stable asset
      * --
-     * @param totalSupply is the total supply of the receipt tokens
-     * @param totalRisky is the total supply of risky assets
-     * @param totalStable is the total supply of stable assets
-     * @param pendingRisky is the amount of risky asset set for minting
-     * @param pendingStable is the amount of risky asset set for minting
-     * @param decimals is the number of decimals the asset/shares use
+     * @param totalSupply is the total supply of Pareto tokens
+     * @param totalBalance is the total supply of assets
+     * @param pendingAmount is the amount of asset set for minting
+     * @param decimals is the decimals for asset
      * --
-     * @return riskyPrice is the price of shares in risky asset
-     * @return stablePrice is the price of shares in stable asset
+     * @return price is the price of shares in asset
      */
     function getSharePrice(
         uint256 totalSupply,
-        uint256 totalRisky,
-        uint256 totalStable,
-        uint256 pendingRisky,
-        uint256 pendingStable,
+        uint256 totalBalance,
+        uint256 pendingAmount,
         uint256 decimals
-    ) internal pure returns (uint256, uint256) {
-        uint256 oneShare = 10**decimals;
-        // 10**decimals * (balance - pending) / supply
-        uint256 riskyPrice = totalSupply > 0
-            ? oneShare.mul(totalRisky.sub(pendingRisky)).div(totalSupply)
-            : oneShare;
-        uint256 stablePrice = totalSupply > 0
-            ? oneShare.mul(totalStable.sub(pendingStable)).div(totalSupply)
-            : oneShare;
-        return (riskyPrice, stablePrice);
+    ) internal pure returns (uint256) {
+        uint256 singleShare = 10**decimals;
+        return
+            totalSupply > 0
+                ? singleShare.mul(totalBalance.sub(pendingAmount)).div(
+                    totalSupply
+                )
+                : singleShare;
     }
 
     /**

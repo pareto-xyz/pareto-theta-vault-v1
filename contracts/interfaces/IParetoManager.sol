@@ -1,12 +1,15 @@
 // SPDX-License-Identifier: GPL-3.0-only
-pragma solidity =0.8.6;
-
-import {Vault} from "../libraries/Vault.sol";
+pragma solidity >=0.8.6;
 
 interface IParetoManager {
-    function getNextStrikePrice() external view returns (uint128);
+    function getOraclePrice(
+        address risky, 
+        address stable
+    ) external pure returns (uint256);
 
-    function getNextVolatility() external view returns (uint32);
+    function getNextStrikePrice() external pure returns (uint128);
 
-    function getNextGamma() external view returns (uint32);
+    function getNextVolatility() external pure returns (uint32);
+
+    function getNextGamma() external pure returns (uint32);
 }
