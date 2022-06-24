@@ -10,17 +10,17 @@ interface IParetoManager {
     /**
      * @notice Compute next strike price using fixed multiplier
      */
-    function getNextStrikePrice() external view returns (uint256);
+    function getNextStrikePrice() external view returns (uint128);
 
     /**
      * @notice Compute next volatility using a constant for now
      */
-    function getNextVolatility() external view returns (uint256);
+    function getNextVolatility() external pure returns (uint32);
 
     /**
      * @notice Compute next fee for pool
      */
-    function getNextGamma() external view returns (uint256);
+    function getNextGamma() external pure returns (uint32);
 
     /**
      * @notice Risky token of the risky / stable pair

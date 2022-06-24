@@ -8,6 +8,10 @@ contract MockAggregatorV3 {
     int256 public savedAnswer;
     uint80 public round = 1;
 
+    function decimals() external pure returns (uint8) {
+        return 18;
+    }
+
     function setLatestAnswer(int256 answer) public {
         savedAnswer = answer;
     }

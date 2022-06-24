@@ -6,6 +6,7 @@ import {SafeMath} from "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {IParetoManager} from "../interfaces/IParetoManager.sol";
 import {Vault} from "../libraries/Vault.sol";
+import {IERC20} from "../interfaces/IERC20.sol";
 
 /**
  * @notice Automated management of Pareto Theta Vaults
@@ -106,8 +107,10 @@ contract ParetoManager is IParetoManager, Ownable {
             /* uint80 answeredInRound */
             chainlinkFeed.latestRoundData();
         require(rawPrice > 0, "!rawPrice");
-        price = uint256(rawPrice); // make unsigned
-        return price;
+        uint256 oracleDecimals = uint256(chainlinkFeed.decimals());
+        uint256 riskyDecimals = uint256(IERC20(risky).decimals());
+        uint8 diffDecimals = uint8(oracleDecimals.sub(riskyDecimals));
+        price = uint256(rawPrice).div(10**diffDecimals);
     }
 
     /**
@@ -119,10 +122,12 @@ contract ParetoManager is IParetoManager, Ownable {
         external
         view
         override
-        returns (uint256 strikePrice)
+        returns (uint128 strikePrice)
     {
         uint256 spotPrice = _getOraclePrice();
-        strikePrice = spotPrice.mul(strikeMultiplier).div(STRIKE_DECIMALS);
+        uint256 rawStrike = spotPrice.mul(strikeMultiplier)
+            .div(STRIKE_DECIMALS);
+        strikePrice = uint128(rawStrike);
         return strikePrice;
     }
 
@@ -132,11 +137,11 @@ contract ParetoManager is IParetoManager, Ownable {
      */
     function getNextVolatility()
         external
-        view
+        pure
         override
-        returns (uint256 sigma)
+        returns (uint32 sigma)
     {
-        sigma = 8000000; // TODO - placeholder constant
+        sigma = 8000; // TODO - placeholder 0.8 sigma
         return sigma;
     }
 
@@ -144,7 +149,7 @@ contract ParetoManager is IParetoManager, Ownable {
      * @notice Computes the gamma (or 1 - fee) for the next pool
      * @return gamma is the Gamma for the next pool
      */
-    function getNextGamma() external view override returns (uint256 gamma) {
+    function getNextGamma() external pure override returns (uint32 gamma) {
         gamma = 9900; // TODO - placeholder 99% gamma = 1% fee
         return gamma;
     }
@@ -153,7 +158,10 @@ contract ParetoManager is IParetoManager, Ownable {
      * @notice Set the multiplier for setting the strike price
      * @param _strikeMultiplier is the strike multiplier (decimals = 2)
      */
-    function setStrikeMultiplier(uint256 _strikeMultiplier) external onlyOwner {
+    function setStrikeMultiplier(uint256 _strikeMultiplier) 
+        external 
+        onlyOwner 
+    {
         require(_strikeMultiplier > STRIKE_DECIMALS, "_strikeMultiplier < 1");
         strikeMultiplier = _strikeMultiplier;
     }
