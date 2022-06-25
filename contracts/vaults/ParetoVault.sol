@@ -16,6 +16,7 @@ import {IPrimitiveEngineView} from "@primitivefi/rmm-core/contracts/interfaces/e
 import {EngineAddress} from "@primitivefi/rmm-manager/contracts/libraries/EngineAddress.sol";
 import {Vault} from "../libraries/Vault.sol";
 import {VaultMath} from "../libraries/VaultMath.sol";
+import {UniswapRouter} from "../libraries/UniswapRouter.sol";
 
 /**
  * @notice Based on RibbonVault.sol
@@ -72,6 +73,12 @@ contract ParetoVault is
 
     // Address for the Primitive engine contract
     address public immutable primitiveEngine;
+
+    // Address for the Uniswap router contract
+    address public immutable uniswapRouter;
+
+    // Fee for swaps in uniswap pool to search for
+    uint24 public uniswapPoolFee;
 
     // Address for the risky asset
     address public override risky;
@@ -174,11 +181,11 @@ contract ParetoVault is
      * @notice Emitted when vault swaps assets to deposit in RMM-01.
      */
     event SwapAssetsEvent(
-        uint256 riskyPreswap,
-        uint256 stablePreswap,
-        uint256 riskyPostswap,
-        uint256 stablePostswap,
-        address indexed keeper
+        uint256 riskyPre,
+        uint256 stablePre,
+        uint256 riskyPost,
+        uint256 stablePost,
+        address indexed router
     );
 
     /**
@@ -238,6 +245,7 @@ contract ParetoVault is
      * @param _vaultManager is the address for pareto manager
      * @param _primitiveManager is the address for primitive manager
      * @param _primitiveEngine is the address for primitive engine
+     * @param _uniswapRouter is the address for uniswap router
      * @param _risky is the address for the risky token
      * @param _stable is the address for the stable token
      * @param _managementFee is the management fee percent per year
@@ -251,6 +259,7 @@ contract ParetoVault is
         address _vaultManager,
         address _primitiveManager,
         address _primitiveEngine,
+        address _uniswapRouter,
         address _risky,
         address _stable,
         uint256 _managementFee,
@@ -261,6 +270,7 @@ contract ParetoVault is
         require(_keeper != address(0), "!_keeper");
         require(_primitiveManager != address(0), "!_primitiveManager");
         require(_primitiveEngine != address(0), "!_primitiveEngine");
+        require(_uniswapRouter != address(0), "!_uniswapRouter");
         require(_risky != address(0), "!_risky");
         require(_stable != address(0), "!_stable");
         require(_managementFee > 0, "!_stable");
@@ -279,6 +289,8 @@ contract ParetoVault is
         vaultManager = _vaultManager;
         primitiveManager = _primitiveManager;
         primitiveEngine = _primitiveEngine;
+        uniswapRouter = _uniswapRouter;
+        uniswapPoolFee = 3000;
         risky = _risky;
         stable = _stable;
         performanceFee = _performanceFee;
@@ -360,6 +372,15 @@ contract ParetoVault is
         );
         emit PerformanceFeeSetEvent(performanceFee, newPerformanceFee);
         performanceFee = newPerformanceFee;
+    }
+
+    /**
+     * Sets the fee to search for when routing
+     * @param newPoolFee is the new pool fee
+     */
+    function setUniswapPoolFee(uint24 newPoolFee) external onlyKeeper {
+        require(newPoolFee < 10**6, "newPoolFee > 100");
+        uniswapPoolFee = newPoolFee;
     }
 
     /**
@@ -1022,6 +1043,50 @@ contract ParetoVault is
             feeInStable = _performanceFeeInStable.add(_managementFeeInStable);
         }
         return (feeInRisky, feeInStable);
+    }
+
+    /************************************************
+     * Uniswap Bindings
+     ***********************************************/
+
+    /**
+     * @notice Use UniswapRouter to swap risky for stable tokens
+     * @param riskyToSwap is the amount of risky token traded
+     * @return stableFromSwap is the amount of stable token obtained
+     */
+    function _swapRiskyForStable(uint256 riskyToSwap)
+        internal
+        returns (uint256 stableFromSwap)
+    {
+        stableFromSwap = UniswapRouter.swap(
+            address(this),
+            risky,
+            stable,
+            uniswapPoolFee,
+            riskyToSwap,
+            0,
+            uniswapRouter
+        );
+    }
+
+    /**
+     * @notice Use UniswapRouter to swap risky for stable tokens
+     * @param stableToSwap is the amount of risky token traded
+     * @return riskyFromSwap is the amount of stable token obtained
+     */
+    function _swapStableForRisky(uint256 stableToSwap)
+        internal
+        returns (uint256 riskyFromSwap)
+    {
+        riskyFromSwap = UniswapRouter.swap(
+            address(this),
+            stable,
+            risky,
+            uniswapPoolFee,
+            stableToSwap,
+            0,
+            uniswapRouter
+        );
     }
 
     /************************************************
