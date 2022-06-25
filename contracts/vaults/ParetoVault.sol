@@ -185,6 +185,7 @@ contract ParetoVault is
         uint256 stablePre,
         uint256 riskyPost,
         uint256 stablePost,
+        uint24 poolFee,
         address indexed router
     );
 
