@@ -10,7 +10,7 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IParetoManager} from "../interfaces/IParetoManager.sol";
 import {IParetoVault} from "../interfaces/IParetoVault.sol";
-import {IPrimitiveManager} from "@primitivefi/rmm-manager/contracts/interfaces/IPrimitiveManager.sol";
+import {IPrimitiveManager} from "../interfaces/IPrimitiveManager.sol";
 import {IManagerBase} from "@primitivefi/rmm-manager/contracts/interfaces/IManagerBase.sol";
 import {IPrimitiveEngineView} from "@primitivefi/rmm-core/contracts/interfaces/engine/IPrimitiveEngineView.sol";
 import {EngineAddress} from "@primitivefi/rmm-manager/contracts/libraries/EngineAddress.sol";
@@ -68,17 +68,11 @@ contract ParetoVault is
     // Address for the vault manager contract
     address public override vaultManager;
 
-    // Address for the Primitive manager contract
-    address public immutable primitiveManager;
+    // Primitive parameters
+    Vault.PrimitiveParams public primitiveParams;
 
-    // Address for the Primitive engine contract
-    address public immutable primitiveEngine;
-
-    // Address for the Uniswap router contract
-    address public immutable uniswapRouter;
-
-    // Fee for swaps in uniswap pool to search for
-    uint24 public uniswapPoolFee;
+    // Uniswap parameters
+    Vault.UniswapParams public uniswapParams;
 
     // Address for the risky asset
     address public override risky;
@@ -288,10 +282,10 @@ contract ParetoVault is
         keeper = _keeper;
         feeRecipient = _feeRecipient;
         vaultManager = _vaultManager;
-        primitiveManager = _primitiveManager;
-        primitiveEngine = _primitiveEngine;
-        uniswapRouter = _uniswapRouter;
-        uniswapPoolFee = 3000;
+        primitiveParams.manager = _primitiveManager;
+        primitiveParams.engine = _primitiveEngine;
+        uniswapParams.router = _uniswapRouter;
+        uniswapParams.poolFee = 3000;
         risky = _risky;
         stable = _stable;
         performanceFee = _performanceFee;
@@ -381,7 +375,7 @@ contract ParetoVault is
      */
     function setUniswapPoolFee(uint24 newPoolFee) external onlyKeeper {
         require(newPoolFee < 10**6, "newPoolFee > 100");
-        uniswapPoolFee = newPoolFee;
+        uniswapParams.poolFee = newPoolFee;
     }
 
     /**
@@ -776,13 +770,19 @@ contract ParetoVault is
             : manager.getNextGamma();
         require(nextGamma > 0, "!nextGamma");
 
+        uint256 riskyPerLp = manager.getRiskyPerLp(
+            nextStrikePrice,
+            nextVolatility,
+            nextMaturity /// @dev since pool is not initialized, tau = T
+        );
+
         // Define params of next pool
         Vault.PoolParams memory nextParams = Vault.PoolParams({
             strike: nextStrikePrice,
             sigma: nextVolatility,
             maturity: nextMaturity,
             gamma: nextGamma,
-            riskyPerLP: poolState.currPoolParams.riskyPerLP,
+            riskyPerLp: riskyPerLp,
             delLiquidity: poolState.currPoolParams.delLiquidity
         });
 
@@ -1063,10 +1063,10 @@ contract ParetoVault is
             address(this),
             risky,
             stable,
-            uniswapPoolFee,
+            uniswapParams.poolFee,
             riskyToSwap,
             0,
-            uniswapRouter
+            uniswapParams.router
         );
     }
 
@@ -1083,10 +1083,10 @@ contract ParetoVault is
             address(this),
             stable,
             risky,
-            uniswapPoolFee,
+            uniswapParams.poolFee,
             stableToSwap,
             0,
-            uniswapRouter
+            uniswapParams.router
         );
     }
 
@@ -1100,7 +1100,7 @@ contract ParetoVault is
      * @return maturity is the expiry date of the current pool
      */
     function _getPoolMaturity(bytes32 poolId) internal view returns (uint32) {
-        (, , uint32 maturity, , ) = IPrimitiveEngineView(primitiveEngine)
+        (, , uint32 maturity, , ) = IPrimitiveEngineView(primitiveParams.engine)
             .calibrations(poolId);
         return maturity;
     }
@@ -1114,16 +1114,17 @@ contract ParetoVault is
         internal
         returns (bytes32)
     {
-        (bytes32 poolId, , ) = IPrimitiveManager(primitiveManager).create(
-            risky,
-            stable,
-            poolParams.strike,
-            poolParams.sigma,
-            poolParams.maturity,
-            poolParams.gamma,
-            poolParams.riskyPerLP,
-            poolParams.delLiquidity
-        );
+        (bytes32 poolId, , ) = IPrimitiveManager(primitiveParams.manager)
+            .create(
+                risky,
+                stable,
+                poolParams.strike,
+                poolParams.sigma,
+                poolParams.maturity,
+                poolParams.gamma,
+                poolParams.riskyPerLp,
+                poolParams.delLiquidity
+            );
         return poolId;
     }
 
@@ -1140,7 +1141,7 @@ contract ParetoVault is
         uint256 riskyAmount,
         uint256 stableAmount
     ) internal returns (uint256) {
-        uint256 liquidity = IPrimitiveManager(primitiveManager).allocate(
+        uint256 liquidity = IPrimitiveManager(primitiveParams.manager).allocate(
             address(this),
             poolId,
             risky,
@@ -1167,9 +1168,19 @@ contract ParetoVault is
     {
         if (liquidity == 0) return (0, 0);
 
+        // Moves into margin account in Primitive
         (uint256 riskyAmount, uint256 stableAmount) = IPrimitiveManager(
-            primitiveManager
-        ).remove(primitiveEngine, poolId, liquidity, 0, 0);
+            primitiveParams.manager
+        ).remove(primitiveParams.engine, poolId, liquidity, 0, 0);
+
+        // Moves from margin into this contract
+        // TODO: multicall?
+        IPrimitiveManager(primitiveParams.manager).withdraw(
+            address(this),
+            primitiveParams.engine,
+            riskyAmount,
+            stableAmount
+        );
 
         return (riskyAmount, stableAmount);
     }

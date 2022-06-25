@@ -7,6 +7,7 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {IParetoManager} from "../interfaces/IParetoManager.sol";
 import {Vault} from "../libraries/Vault.sol";
 import {IERC20} from "../interfaces/IERC20.sol";
+import {ReplicationMath} from "../libraries/ReplicationMath.sol";
 
 /**
  * @notice Automated management of Pareto Theta Vaults
@@ -123,14 +124,7 @@ contract ParetoManager is IParetoManager, Ownable {
         view
         returns (uint256 price)
     {
-        (
-            ,
-            /* uint80 roundID */
-            int256 signedPrice, /* uint startedAt */ /* uint timeStamp */ /* uint80 answeredInRound */
-            ,
-            ,
-
-        ) = chainlinkFeed.latestRoundData();
+        (, int256 signedPrice, , , ) = chainlinkFeed.latestRoundData();
 
         require(signedPrice > 0, "!signedPrice");
         price = uint256(signedPrice);
@@ -140,20 +134,22 @@ contract ParetoManager is IParetoManager, Ownable {
         // If riskyFirst is true, then the oracle returns price of risky
         // in terms of stable. We need to invert the price
         if (riskyFirst && stableToRisky) {
-            uint256 fixedOne = 10**oracleDecimals;
+            uint256 fixedOne = 10**oracleDecimals; // unit
             price = (fixedOne * fixedOne) / price;
         }
 
-        // Check if we need to change decimals to convert to risky token
-        uint256 riskyDecimals = uint256(IERC20(risky).decimals());
-        // risky - oracle decimals
-        uint8 diffDecimals = uint8(riskyDecimals.sub(oracleDecimals));
+        // Check if we need to change decimals to convert to out token
+        uint256 outDecimals = stableToRisky
+            ? uint256(IERC20(risky).decimals())
+            : uint256(IERC20(stable).decimals());
+        uint8 diffDecimals = uint8(outDecimals.sub(oracleDecimals));
         price = uint256(price).mul(10**diffDecimals);
     }
 
     /**
      * @notice Computes the strike price for the next pool by multiplying
-     * the current price - requires an oracle
+     *  the current price - requires an oracle
+     * @dev Uses the same decimals as the stable token
      * @return strikePrice is the relative price of risky in stable
      */
     function getNextStrikePrice()
@@ -176,7 +172,7 @@ contract ParetoManager is IParetoManager, Ownable {
      * @return sigma is the implied volatility estimate
      */
     function getNextVolatility() external pure override returns (uint32 sigma) {
-        sigma = 8000; // TODO - placeholder 0.8 sigma
+        sigma = 8000; // TODO - placeholder 80% sigma
         return sigma;
     }
 
@@ -185,8 +181,27 @@ contract ParetoManager is IParetoManager, Ownable {
      * @return gamma is the Gamma for the next pool
      */
     function getNextGamma() external pure override returns (uint32 gamma) {
-        gamma = 9900; // TODO - placeholder 99% gamma = 1% fee
+        gamma = 9500; // TODO - placeholder 99% gamma = 5% fee
         return gamma;
+    }
+
+    /**
+     * @notice Computes the riskyForLp using oracle as spot price
+     * @return riskyForLp is the R1 variable
+     * @dev See page 14 of https://primitive.xyz/whitepaper-rmm-01.pdf
+     */
+    function getRiskyPerLp(
+        uint128 strike,
+        uint32 sigma,
+        uint32 tau
+    ) external view override returns (uint256 riskyForLp) {
+        riskyForLp = ReplicationMath.getRiskyPerLp(
+            uint256(_getOraclePrice(false)),
+            uint256(strike),
+            uint256(sigma),
+            uint256(tau)
+        );
+        return riskyForLp;
     }
 
     /**

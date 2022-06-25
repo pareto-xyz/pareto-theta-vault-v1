@@ -33,6 +33,16 @@ interface IParetoManager {
     function getNextGamma() external pure returns (uint32);
 
     /**
+     * @notice Compute riskyForLp for RMM-01 pool creation
+     * @return Risky reserve per liquidity with risky decimals
+     */
+    function getRiskyPerLp(
+        uint128 strike,
+        uint32 sigma,
+        uint32 tau
+    ) external view returns (uint256);
+
+    /**
      * @notice Risky token of the risky / stable pair
      * @return Address of the risky token contract
      */

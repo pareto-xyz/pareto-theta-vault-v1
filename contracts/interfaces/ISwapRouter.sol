@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity >=0.8.6;
-pragma abicoder v2;
 
 /**
  * Source: https://github.com/Uniswap/v3-periphery

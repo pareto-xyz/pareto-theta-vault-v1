@@ -4,7 +4,7 @@ pragma solidity >=0.8.6;
 import {ISwapRouter} from "../interfaces/ISwapRouter.sol";
 
 contract MockSwapRouter is ISwapRouter {
-    function exactInput(ExactInputParams calldata params)
+    function exactInputSingle(ExactInputSingleParams calldata params)
         external
         payable
         override
