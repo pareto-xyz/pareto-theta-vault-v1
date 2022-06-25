@@ -34,7 +34,7 @@ contract ParetoVault is
     using VaultMath for Vault.DepositReceipt;
 
     /************************************************
-     * Non-upgradeable storage
+     * State Variables
      ***********************************************/
 
     // User's pending deposit for the round
@@ -95,6 +95,16 @@ contract ParetoVault is
      *  Dividing by weeks per year via num.mul(FEE_MULTIPLIER).div(WEEKS_PER_YEAR)
      */
     uint256 private constant WEEKS_PER_YEAR = 52142857;
+
+    /**
+     * @notice Name of the Pareto receipt token
+     */
+    string public constant TOKEN_NAME = "Pareto Theta Vault V1";
+
+    /**
+     * @notice Symbol of the Pareto receipt token
+     */
+    string public constant TOKEN_SYMBOL = "PTHETA-V1";
 
     /************************************************
      * Events
@@ -245,8 +255,6 @@ contract ParetoVault is
      * @param _stable is the address for the stable token
      * @param _managementFee is the management fee percent per year
      * @param _performanceFee is the management fee percent per round
-     * @param _tokenName is the name of the asset
-     * @param _tokenSymbol is the symbol of the asset
      */
     constructor(
         address _keeper,
@@ -258,18 +266,18 @@ contract ParetoVault is
         address _risky,
         address _stable,
         uint256 _managementFee,
-        uint256 _performanceFee,
-        string memory _tokenName,
-        string memory _tokenSymbol
-    ) ERC20(_tokenName, _tokenSymbol) {
+        uint256 _performanceFee
+    ) ERC20(TOKEN_NAME, TOKEN_SYMBOL) {
         require(_keeper != address(0), "!_keeper");
-        require(_primitiveManager != address(0), "!_primitiveManager");
+        require(_feeRecipient != address(0), "!_feeRecipient");
+        require(_feeRecipient != address(0), "!_feeRecipient");
+        require(_vaultManager != address(0), "!_vaultManager");
         require(_primitiveEngine != address(0), "!_primitiveEngine");
         require(_uniswapRouter != address(0), "!_uniswapRouter");
         require(_risky != address(0), "!_risky");
         require(_stable != address(0), "!_stable");
-        require(_managementFee > 0, "!_stable");
-        require(_performanceFee > 0, "!_stable");
+        require(_managementFee > 0, "!_managementFee");
+        require(_performanceFee > 0, "!_performanceFee");
         require(
             IParetoManager(_vaultManager).risky() == _risky,
             "Risky asset does not match"

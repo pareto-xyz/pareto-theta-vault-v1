@@ -1,12 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity >=0.8.6;
 
-import {
-    ABDKMath64x64
-} from "@primitivefi/rmm-core/contracts/libraries/ABDKMath64x64.sol";
-import {
-    CumulativeNormalDistribution
-} from "@primitivefi/rmm-core/contracts/libraries/CumulativeNormalDistribution.sol";
+import {ABDKMath64x64} from "@primitivefi/rmm-core/contracts/libraries/ABDKMath64x64.sol";
+import {CumulativeNormalDistribution} from "@primitivefi/rmm-core/contracts/libraries/CumulativeNormalDistribution.sol";
 import {Units} from "@primitivefi/rmm-core/contracts/libraries/Units.sol";
 
 /**

@@ -6,6 +6,7 @@
   "scripts": {
     "test": "npx hardhat test",
     "compile": "npx hardhat compile",
+    "clean": "npx hardhat clean",
     "lint:sol": "./node_modules/.bin/solhint -f table contracts/**/*.sol",
     "lint:prettier": "./node_modules/.bin/prettier --write contracts/**/*.sol",
     "prepare": "husky install"
