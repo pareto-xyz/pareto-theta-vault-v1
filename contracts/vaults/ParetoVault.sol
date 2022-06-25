@@ -781,7 +781,9 @@ contract ParetoVault is
         uint256 riskyPerLp = manager.getRiskyPerLp(
             nextStrikePrice,
             nextVolatility,
-            nextMaturity /// @dev since pool is not initialized, tau = T
+            nextMaturity,
+            IERC20(risky).decimals(),
+            IERC20(stable).decimals()
         );
 
         // Define params of next pool

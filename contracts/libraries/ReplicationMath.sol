@@ -26,25 +26,23 @@ library ReplicationMath {
      * @param strike is the strike price of risky asset in stable
      * @param sigma is the implied volatility (normalized)
      * @param tau is the expiry time T minus the current time t
-     * @param scaleFactorStable is the unsigned 256-bit integer scaling factor for stable
-     *  10^(18 - stable.decimals())
-     * @param scaleFactorRisky is the scaling factor for risky assets
-     */  
+     * @param scaleFactorRisky is the unsigned 256-bit integer scaling factor for risky e.g. 10^(18 - risky.decimals())
+     * @param scaleFactorStable is the unsigned 256-bit integer scaling factor for stable e.g. 10^(18 - stable.decimals())
+     */
     function getRiskyPerLp(
         uint256 spot,
         uint256 strike,
         uint256 sigma,
         uint256 tau,
-        uint256 scaleFactorStable,
-        uint256 scaleFactorRisky
+        uint256 scaleFactorRisky,
+        uint256 scaleFactorStable
     ) internal pure returns (uint256 riskyForLp) {
         int128 d1;
-
         {
             int128 spotX64 = spot.scaleToX64(scaleFactorStable);
             int128 strikeX64 = strike.scaleToX64(scaleFactorStable);
 
-            int128 tauX64 = tau.toYears();  /// @dev: Convert to years
+            int128 tauX64 = tau.toYears(); /// @dev: Convert to years
             int128 sqrtTauX64 = tauX64.sqrt();
             int128 sigmaX64 = sigma.percentageToX64();
             int128 sigmaSqrX64 = sigmaX64.pow(2);
