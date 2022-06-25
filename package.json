@@ -6,6 +6,7 @@
   "scripts": {
     "test": "npx hardhat test",
     "compile": "npx hardhat compile",
+    "clean": "npx hardhat clean",
     "lint:sol": "./node_modules/.bin/solhint -f table contracts/**/*.sol",
     "lint:prettier": "./node_modules/.bin/prettier --write contracts/**/*.sol",
     "prepare": "husky install"
@@ -40,6 +41,7 @@
     "@nomiclabs/hardhat-waffle": "^2.0.3",
     "@primitivefi/rmm-math": "^2.0.0-beta.3",
     "@types/chai": "^4.3.1",
+    "@types/jest": "^28.1.3",
     "@types/mocha": "^9.1.1",
     "@types/node": "^18.0.0",
     "chai": "^4.3.6",
@@ -67,6 +69,7 @@
     "web3-units": "^1.4.0"
   },
   "dependencies": {
+    "@chainlink/contracts": "^0.4.1",
     "@openzeppelin/contracts": "^4.6.0",
     "@openzeppelin/contracts-upgradeable": "^4.6.0",
     "@primitivefi/rmm-core": "^1.0.0",

@@ -10,12 +10,13 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IParetoManager} from "../interfaces/IParetoManager.sol";
 import {IParetoVault} from "../interfaces/IParetoVault.sol";
-import {IPrimitiveManager} from "@primitivefi/rmm-manager/contracts/interfaces/IPrimitiveManager.sol";
+import {IPrimitiveManager} from "../interfaces/IPrimitiveManager.sol";
 import {IManagerBase} from "@primitivefi/rmm-manager/contracts/interfaces/IManagerBase.sol";
 import {IPrimitiveEngineView} from "@primitivefi/rmm-core/contracts/interfaces/engine/IPrimitiveEngineView.sol";
 import {EngineAddress} from "@primitivefi/rmm-manager/contracts/libraries/EngineAddress.sol";
 import {Vault} from "../libraries/Vault.sol";
 import {VaultMath} from "../libraries/VaultMath.sol";
+import {UniswapRouter} from "../libraries/UniswapRouter.sol";
 
 /**
  * @notice Based on RibbonVault.sol
@@ -33,7 +34,7 @@ contract ParetoVault is
     using VaultMath for Vault.DepositReceipt;
 
     /************************************************
-     * Non-upgradeable storage
+     * State Variables
      ***********************************************/
 
     // User's pending deposit for the round
@@ -67,11 +68,11 @@ contract ParetoVault is
     // Address for the vault manager contract
     address public override vaultManager;
 
-    // Address for the Primitive manager contract
-    address public immutable primitiveManager;
+    // Primitive parameters
+    Vault.PrimitiveParams public primitiveParams;
 
-    // Address for the Primitive engine contract
-    address public immutable primitiveEngine;
+    // Uniswap parameters
+    Vault.UniswapParams public uniswapParams;
 
     // Address for the risky asset
     address public override risky;
@@ -94,6 +95,16 @@ contract ParetoVault is
      *  Dividing by weeks per year via num.mul(FEE_MULTIPLIER).div(WEEKS_PER_YEAR)
      */
     uint256 private constant WEEKS_PER_YEAR = 52142857;
+
+    /**
+     * @notice Name of the Pareto receipt token
+     */
+    string public constant TOKEN_NAME = "Pareto Theta Vault V1";
+
+    /**
+     * @notice Symbol of the Pareto receipt token
+     */
+    string public constant TOKEN_SYMBOL = "PTHETA-V1";
 
     /************************************************
      * Events
@@ -174,11 +185,12 @@ contract ParetoVault is
      * @notice Emitted when vault swaps assets to deposit in RMM-01.
      */
     event SwapAssetsEvent(
-        uint256 riskyPreswap,
-        uint256 stablePreswap,
-        uint256 riskyPostswap,
-        uint256 stablePostswap,
-        address indexed keeper
+        uint256 riskyPre,
+        uint256 stablePre,
+        uint256 riskyPost,
+        uint256 stablePost,
+        uint24 poolFee,
+        address indexed router
     );
 
     /**
@@ -238,12 +250,11 @@ contract ParetoVault is
      * @param _vaultManager is the address for pareto manager
      * @param _primitiveManager is the address for primitive manager
      * @param _primitiveEngine is the address for primitive engine
+     * @param _uniswapRouter is the address for uniswap router
      * @param _risky is the address for the risky token
      * @param _stable is the address for the stable token
      * @param _managementFee is the management fee percent per year
      * @param _performanceFee is the management fee percent per round
-     * @param _tokenName is the name of the asset
-     * @param _tokenSymbol is the symbol of the asset
      */
     constructor(
         address _keeper,
@@ -251,26 +262,38 @@ contract ParetoVault is
         address _vaultManager,
         address _primitiveManager,
         address _primitiveEngine,
+        address _uniswapRouter,
         address _risky,
         address _stable,
         uint256 _managementFee,
-        uint256 _performanceFee,
-        string memory _tokenName,
-        string memory _tokenSymbol
-    ) ERC20(_tokenName, _tokenSymbol) {
+        uint256 _performanceFee
+    ) ERC20(TOKEN_NAME, TOKEN_SYMBOL) {
         require(_keeper != address(0), "!_keeper");
-        require(_primitiveManager != address(0), "!_primitiveManager");
+        require(_feeRecipient != address(0), "!_feeRecipient");
+        require(_feeRecipient != address(0), "!_feeRecipient");
+        require(_vaultManager != address(0), "!_vaultManager");
         require(_primitiveEngine != address(0), "!_primitiveEngine");
+        require(_uniswapRouter != address(0), "!_uniswapRouter");
         require(_risky != address(0), "!_risky");
         require(_stable != address(0), "!_stable");
-        require(_managementFee > 0, "!_stable");
-        require(_performanceFee > 0, "!_stable");
+        require(_managementFee > 0, "!_managementFee");
+        require(_performanceFee > 0, "!_performanceFee");
+        require(
+            IParetoManager(_vaultManager).risky() == _risky,
+            "Risky asset does not match"
+        );
+        require(
+            IParetoManager(_vaultManager).stable() == _stable,
+            "Stable asset does not match"
+        );
 
         keeper = _keeper;
         feeRecipient = _feeRecipient;
         vaultManager = _vaultManager;
-        primitiveManager = _primitiveManager;
-        primitiveEngine = _primitiveEngine;
+        primitiveParams.manager = _primitiveManager;
+        primitiveParams.engine = _primitiveEngine;
+        uniswapParams.router = _uniswapRouter;
+        uniswapParams.poolFee = 3000;
         risky = _risky;
         stable = _stable;
         performanceFee = _performanceFee;
@@ -352,6 +375,15 @@ contract ParetoVault is
         );
         emit PerformanceFeeSetEvent(performanceFee, newPerformanceFee);
         performanceFee = newPerformanceFee;
+    }
+
+    /**
+     * Sets the fee to search for when routing
+     * @param newPoolFee is the new pool fee
+     */
+    function setUniswapPoolFee(uint24 newPoolFee) external onlyKeeper {
+        require(newPoolFee < 10**6, "newPoolFee > 100");
+        uniswapParams.poolFee = newPoolFee;
     }
 
     /**
@@ -746,13 +778,21 @@ contract ParetoVault is
             : manager.getNextGamma();
         require(nextGamma > 0, "!nextGamma");
 
+        uint256 riskyPerLp = manager.getRiskyPerLp(
+            nextStrikePrice,
+            nextVolatility,
+            nextMaturity,
+            IERC20(risky).decimals(),
+            IERC20(stable).decimals()
+        );
+
         // Define params of next pool
         Vault.PoolParams memory nextParams = Vault.PoolParams({
             strike: nextStrikePrice,
             sigma: nextVolatility,
             maturity: nextMaturity,
             gamma: nextGamma,
-            riskyPerLP: poolState.currPoolParams.riskyPerLP,
+            riskyPerLp: riskyPerLp,
             delLiquidity: poolState.currPoolParams.delLiquidity
         });
 
@@ -815,8 +855,12 @@ contract ParetoVault is
                 // Compute vault fees in two assets
                 (feeInRisky, feeInStable) = _getVaultFees(
                     Vault.FeeCalculatorInput({
-                        currRisky: currRisky.sub(vaultState.lastQueuedWithdrawRisky),
-                        currStable: currStable.sub(vaultState.lastQueuedWithdrawStable),
+                        currRisky: currRisky.sub(
+                            vaultState.lastQueuedWithdrawRisky
+                        ),
+                        currStable: currStable.sub(
+                            vaultState.lastQueuedWithdrawStable
+                        ),
                         lastLockedRisky: vaultState.lastLockedRisky,
                         lastLockedStable: vaultState.lastLockedStable,
                         pendingRisky: vaultState.pendingRisky,
@@ -922,6 +966,35 @@ contract ParetoVault is
     }
 
     /**
+     * Check if the vault was successful in making money. This converts stable
+     * to risky to compute value, using an oracle price
+     * @param preVaultRisky is the amount of risky before the vault
+     * @param preVaultStable is the amount of stable before the vault
+     * @param postVaultRisky is the amount of risky after the vault
+     * @param postVaultStable is the amount of stable after the vault
+     * @return success is true if current value is higher than before the vault
+     *  at the same oracle price; otherwise false
+     */
+    function _checkVaultSuccess(
+        uint256 preVaultRisky,
+        uint256 preVaultStable,
+        uint256 postVaultRisky,
+        uint256 postVaultStable
+    ) internal view returns (bool success) {
+        uint8 oracleDecimals = IParetoManager(vaultManager).getOracleDecimals();
+        uint256 stableToRiskyPrice = IParetoManager(vaultManager)
+            .getStableToRiskyPrice();
+        uint256 preVaultValue = preVaultRisky.add(
+            preVaultStable.mul(stableToRiskyPrice).div(10**oracleDecimals)
+        );
+        uint256 postVaultValue = postVaultRisky.add(
+            postVaultStable.mul(stableToRiskyPrice).div(10**oracleDecimals)
+        );
+        success = postVaultValue >= preVaultValue;
+        return success;
+    }
+
+    /**
      * @notice Calculates performance and management fee for this week's round
      * @param feeParams is the parameters for fee computation
      * @return feeInRisky is the fees awarded to owner in risky
@@ -929,9 +1002,11 @@ contract ParetoVault is
      * --
      * TODO: check if vault made money
      */
-    function _getVaultFees(
-        Vault.FeeCalculatorInput memory feeParams
-    ) internal pure returns (uint256 feeInRisky, uint256 feeInStable) {
+    function _getVaultFees(Vault.FeeCalculatorInput memory feeParams)
+        internal
+        view
+        returns (uint256 feeInRisky, uint256 feeInStable)
+    {
         // Locked amount should not include pending amount
         uint256 currLockedRisky = feeParams.currRisky > feeParams.pendingRisky
             ? feeParams.currRisky.sub(feeParams.pendingRisky)
@@ -942,33 +1017,87 @@ contract ParetoVault is
         uint256 _managementFeeInRisky;
         uint256 _managementFeeInStable;
 
-        // Take performance fee and management fee ONLY if difference between
-        // last week and this week's vault deposits (taking into account pending
-        // deposits and withdrawals), is positive. This is to infer if the vault
-        // make money last week: if difference < 0, vault look a loss.
-        _performanceFeeInRisky = feeParams.performanceFeePercent > 0
-            ? currLockedRisky.sub(feeParams.lastLockedRisky)
-                .mul(feeParams.performanceFeePercent)
-                .div(100 * Vault.FEE_MULTIPLIER)
-            : 0;
-        _performanceFeeInStable = feeParams.performanceFeePercent > 0
-            ? feeParams.currStable.sub(feeParams.lastLockedStable)
-                .mul(feeParams.performanceFeePercent)
-                .div(100 * Vault.FEE_MULTIPLIER)
-            : 0;
-        _managementFeeInRisky = feeParams.managementFeePercent > 0
-            ? currLockedRisky.mul(feeParams.managementFeePercent).div(
-                100 * Vault.FEE_MULTIPLIER
-            )
-            : 0;
-        _managementFeeInStable = feeParams.managementFeePercent > 0
-            ? feeParams.currStable.mul(feeParams.managementFeePercent).div(
-                100 * Vault.FEE_MULTIPLIER
-            )
-            : 0;
-        feeInRisky = _performanceFeeInRisky.add(_managementFeeInRisky);
-        feeInStable = _performanceFeeInStable.add(_managementFeeInStable);
+        // Take performance fee and management fee ONLY if the value of vault's
+        // current assets (at current oracle price) is higher than the value of
+        // vault before the round (at the same oracle price).
+        bool vaultSuccess = _checkVaultSuccess(
+            feeParams.lastLockedRisky,
+            feeParams.lastLockedStable,
+            currLockedRisky,
+            feeParams.currStable
+        );
+        if (vaultSuccess) {
+            _performanceFeeInRisky = feeParams.performanceFeePercent > 0
+                ? currLockedRisky
+                    .sub(feeParams.lastLockedRisky)
+                    .mul(feeParams.performanceFeePercent)
+                    .div(100 * Vault.FEE_MULTIPLIER)
+                : 0;
+            _performanceFeeInStable = feeParams.performanceFeePercent > 0
+                ? feeParams
+                    .currStable
+                    .sub(feeParams.lastLockedStable)
+                    .mul(feeParams.performanceFeePercent)
+                    .div(100 * Vault.FEE_MULTIPLIER)
+                : 0;
+            _managementFeeInRisky = feeParams.managementFeePercent > 0
+                ? currLockedRisky.mul(feeParams.managementFeePercent).div(
+                    100 * Vault.FEE_MULTIPLIER
+                )
+                : 0;
+            _managementFeeInStable = feeParams.managementFeePercent > 0
+                ? feeParams.currStable.mul(feeParams.managementFeePercent).div(
+                    100 * Vault.FEE_MULTIPLIER
+                )
+                : 0;
+            feeInRisky = _performanceFeeInRisky.add(_managementFeeInRisky);
+            feeInStable = _performanceFeeInStable.add(_managementFeeInStable);
+        }
         return (feeInRisky, feeInStable);
+    }
+
+    /************************************************
+     * Uniswap Bindings
+     ***********************************************/
+
+    /**
+     * @notice Use UniswapRouter to swap risky for stable tokens
+     * @param riskyToSwap is the amount of risky token traded
+     * @return stableFromSwap is the amount of stable token obtained
+     */
+    function _swapRiskyForStable(uint256 riskyToSwap)
+        internal
+        returns (uint256 stableFromSwap)
+    {
+        stableFromSwap = UniswapRouter.swap(
+            address(this),
+            risky,
+            stable,
+            uniswapParams.poolFee,
+            riskyToSwap,
+            0,
+            uniswapParams.router
+        );
+    }
+
+    /**
+     * @notice Use UniswapRouter to swap risky for stable tokens
+     * @param stableToSwap is the amount of risky token traded
+     * @return riskyFromSwap is the amount of stable token obtained
+     */
+    function _swapStableForRisky(uint256 stableToSwap)
+        internal
+        returns (uint256 riskyFromSwap)
+    {
+        riskyFromSwap = UniswapRouter.swap(
+            address(this),
+            stable,
+            risky,
+            uniswapParams.poolFee,
+            stableToSwap,
+            0,
+            uniswapParams.router
+        );
     }
 
     /************************************************
@@ -981,7 +1110,7 @@ contract ParetoVault is
      * @return maturity is the expiry date of the current pool
      */
     function _getPoolMaturity(bytes32 poolId) internal view returns (uint32) {
-        (, , uint32 maturity, , ) = IPrimitiveEngineView(primitiveEngine)
+        (, , uint32 maturity, , ) = IPrimitiveEngineView(primitiveParams.engine)
             .calibrations(poolId);
         return maturity;
     }
@@ -995,16 +1124,17 @@ contract ParetoVault is
         internal
         returns (bytes32)
     {
-        (bytes32 poolId, , ) = IPrimitiveManager(primitiveManager).create(
-            risky,
-            stable,
-            poolParams.strike,
-            poolParams.sigma,
-            poolParams.maturity,
-            poolParams.gamma,
-            poolParams.riskyPerLP,
-            poolParams.delLiquidity
-        );
+        (bytes32 poolId, , ) = IPrimitiveManager(primitiveParams.manager)
+            .create(
+                risky,
+                stable,
+                poolParams.strike,
+                poolParams.sigma,
+                poolParams.maturity,
+                poolParams.gamma,
+                poolParams.riskyPerLp,
+                poolParams.delLiquidity
+            );
         return poolId;
     }
 
@@ -1021,7 +1151,7 @@ contract ParetoVault is
         uint256 riskyAmount,
         uint256 stableAmount
     ) internal returns (uint256) {
-        uint256 liquidity = IPrimitiveManager(primitiveManager).allocate(
+        uint256 liquidity = IPrimitiveManager(primitiveParams.manager).allocate(
             address(this),
             poolId,
             risky,
@@ -1048,9 +1178,19 @@ contract ParetoVault is
     {
         if (liquidity == 0) return (0, 0);
 
+        // Moves into margin account in Primitive
         (uint256 riskyAmount, uint256 stableAmount) = IPrimitiveManager(
-            primitiveManager
-        ).remove(primitiveEngine, poolId, liquidity, 0, 0);
+            primitiveParams.manager
+        ).remove(primitiveParams.engine, poolId, liquidity, 0, 0);
+
+        // Moves from margin into this contract
+        // TODO: multicall?
+        IPrimitiveManager(primitiveParams.manager).withdraw(
+            address(this),
+            primitiveParams.engine,
+            riskyAmount,
+            stableAmount
+        );
 
         return (riskyAmount, stableAmount);
     }

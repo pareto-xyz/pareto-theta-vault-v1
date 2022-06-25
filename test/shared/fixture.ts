@@ -1,14 +1,14 @@
 import hre, { ethers } from 'hardhat';
-import { constants, Wallet, } from 'ethers';
-import { parseWei } from 'web3-units';
-import { createFixtureLoader, MockProvider } from 'ethereum-waffle';
+import { constants, Wallet, } from "ethers";
+import { parseWei } from "web3-units";
+import { createFixtureLoader, MockProvider } from "ethereum-waffle";
 
-import PrimitiveFactoryArtifact from '@primitivefi/rmm-core/artifacts/contracts/PrimitiveFactory.sol/PrimitiveFactory.json';
-import PrimitiveEngineArtifact from '@primitivefi/rmm-core/artifacts/contracts/PrimitiveEngine.sol/PrimitiveEngine.json';
-import PrimitiveManagerArtifact from '@primitivefi/rmm-manager/artifacts/contracts/PrimitiveManager.sol/PrimitiveManager.json';
+import PrimitiveFactoryArtifact from "@primitivefi/rmm-core/artifacts/contracts/PrimitiveFactory.sol/PrimitiveFactory.json";
+import PrimitiveEngineArtifact from "@primitivefi/rmm-core/artifacts/contracts/PrimitiveEngine.sol/PrimitiveEngine.json";
+import PrimitiveManagerArtifact from "@primitivefi/rmm-manager/artifacts/contracts/PrimitiveManager.sol/PrimitiveManager.json";
 
-import { computeEngineAddress } from './utils';
-import { DEFAULT_CALIBRATION } from './config';
+import { computeEngineAddress } from "./utils";
+import { DEFAULT_CALIBRATION } from "./config";
 
 /**
  * @notice Prepares Primitive contracts prior to running any tests. Future tests 
@@ -50,9 +50,9 @@ export async function fixture([deployer]: Wallet[], provider: MockProvider) {
   const primitiveFactory = await PrimitiveFactory.deploy();
 
   // Create ERC20 for risky and stable tokens
-  const TestERC20 = await ethers.getContractFactory('TestERC20', deployer);
-  const risky = await TestERC20.deploy();
-  const stable = await TestERC20.deploy();
+  const MockERC20 = await ethers.getContractFactory("MockERC20", deployer);
+  const risky = await MockERC20.deploy();
+  const stable = await MockERC20.deploy();
 
   await primitiveFactory.deploy(risky.address, stable.address);
 
@@ -69,7 +69,7 @@ export async function fixture([deployer]: Wallet[], provider: MockProvider) {
     deployer,
   );
 
-  const Weth = await ethers.getContractFactory('WETH9', deployer);
+  const Weth = await ethers.getContractFactory("WETH9", deployer);
   const weth = await Weth.deploy();
 
   // Create and deploy the PrimitiveManager
@@ -85,8 +85,8 @@ export async function fixture([deployer]: Wallet[], provider: MockProvider) {
   );
 
   // Mint tokens for address
-  await risky.mint(deployer.address, parseWei('1000000').raw);
-  await stable.mint(deployer.address, parseWei('1000000').raw);
+  await risky.mint(deployer.address, parseWei("1000000").raw);
+  await stable.mint(deployer.address, parseWei("1000000").raw);
   await risky.approve(primitiveManager.address, constants.MaxUint256);
   await stable.approve(primitiveManager.address, constants.MaxUint256);
 

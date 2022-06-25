@@ -17,7 +17,7 @@ library VaultMath {
     function assetToShare(
         uint256 amount,
         uint256 sharePrice,
-        uint256 decimals
+        uint8 decimals
     ) internal pure returns (uint256) {
         return amount.mul(10**decimals).div(sharePrice);
     }
@@ -32,7 +32,7 @@ library VaultMath {
     function shareToAsset(
         uint256 shares,
         uint256 sharePrice,
-        uint256 decimals
+        uint8 decimals
     ) internal pure returns (uint256) {
         return shares.mul(sharePrice).div(10**decimals);
     }
@@ -50,7 +50,7 @@ library VaultMath {
         Vault.DepositReceipt memory depositReceipt,
         uint16 currRound,
         uint256 sharePrice,
-        uint256 decimals
+        uint8 decimals
     ) internal pure returns (uint256 shares) {
         if (depositReceipt.round > 0 && depositReceipt.round < currRound) {
             // If receipt is from earlier round, compute shares value
@@ -82,7 +82,7 @@ library VaultMath {
         uint256 totalSupply,
         uint256 totalBalance,
         uint256 pendingAmount,
-        uint256 decimals
+        uint8 decimals
     ) internal pure returns (uint256) {
         uint256 singleShare = 10**decimals;
         return

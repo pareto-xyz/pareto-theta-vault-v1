@@ -28,7 +28,7 @@ library Vault {
      * @param sigma is the implied volatility of the pool
      * @param maturity is the timestamp when the option pool expires
      * @param gamma is the gamma of the pool (1 - fee)
-     * @param riskyPerLP is the risky reserve per liq. with risky decimals,
+     * @param riskyPerLp is the risky reserve per liq. with risky decimals,
      *  = 1 - N(d1), d1 = (ln(S/K)+(r*sigma^2/2))/sigma*sqrt(tau)
      * @param delLiquidity is the amount of liquidity to allocate to the curve
      * wei value with 18 decimals of precision
@@ -38,7 +38,7 @@ library Vault {
         uint32 sigma;
         uint32 maturity;
         uint32 gamma;
-        uint256 riskyPerLP;
+        uint256 riskyPerLp;
         uint256 delLiquidity;
     }
 
@@ -131,5 +131,23 @@ library Vault {
         uint256 pendingRisky;
         uint256 managementFeePercent;
         uint256 performanceFeePercent;
+    }
+
+    /**
+     * @param router is the address for the Uniswap router contract
+     * @param poolFee for swaps in uniswap pool to search for
+     */
+    struct UniswapParams {
+        address router;
+        uint24 poolFee;
+    }
+
+    /**
+     * @param manager is the address for the Primitive manager contract
+     * @param engine is the address for the Primitive engine contract
+     */
+    struct PrimitiveParams {
+        address manager;
+        address engine;
     }
 }

@@ -29,9 +29,9 @@ interface IParetoVault {
      * @return riskyAmount is the risky asset owned by the vault for the user
      * @return stableAmount is the stable asset owned by the vault for the user
      */
-    function getAccountBalance(address account) 
-        external 
-        view 
+    function getAccountBalance(address account)
+        external
+        view
         returns (uint256 riskyAmount, uint256 stableAmount);
 
     /************************************************
