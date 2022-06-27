@@ -120,7 +120,7 @@ contract ParetoManager is IParetoManager, Ownable {
      * @return price is the current exchange rate between the two tokens
      */
     function _getOraclePrice(bool stableToRisky)
-        public
+        internal
         view
         returns (uint256 price)
     {

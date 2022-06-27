@@ -102,12 +102,12 @@ export async function fixture(
   const swapRouter = await SwapRouter.deploy();
 
   // Mint tokens for address
-  await risky.mint(deployer.address, parseWei("1000000").raw);
-  await stable.mint(deployer.address, parseWei("1000000").raw);
-  await risky.mint(alice.address, parseWei("1000000").raw);
-  await stable.mint(alice.address, parseWei("1000000").raw);
-  await risky.mint(bob.address, parseWei("1000000").raw);
-  await stable.mint(bob.address, parseWei("1000000").raw);
+  await risky.mint(deployer.address, parseWei("100000").raw);
+  await stable.mint(deployer.address, parseWei("100000").raw);
+  await risky.mint(alice.address, parseWei("100000").raw);
+  await stable.mint(alice.address, parseWei("100000").raw);
+  await risky.mint(bob.address, parseWei("100000").raw);
+  await stable.mint(bob.address, parseWei("100000").raw);
   await risky.approve(primitiveManager.address, constants.MaxUint256);
   await stable.approve(primitiveManager.address, constants.MaxUint256);
 
