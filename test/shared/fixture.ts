@@ -8,7 +8,6 @@ import PrimitiveEngineArtifact from "@primitivefi/rmm-core/artifacts/contracts/P
 import PrimitiveManagerArtifact from "@primitivefi/rmm-manager/artifacts/contracts/PrimitiveManager.sol/PrimitiveManager.json";
 
 import { computeEngineAddress } from "./utils";
-import { DEFAULT_CALIBRATION } from "./config";
 
 /**
  * @notice Prepares Primitive contracts prior to running any tests. Future tests 
@@ -20,7 +19,8 @@ export function runTest(description: string, runTests: Function): void {
   describe(description, function() {
     beforeEach(async function() {
       const wallets = await hre.ethers.getSigners();
-      const [deployer, alice, bob] = wallets;  // get first three
+      // three special roles: deployer (owner), keeper, and fee recipient
+      const [deployer, alice, bob, keeper, feeRecipient] = wallets;
       const loadFixture = createFixtureLoader(wallets as unknown as Wallet[]);
       const loadedFixture = await loadFixture(fixture);
 
@@ -28,19 +28,24 @@ export function runTest(description: string, runTests: Function): void {
         primitiveFactory: loadedFixture.primitiveFactory,
         primitiveEngine: loadedFixture.primitiveEngine,
         primitiveManager: loadedFixture.primitiveManager,
+        aggregatorV3: loadedFixture.aggregatorV3,
+        swapRouter: loadedFixture.swapRouter,
         weth: loadedFixture.weth,
         risky: loadedFixture.risky,
         stable: loadedFixture.stable,
       };
 
-      this.wallets = {deployer, alice, bob};
+      this.wallets = {deployer, keeper, feeRecipient, alice, bob};
     });
 
     runTests();  // callback function
   });
 }
 
-export async function fixture([deployer]: Wallet[], provider: MockProvider) {
+export async function fixture(
+  [deployer, alice, bob]: Wallet[], 
+  provider: MockProvider
+) {
   // Create and deploy PrimitiveFactory
   const PrimitiveFactory = await ethers.getContractFactory(
     PrimitiveFactoryArtifact.abi,
@@ -69,6 +74,7 @@ export async function fixture([deployer]: Wallet[], provider: MockProvider) {
     deployer,
   );
 
+  // Create and deploy a WETH token
   const Weth = await ethers.getContractFactory("WETH9", deployer);
   const weth = await Weth.deploy();
 
@@ -84,23 +90,26 @@ export async function fixture([deployer]: Wallet[], provider: MockProvider) {
     weth.address,
   );
 
+  // Create and deploy Mock Chainlink protocol
+  const AggregatorV3 = 
+    await ethers.getContractFactory("MockAggregatorV3", deployer);
+  const aggregatorV3 = await AggregatorV3.deploy();
+  aggregatorV3.setLatestAnswer(1);  // initialize price as 1
+
+  // Create and deploy Mock Uniswap router
+  const SwapRouter = 
+    await ethers.getContractFactory("MockSwapRouter", deployer);
+  const swapRouter = await SwapRouter.deploy();
+
   // Mint tokens for address
   await risky.mint(deployer.address, parseWei("1000000").raw);
   await stable.mint(deployer.address, parseWei("1000000").raw);
+  await risky.mint(alice.address, parseWei("1000000").raw);
+  await stable.mint(alice.address, parseWei("1000000").raw);
+  await risky.mint(bob.address, parseWei("1000000").raw);
+  await stable.mint(bob.address, parseWei("1000000").raw);
   await risky.approve(primitiveManager.address, constants.MaxUint256);
   await stable.approve(primitiveManager.address, constants.MaxUint256);
-
-  // Create a pool
-  await primitiveManager.create(
-    risky.address,
-    stable.address,
-    DEFAULT_CALIBRATION.strike.raw,
-    DEFAULT_CALIBRATION.sigma.raw,
-    DEFAULT_CALIBRATION.maturity.raw,
-    DEFAULT_CALIBRATION.gamma.raw,
-    parseWei(1).sub(parseWei(DEFAULT_CALIBRATION.delta)).raw,
-    parseWei(1).raw,
-  );
 
   return {
     primitiveFactory,
@@ -109,5 +118,7 @@ export async function fixture([deployer]: Wallet[], provider: MockProvider) {
     weth,
     risky,
     stable,
+    aggregatorV3,
+    swapRouter,
   };
 }
