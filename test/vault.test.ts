@@ -10,6 +10,9 @@ let poolId: string;
 runTest("vault", function() {
   beforeEach(async function() {
     const vault = await hre.ethers.getContractFactory("ParetoVault");
-    await vault.deploy(this.contracts.primitiveManager.address);
+    await vault.deploy(
+      this.wallets.keeper,
+      this.wallets.feeRecipient,
+      this.contracts.primitiveManager.address);
   });
 });

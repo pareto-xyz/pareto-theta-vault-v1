@@ -45,7 +45,7 @@ contract ParetoManager is IParetoManager, Ownable {
     bool public immutable riskyFirst;
 
     // Multiplier for strike selection
-    uint256 public strikeMultiplier;
+    uint256 public override strikeMultiplier;
 
     // Strike multiplier has 2 decimal places e.g. 150 = 1.5x spot price
     uint256 private constant STRIKE_DECIMALS = 10**2;

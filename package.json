@@ -5,6 +5,7 @@
   "main": "index.js",
   "scripts": {
     "test": "npx hardhat test",
+    "trace": "npx hardhat test --trace",
     "compile": "npx hardhat compile",
     "clean": "npx hardhat clean",
     "lint:sol": "./node_modules/.bin/solhint -f table contracts/**/*.sol",
