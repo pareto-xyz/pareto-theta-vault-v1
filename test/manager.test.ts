@@ -46,7 +46,7 @@ describe("Manager contract", function() {
   });
   describe('asset getters', function() {
     /**
-     * Checks that the manager's stored risky asset is the correct one
+     * @notice Checks that the manager's stored risky asset is correct
      */
     it('correct default risky', async function() {
       expect(
@@ -54,7 +54,7 @@ describe("Manager contract", function() {
       ).to.be.equal(risky.address);
     });
     /**
-     * Checks that the manager's stored stable asset is the correct one
+     * @notice Checks that the manager's stored stable asset is correct
      */
     it('correct default stable', async function() {
       expect(
@@ -62,7 +62,7 @@ describe("Manager contract", function() {
       ).to.be.equal(stable.address);
     });
     /**
-     * Checks that the manager's stored strike multiplier is the correct one
+     * @notice Checks that the manager's stored strike multiplier is correct
      */
     it('correct default strike multiplier', async function() {
       expect(
@@ -72,7 +72,7 @@ describe("Manager contract", function() {
   });
   describe('function getters', function() {
     /**
-     * Checks that the manager's oracle decimals is the expected one
+     * @notice Checks that the manager's oracle decimals is expected
      */
     it('correct oracle decimals', async function() {
       expect(
@@ -80,8 +80,8 @@ describe("Manager contract", function() {
       ).to.be.equal(oracleDecimals);
     });
     /**
-     * Checks that for a unit of stable asset priced as a unit of 
-     * risky asset, we obtain one risky in return
+     * @notice Checks that for a unit of stable asset priced as a unit 
+     * of risky asset, we obtain one risky in return
      */
     it('correct one-to-one stable to risky price', async function() {
       // Set oracle price to be 1 stable for 1 risky
@@ -94,8 +94,8 @@ describe("Manager contract", function() {
       ).to.be.equal(expected);
     });
     /**
-     * Checks that for a unit of risky asset priced as a unit of 
-     * stable asset, we obtain one stable in return
+     * @notice Checks that for a unit of risky asset priced as a unit 
+     * of stable asset, we obtain one stable in return
      */
     it('correct one-to-one risky to stable price', async function() {
       // Set oracle price to be 1 risky for 1 stable
@@ -108,8 +108,8 @@ describe("Manager contract", function() {
       ).to.be.equal(expected);
     });
     /**
-     * Checks that for a unit of stable asset priced as two units of 
-     * risky asset, we obtain 2 risky in return
+     * @notice Checks that for a unit of stable asset priced as two units 
+     * of risky asset, we obtain 2 risky in return
      * @dev the oracle price is manually changed
      */
     it('correct one-to-two stable to risky price', async function() {
@@ -122,8 +122,8 @@ describe("Manager contract", function() {
       ).to.be.equal(expected);
     });
     /**
-     * Checks that for a unit of risky asset priced as two units of 
-     * stable asset, we obtain 0.5 stable in return
+     * @notice Checks that for a unit of risky asset priced as two units 
+     * of stable asset, we obtain 0.5 stable in return
      * @dev the oracle price is manually changed
      */
     it('correct one-to-two risky to stable price', async function() {
