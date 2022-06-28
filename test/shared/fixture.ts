@@ -25,6 +25,7 @@ export function runTest(description: string, runTests: Function): void {
       const loadedFixture = await loadFixture(fixture);
 
       this.contracts = {
+        vaultManager: loadedFixture.vaultManager,
         primitiveFactory: loadedFixture.primitiveFactory,
         primitiveEngine: loadedFixture.primitiveEngine,
         primitiveManager: loadedFixture.primitiveManager,
@@ -101,6 +102,17 @@ export async function fixture(
     await ethers.getContractFactory("MockSwapRouter", deployer);
   const swapRouter = await SwapRouter.deploy();
 
+  // Create and deploy Pareto Manager protocol
+  const ParetoManager = 
+  await ethers.getContractFactory("ParetoManager", deployer);
+  const vaultManager = await ParetoManager.deploy(
+    150,
+    risky.address,
+    stable.address,
+    aggregatorV3.address,
+    false
+  );
+
   // Mint tokens for address
   await risky.mint(deployer.address, parseWei("100000").raw);
   await stable.mint(deployer.address, parseWei("100000").raw);
@@ -120,5 +132,6 @@ export async function fixture(
     stable,
     aggregatorV3,
     swapRouter,
+    vaultManager,
   };
 }

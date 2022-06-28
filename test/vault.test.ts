@@ -5,14 +5,21 @@ import { runTest } from "./shared/fixture";
 import expect from "./shared/expect";
 
 let vault: Contract;
-let poolId: string;
 
 runTest("vault", function() {
   beforeEach(async function() {
-    const vault = await hre.ethers.getContractFactory("ParetoVault");
-    await vault.deploy(
+    const ParetoVault = await hre.ethers.getContractFactory("ParetoVault");
+    vault = await ParetoVault.deploy(
       this.wallets.keeper,
       this.wallets.feeRecipient,
-      this.contracts.primitiveManager.address);
+      this.contracts.vaultManager.address,
+      this.contracts.primitiveManager.address,
+      this.contracts.primitiveEngine.address,
+      this.contracts.swapRouter.address,
+      this.contracts.risky.address,
+      this.contracts.stable.address,
+      20,
+      2,
+    );
   });
 });
