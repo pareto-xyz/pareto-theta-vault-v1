@@ -8,6 +8,7 @@ import {IParetoManager} from "../interfaces/IParetoManager.sol";
 import {Vault} from "../libraries/Vault.sol";
 import {IERC20} from "../interfaces/IERC20.sol";
 import {ReplicationMath} from "../libraries/ReplicationMath.sol";
+import {console} from "hardhat/console.sol";
 
 /**
  * @notice Automated management of Pareto Theta Vaults
@@ -133,7 +134,7 @@ contract ParetoManager is IParetoManager, Ownable {
 
         // If riskyFirst is true, then the oracle returns price of risky
         // in terms of stable. We need to invert the price
-        if (riskyFirst && stableToRisky) {
+        if ((riskyFirst && stableToRisky) || (!riskyFirst && !stableToRisky)) {
             uint256 fixedOne = 10**oracleDecimals; // unit
             price = (fixedOne * fixedOne) / price;
         }
