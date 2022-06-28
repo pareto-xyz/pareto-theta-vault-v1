@@ -2,7 +2,6 @@ import hre, { ethers } from "hardhat";
 import { Contract } from "ethers";
 import { parseWei } from "web3-units";
 import expect from "./shared/expect";
-import { getCachedR1 } from "./shared/cache";
 import { fromBn, toBn } from "evm-bn";
 import { normalCDF } from "./shared/utils";
 
