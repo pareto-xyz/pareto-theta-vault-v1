@@ -225,12 +225,6 @@ describe("Manager contract", function() {
         604800  // one week
       ];
 
-      // get cached results
-      var results = getCachedR1();
-      if (results.length != 90) {
-        throw new Error("Mismatched cache");
-      }
-
       let strike: string;
       let sigma: string;
       let r1: string;
