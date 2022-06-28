@@ -192,9 +192,10 @@ contract ParetoManager is IParetoManager, Ownable {
      * @param strike is the strike price in stable
      * @param sigma is the implied volatility
      * @param maturity is the maturity timestamp in seconds
+     *  The conversion to years will happen within `ReplicationMath`
      * @param riskyDecimals is the decimals for the risky asset
      * @param stableDecimals is the decimals for the stable asset
-     * @return riskyForLp is the R1 variable
+     * @return riskyForLp is the R1 variable (in risky decimals)
      * @dev See page 14 of https://primitive.xyz/whitepaper-rmm-01.pdf
      */
     function getRiskyPerLp(

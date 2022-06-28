@@ -2,7 +2,8 @@ import hre, { ethers } from "hardhat";
 import { Contract } from "ethers";
 import { parseWei } from "web3-units";
 import expect from "./shared/expect";
-import { fromBn } from 'evm-bn';
+import { getCachedR1 } from "./shared/cache";
+import { fromBn, toBn } from "evm-bn";
 
 let manager: Contract;
 let risky: Contract;
@@ -10,7 +11,6 @@ let stable: Contract;
 let aggregatorV3: Contract;
 let riskyDecimals: number;
 let stableDecimals: number;
-let oracleDecimals: number;
 
 describe("Manager contract", function() {
   beforeEach(async function() {
@@ -159,6 +159,10 @@ describe("Manager contract", function() {
         fromBn(await manager.getNextStrikePrice(), stableDecimals),
       ).to.be.equal(expected);
     });
+    /**
+     * @notice Checks getNextStrikePrice works with a different 
+     * initial non-unit price
+     */
     it('correctly get next strike price with spot = pi', async function() {
       aggregatorV3.setLatestAnswer(
         parseWei("3.14", await aggregatorV3.decimals()).raw
@@ -171,11 +175,19 @@ describe("Manager contract", function() {
         fromBn(await manager.getNextStrikePrice(), stableDecimals),
       ).to.be.equal(expected);
     });
+    /**
+     * @notice Checks fetching the volatility for next round
+     * @dev This is currently hardcoded to return 0.8
+     */
     it('correctly get next volatility', async function() {
       expect(
         fromBn(await manager.getNextVolatility(), 4)
       ).to.be.equal("0.8");
     });
+    /**
+     * @notice Checks fetching the gamma for next round
+     * @dev This is currently hardcoded to return 0.95
+     */
     it('correctly get next gamma', async function() {
       expect(
         fromBn(await manager.getNextGamma(), 4)
@@ -197,6 +209,53 @@ describe("Manager contract", function() {
         expect(false);  // must fail
       } catch {
         expect(true);
+      }
+    });
+    /**
+     * @notice Checks getRiskyPerLp logic with a variety of inputs
+     * for strike, sigma, and maturity
+     */
+    it('correct computation of R1', async function() {
+      // The spot is at price 1
+      var strikes = [1.001, 1.01, 1.1, 0.999, 0.99, 0.9];
+      var sigmas = [0.1, 0.3, 0.5, 0.7, 0.9];
+      var maturities = [
+        3600,    // one hour
+        86400,   // one day
+        604800  // one week
+      ];
+
+      // get cached results
+      var results = getCachedR1();
+      if (results.length != 90) {
+        throw new Error("Mismatched cache");
+      }
+
+      let strike: string;
+      let sigma: string; 
+      let maturity: number;
+      let r1: string;
+      var date = new Date();
+      var timestamp = Math.ceil(date.getTime()/1000);
+
+      var counter = 0;
+      for (var i = 0; i < strikes.length; i++) {
+        for (var j = 0; j < sigmas.length; j++) {
+          for (var k = 0; k < maturities.length; k++) {
+            strike = toBn(strikes[i].toString(), stableDecimals).toString();
+            sigma = toBn(sigmas[j].toString(), 4).toString();
+            maturity = timestamp + maturities[k];
+            r1 = fromBn(await manager.getRiskyPerLp(
+              strike, 
+              sigma,
+              maturity,
+              riskyDecimals,
+              stableDecimals,
+            ), riskyDecimals);
+            expect(parseFloat(r1)).to.be.closeTo(results[counter], 0.01);
+            counter++;  // increment counter
+          }
+        }
       }
     });
   });

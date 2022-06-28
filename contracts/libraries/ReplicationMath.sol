@@ -8,7 +8,6 @@ import {Units} from "@primitivefi/rmm-core/contracts/libraries/Units.sol";
 /**
  * @notice Replication math useful for vaults
  */
-
 library ReplicationMath {
     using ABDKMath64x64 for int128;
     using ABDKMath64x64 for uint256;
@@ -16,6 +15,7 @@ library ReplicationMath {
     using Units for int128;
     using Units for uint256;
 
+    // https://toolkit.abdk.consulting/math#convert-number
     int128 internal constant ONE_INT = 0x10000000000000000;
     int128 internal constant TWO_INT = 0x20000000000000000;
 
@@ -39,18 +39,16 @@ library ReplicationMath {
     ) internal pure returns (uint256 riskyForLp) {
         int128 d1;
         {
+            /// @dev https://toolkit.abdk.consulting/math#convert-number
             int128 spotX64 = spot.scaleToX64(scaleFactorStable);
             int128 strikeX64 = strike.scaleToX64(scaleFactorStable);
-
-            int128 tauX64 = tau.toYears(); /// @dev: Convert to years
+            int128 tauX64 = tau.toYears();  /// @dev: Convert to years
             int128 sqrtTauX64 = tauX64.sqrt();
             int128 sigmaX64 = sigma.percentageToX64();
             int128 sigmaSqrX64 = sigmaX64.pow(2);
-
             int128 logRatioX64 = spotX64.div(strikeX64).ln();
             int128 crossTermX64 = tauX64.mul(sigmaSqrX64).div(TWO_INT);
             int128 volX64 = sigmaX64.mul(sqrtTauX64);
-
             d1 = logRatioX64.add(crossTermX64).div(volX64);
         }
         /// @dev: riskyForLpX64 spans between 0 and 1

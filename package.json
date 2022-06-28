@@ -77,7 +77,8 @@
     "@primitivefi/rmm-ethers": "^1.2.0-rc.1",
     "@primitivefi/rmm-manager": "^1.1.0",
     "axios": "^0.27.2",
-    "evm-bn": "^1.1.1"
+    "evm-bn": "^1.1.1",
+    "mathjs": "^10.6.3"
   },
   "mocha": {
     "timeout": 20000

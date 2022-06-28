@@ -1,4 +1,5 @@
 import { utils, BigNumber } from "ethers";
+import { erf } from "mathjs";
 
 export function computePoolId(
   engine: string,
@@ -34,4 +35,12 @@ export function computeEngineAddress(
     [utils.defaultAbiCoder.encode(["address", "address"], [risky, stable])]
   );
   return utils.getCreate2Address(factory, salt, utils.keccak256(bytecode))
+}
+
+export function normalCDF(
+  x: number,
+  mean: number, 
+  sigma: number
+): number {
+  return (1 - erf((mean - x ) / (Math.sqrt(2) * sigma))) / 2;
 }
