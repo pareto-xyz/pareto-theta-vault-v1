@@ -211,7 +211,52 @@ runTest("vault", function () {
       ).to.be.equal("0");
     });
   });
+  /**
+   * @notice Tests owner functionalities in setter functions
+   */
+  describe("check owner functions", function () {
+    it("correctly set keeper", async function () {
+      expect(
+        await vault.keeper()
+      ).to.be.equal(this.wallets.keeper.address);
+      await vault.setKeeper(this.wallets.alice.address);
+      expect(
+        await vault.keeper()
+      ).to.be.equal(this.wallets.alice.address);
+    });
+    it("correctly set fee recipient", async function () {
+      expect(
+        await vault.feeRecipient()
+      ).to.be.equal(this.wallets.feeRecipient.address);
+      await vault.setFeeRecipient(this.wallets.alice.address);
+      expect(
+        await vault.feeRecipient()
+      ).to.be.equal(this.wallets.alice.address);
+    });
+    it("correctly set management fee", async function () {
+      let expectedFee = 30 / 52.142857;
+      await vault.setManagementFee(300000);
+      expect(
+        parseFloat(fromBn(await vault.managementFee(), 4))
+      ).to.be.closeTo(expectedFee, 0.001);
+    });
+    it("correctly set performance fee", async function () {
+      await vault.setPerformanceFee(30000);
+      expect(
+        fromBn(await vault.performanceFee(), 4)
+      ).to.be.equal("3");
+    });
+  });
+  /**
+   * @notice Tests keeper functionalities in setter functions
+   */
   describe("check keeper functions", function () {
-    it("correctly set keeper", async function () {});
+    it("correctly set uniswap pool fee", async function () {
+      await vault.connect(this.wallets.keeper)
+        .setUniswapPoolFee(5000);
+      expect(
+        fromBn((await vault.uniswapParams()).poolFee, 6)
+      ).to.be.equal("0.005");
+    });
   });
 });

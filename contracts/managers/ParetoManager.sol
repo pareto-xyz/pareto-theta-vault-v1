@@ -174,7 +174,7 @@ contract ParetoManager is IParetoManager, Ownable {
      * @return sigma is the implied volatility estimate
      */
     function getNextVolatility() external pure override returns (uint32 sigma) {
-        sigma = 8000; // TODO - placeholder 80% sigma
+        sigma = 8000;  // TODO - placeholder 80% sigma
         return sigma;
     }
 
@@ -183,7 +183,7 @@ contract ParetoManager is IParetoManager, Ownable {
      * @return gamma is the Gamma for the next pool
      */
     function getNextGamma() external pure override returns (uint32 gamma) {
-        gamma = 9500; // TODO - placeholder 99% gamma = 5% fee
+        gamma = 9500;  // TODO - placeholder 95% gamma = 5% fee
         return gamma;
     }
 
