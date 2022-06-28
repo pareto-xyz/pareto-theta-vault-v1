@@ -104,7 +104,8 @@ export async function fixture(
 
   // Create and deploy Pareto Manager protocol
   const ParetoManager = 
-  await ethers.getContractFactory("ParetoManager", deployer);
+    await ethers.getContractFactory("ParetoManager", deployer);
+
   const vaultManager = await ParetoManager.deploy(
     150,
     risky.address,

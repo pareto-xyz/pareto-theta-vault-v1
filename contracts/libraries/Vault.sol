@@ -8,6 +8,8 @@ library Vault {
     // Fees are 6-decimal places. For example: 20 * 10**6 = 20%
     uint256 internal constant FEE_MULTIPLIER = 10**6;
 
+    uint256 internal constant FEE_DECIMALS = 4;
+
     struct PoolState {
         // Primitive pool that the vault is depositing into next cycle
         bytes32 nextPoolId;
