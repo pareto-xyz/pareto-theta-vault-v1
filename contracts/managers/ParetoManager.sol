@@ -143,8 +143,9 @@ contract ParetoManager is IParetoManager, Ownable {
         uint256 outDecimals = stableToRisky
             ? uint256(IERC20(risky).decimals())
             : uint256(IERC20(stable).decimals());
-        uint8 diffDecimals = uint8(outDecimals.sub(oracleDecimals));
-        price = uint256(price).mul(10**diffDecimals);
+
+        price = uint256(price).mul(10**outDecimals).div(10**oracleDecimals);
+        return price;
     }
 
     /**

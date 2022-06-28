@@ -32,7 +32,6 @@ describe("Manager contract", function() {
     // Save decimals to globals
     riskyDecimals = await risky.decimals();
     stableDecimals = await stable.decimals();
-    oracleDecimals = await aggregatorV3.decimals();
 
     // Load the manager
     const ParetoManager = await hre.ethers.getContractFactory("ParetoManager");
@@ -75,6 +74,7 @@ describe("Manager contract", function() {
      * @notice Checks that the manager's oracle decimals is expected
      */
     it('correct oracle decimals', async function() {
+      let oracleDecimals = await aggregatorV3.decimals();
       expect(
         await manager.getOracleDecimals()
       ).to.be.equal(oracleDecimals);
@@ -85,13 +85,12 @@ describe("Manager contract", function() {
      */
     it('correct one-to-one stable to risky price', async function() {
       // Set oracle price to be 1 stable for 1 risky
-      aggregatorV3.setLatestAnswer(parseWei("1", oracleDecimals).raw);
-      let expected = (oracleDecimals - riskyDecimals) > 0
-        ? parseWei("1", oracleDecimals - riskyDecimals).raw
-        : "1";
+      aggregatorV3.setLatestAnswer(
+        parseWei("1", await aggregatorV3.decimals()).raw
+      );
       expect(
         fromBn(await manager.getStableToRiskyPrice(), riskyDecimals)
-      ).to.be.equal(expected);
+      ).to.be.equal("1");
     });
     /**
      * @notice Checks that for a unit of risky asset priced as a unit 
@@ -99,13 +98,12 @@ describe("Manager contract", function() {
      */
     it('correct one-to-one risky to stable price', async function() {
       // Set oracle price to be 1 risky for 1 stable
-      aggregatorV3.setLatestAnswer(parseWei("1", oracleDecimals).raw);
-      let expected = (oracleDecimals - stableDecimals) > 0
-        ? parseWei("1", oracleDecimals - stableDecimals).raw
-        : "1";
+      aggregatorV3.setLatestAnswer(
+        parseWei("1", await aggregatorV3.decimals()).raw
+      );
       expect(
         fromBn(await manager.getRiskyToStablePrice(), stableDecimals)
-      ).to.be.equal(expected);
+      ).to.be.equal("1");
     });
     /**
      * @notice Checks that for a unit of stable asset priced as two units 
@@ -113,13 +111,12 @@ describe("Manager contract", function() {
      * @dev the oracle price is manually changed
      */
     it('correct one-to-two stable to risky price', async function() {
-      aggregatorV3.setLatestAnswer(parseWei("2", oracleDecimals).raw);
-      let expected = (oracleDecimals - riskyDecimals) > 0
-        ? parseWei("2", oracleDecimals - riskyDecimals).raw
-        : "2";
+      aggregatorV3.setLatestAnswer(
+        parseWei("2", await aggregatorV3.decimals()).raw
+      );
       expect(
         fromBn(await manager.getStableToRiskyPrice(), riskyDecimals)
-      ).to.be.equal(expected);
+      ).to.be.equal("2");
     });
     /**
      * @notice Checks that for a unit of risky asset priced as two units 
@@ -127,13 +124,25 @@ describe("Manager contract", function() {
      * @dev the oracle price is manually changed
      */
     it('correct one-to-two risky to stable price', async function() {
-      aggregatorV3.setLatestAnswer(parseWei("2", oracleDecimals).raw);
-      let expected = (oracleDecimals - stableDecimals) > 0
-        ? parseWei("0.5", oracleDecimals - stableDecimals).raw
-        : "0.5";
+      aggregatorV3.setLatestAnswer(
+        parseWei("2", await aggregatorV3.decimals()).raw
+      );
       expect(
         fromBn(await manager.getRiskyToStablePrice(), stableDecimals)
-      ).to.be.equal(expected);
+      ).to.be.equal("0.5");
+    });
+    /**
+     * @notice Checks price conversion works when assets have decimals=18
+     * and oracle has decimals=12
+     */
+    it('correct stable to risky price with oracle decimals = 12', async function() {
+      aggregatorV3.setLatestAnswer(
+        parseWei("1", await aggregatorV3.decimals()).raw
+      );
+      aggregatorV3.setDecimals(12);
+      expect(
+        fromBn(await manager.getStableToRiskyPrice(), riskyDecimals)
+      ).to.be.equal("1");
     });
   });
   describe('vault management', function() {
