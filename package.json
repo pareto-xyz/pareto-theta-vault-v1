@@ -9,7 +9,7 @@
     "compile": "npx hardhat compile",
     "clean": "npx hardhat clean",
     "lint:sol": "./node_modules/.bin/solhint -f table contracts/**/*.sol",
-    "lint:prettier": "./node_modules/.bin/prettier --write contracts/**/*.sol",
+    "lint:prettier": "./node_modules/.bin/prettier --write contracts/**/*.sol test/**/*.ts test/*.ts",
     "prepare": "husky install"
   },
   "husky": {

@@ -1,5 +1,5 @@
-import hre, { ethers } from 'hardhat';
-import { constants, Wallet, } from "ethers";
+import hre, { ethers } from "hardhat";
+import { constants, Wallet } from "ethers";
 import { parseWei } from "web3-units";
 import { createFixtureLoader, MockProvider } from "ethereum-waffle";
 
@@ -10,14 +10,14 @@ import PrimitiveManagerArtifact from "@primitivefi/rmm-manager/artifacts/contrac
 import { computeEngineAddress } from "./utils";
 
 /**
- * @notice Prepares Primitive contracts prior to running any tests. Future tests 
+ * @notice Prepares Primitive contracts prior to running any tests. Future tests
  * will have access to the contracts.
  * @param description is a description of the test
  * @param runTests is a callback to run other tests
  */
 export function runTest(description: string, runTests: Function): void {
-  describe(description, function() {
-    beforeEach(async function() {
+  describe(description, function () {
+    beforeEach(async function () {
       const wallets = await hre.ethers.getSigners();
       // three special roles: deployer (owner), keeper, and fee recipient
       const [deployer, alice, bob, keeper, feeRecipient] = wallets;
@@ -36,22 +36,22 @@ export function runTest(description: string, runTests: Function): void {
         stable: loadedFixture.stable,
       };
 
-      this.wallets = {deployer, keeper, feeRecipient, alice, bob};
+      this.wallets = { deployer, keeper, feeRecipient, alice, bob };
     });
 
-    runTests();  // callback function
+    runTests(); // callback function
   });
 }
 
 export async function fixture(
-  [deployer, alice, bob]: Wallet[], 
+  [deployer, alice, bob]: Wallet[],
   provider: MockProvider
 ) {
   // Create and deploy PrimitiveFactory
   const PrimitiveFactory = await ethers.getContractFactory(
     PrimitiveFactoryArtifact.abi,
     PrimitiveFactoryArtifact.bytecode,
-    deployer,
+    deployer
   );
   const primitiveFactory = await PrimitiveFactory.deploy();
 
@@ -67,12 +67,12 @@ export async function fixture(
     primitiveFactory.address,
     risky.address,
     stable.address,
-    PrimitiveEngineArtifact.bytecode,
+    PrimitiveEngineArtifact.bytecode
   );
   const primitiveEngine = await ethers.getContractAt(
     PrimitiveEngineArtifact.abi,
     engineAddress,
-    deployer,
+    deployer
   );
 
   // Create and deploy a WETH token
@@ -88,23 +88,29 @@ export async function fixture(
   const primitiveManager = await PrimitiveManager.deploy(
     primitiveFactory.address,
     weth.address,
-    weth.address,
+    weth.address
   );
 
   // Create and deploy Mock Chainlink protocol
-  const AggregatorV3 = 
-    await ethers.getContractFactory("MockAggregatorV3", deployer);
+  const AggregatorV3 = await ethers.getContractFactory(
+    "MockAggregatorV3",
+    deployer
+  );
   const aggregatorV3 = await AggregatorV3.deploy();
-  aggregatorV3.setLatestAnswer(1);  // initialize price as 1
+  aggregatorV3.setLatestAnswer(1); // initialize price as 1
 
   // Create and deploy Mock Uniswap router
-  const SwapRouter = 
-    await ethers.getContractFactory("MockSwapRouter", deployer);
+  const SwapRouter = await ethers.getContractFactory(
+    "MockSwapRouter",
+    deployer
+  );
   const swapRouter = await SwapRouter.deploy();
 
   // Create and deploy Pareto Manager protocol
-  const ParetoManager = 
-    await ethers.getContractFactory("ParetoManager", deployer);
+  const ParetoManager = await ethers.getContractFactory(
+    "ParetoManager",
+    deployer
+  );
 
   const vaultManager = await ParetoManager.deploy(
     150,
