@@ -146,5 +146,58 @@ describe("Manager contract", function() {
     });
   });
   describe('vault management', function() {
+    /**
+     * @notice Checks getNextStrikePrice multiplies spot price
+     * from oracle by the multiplier
+     */
+    it('correctly get next strike price', async function() {
+      let strikeMultiplier = await manager.strikeMultiplier();
+      let spotPrice = await manager.getRiskyToStablePrice();
+      let expected = fromBn(
+        strikeMultiplier.mul(spotPrice), 2 + stableDecimals);
+      expect(
+        fromBn(await manager.getNextStrikePrice(), stableDecimals),
+      ).to.be.equal(expected);
+    });
+    it('correctly get next strike price with spot = pi', async function() {
+      aggregatorV3.setLatestAnswer(
+        parseWei("3.14", await aggregatorV3.decimals()).raw
+      );
+      let strikeMultiplier = await manager.strikeMultiplier();
+      let spotPrice = await manager.getRiskyToStablePrice();
+      let expected = fromBn(
+        strikeMultiplier.mul(spotPrice), 2 + stableDecimals);
+      expect(
+        fromBn(await manager.getNextStrikePrice(), stableDecimals),
+      ).to.be.equal(expected);
+    });
+    it('correctly get next volatility', async function() {
+      expect(
+        fromBn(await manager.getNextVolatility(), 4)
+      ).to.be.equal("0.8");
+    });
+    it('correctly get next gamma', async function() {
+      expect(
+        fromBn(await manager.getNextGamma(), 4)
+      ).to.be.equal("0.95");
+    });
+    /**
+     * @notice Check that setting the strike multiplier works.
+     */
+    it('correctly set strike multiplier', async function() {
+      await manager.setStrikeMultiplier(200);
+      expect(await manager.strikeMultiplier()).to.be.equal("200");
+    });
+    /**
+     * @notice Check that invalid strike multipliers are blocked
+     */
+    it('blocks strike multiplier < 100', async function() {
+      try {
+        await manager.setStrikeMultiplier(90);
+        expect(false);  // must fail
+      } catch {
+        expect(true);
+      }
+    });
   });
 });
