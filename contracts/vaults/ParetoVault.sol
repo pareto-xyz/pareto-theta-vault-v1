@@ -346,6 +346,16 @@ contract ParetoVault is
     }
 
     /**
+     * @notice Sets the new Vault Manager contract
+     * @param newVaultManager is the address of the new manager contract
+     */
+    function setVaultManager(address newVaultManager) external onlyOwner {
+        require(newVaultManager != address(0), "!newVaultManager");
+        emit VaultManagerSetEvent(newVaultManager);
+        vaultManager = newVaultManager;
+    }
+
+    /**
      * Sets the management fee for the vault
      * @param newManagementFee is the management fee
      */
@@ -417,16 +427,6 @@ contract ParetoVault is
         emit GammaSetEvent(gamma, vaultState.round);
         managerState.manualGamma = gamma;
         managerState.manualGammaRound = vaultState.round;
-    }
-
-    /**
-     * @notice Sets the new Vault Manager contract
-     * @param newVaultManager is the address of the new manager contract
-     */
-    function setVaultManager(address newVaultManager) external onlyOwner {
-        require(newVaultManager != address(0), "!newVaultManager");
-        emit VaultManagerSetEvent(newVaultManager);
-        vaultManager = newVaultManager;
     }
 
     /************************************************

@@ -216,35 +216,36 @@ runTest("vault", function () {
    */
   describe("check owner functions", function () {
     it("correctly set keeper", async function () {
-      expect(
-        await vault.keeper()
-      ).to.be.equal(this.wallets.keeper.address);
+      expect(await vault.keeper()).to.be.equal(this.wallets.keeper.address);
       await vault.setKeeper(this.wallets.alice.address);
-      expect(
-        await vault.keeper()
-      ).to.be.equal(this.wallets.alice.address);
+      expect(await vault.keeper()).to.be.equal(this.wallets.alice.address);
     });
     it("correctly set fee recipient", async function () {
-      expect(
-        await vault.feeRecipient()
-      ).to.be.equal(this.wallets.feeRecipient.address);
+      expect(await vault.feeRecipient()).to.be.equal(
+        this.wallets.feeRecipient.address
+      );
       await vault.setFeeRecipient(this.wallets.alice.address);
-      expect(
-        await vault.feeRecipient()
-      ).to.be.equal(this.wallets.alice.address);
+      expect(await vault.feeRecipient()).to.be.equal(
+        this.wallets.alice.address
+      );
     });
     it("correctly set management fee", async function () {
       let expectedFee = 30 / 52.142857;
       await vault.setManagementFee(300000);
-      expect(
-        parseFloat(fromBn(await vault.managementFee(), 4))
-      ).to.be.closeTo(expectedFee, 0.001);
+      expect(parseFloat(fromBn(await vault.managementFee(), 4))).to.be.closeTo(
+        expectedFee,
+        0.001
+      );
     });
     it("correctly set performance fee", async function () {
       await vault.setPerformanceFee(30000);
-      expect(
-        fromBn(await vault.performanceFee(), 4)
-      ).to.be.equal("3");
+      expect(fromBn(await vault.performanceFee(), 4)).to.be.equal("3");
+    });
+    it("correctly set vault manager", async function () {
+      await vault.setVaultManager(this.wallets.deployer.address);
+      expect(await vault.vaultManager()).to.be.equal(
+        this.wallets.deployer.address
+      );
     });
   });
   /**
@@ -252,11 +253,33 @@ runTest("vault", function () {
    */
   describe("check keeper functions", function () {
     it("correctly set uniswap pool fee", async function () {
-      await vault.connect(this.wallets.keeper)
-        .setUniswapPoolFee(5000);
+      await vault.connect(this.wallets.keeper).setUniswapPoolFee(5000);
+      expect(fromBn((await vault.uniswapParams()).poolFee, 6)).to.be.equal(
+        "0.005"
+      );
+    });
+    it("correctly set strike price", async function () {
+      await vault
+        .connect(this.wallets.keeper)
+        .setStrikePrice(toBn("2", stableDecimals));
       expect(
-        fromBn((await vault.uniswapParams()).poolFee, 6)
-      ).to.be.equal("0.005");
+        fromBn((await vault.managerState()).manualStrike, stableDecimals)
+      ).to.be.equal("2");
+      expect((await vault.managerState()).manualStrikeRound).to.be.equal(1);
+    });
+    it("correctly set sigma", async function () {
+      await vault.connect(this.wallets.keeper).setVolatility(toBn("0.8", 4));
+      expect(
+        fromBn((await vault.managerState()).manualVolatility, 4)
+      ).to.be.equal("0.8");
+      expect((await vault.managerState()).manualVolatilityRound).to.be.equal(1);
+    });
+    it("correctly set gamma", async function () {
+      await vault.connect(this.wallets.keeper).setGamma(toBn("0.95", 4));
+      expect(fromBn((await vault.managerState()).manualGamma, 4)).to.be.equal(
+        "0.95"
+      );
+      expect((await vault.managerState()).manualGammaRound).to.be.equal(1);
     });
   });
 });
