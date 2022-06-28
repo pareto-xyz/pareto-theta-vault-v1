@@ -42,7 +42,7 @@ library ReplicationMath {
             /// @dev https://toolkit.abdk.consulting/math#convert-number
             int128 spotX64 = spot.scaleToX64(scaleFactorStable);
             int128 strikeX64 = strike.scaleToX64(scaleFactorStable);
-            int128 tauX64 = tau.toYears();  /// @dev: Convert to years
+            int128 tauX64 = tau.toYears(); /// @dev: Convert to years
             int128 sqrtTauX64 = tauX64.sqrt();
             int128 sigmaX64 = sigma.percentageToX64();
             int128 sigmaSqrX64 = sigmaX64.pow(2);

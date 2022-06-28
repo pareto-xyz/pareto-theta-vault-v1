@@ -22,8 +22,8 @@ contract MockAggregatorV3 {
      * @dev This is purely for testing
      */
     function setDecimals(uint8 _decimals) public {
-      savedAnswer = savedAnswer.div(10**decimals).mul(10**_decimals);
-      decimals = _decimals;
+        savedAnswer = savedAnswer.div(10**decimals).mul(10**_decimals);
+        decimals = _decimals;
     }
 
     function latestRoundData()
