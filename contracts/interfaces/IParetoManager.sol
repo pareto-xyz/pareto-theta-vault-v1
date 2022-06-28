@@ -39,7 +39,7 @@ interface IParetoManager {
     function getRiskyPerLp(
         uint128 strike,
         uint32 sigma,
-        uint32 maturity,
+        uint256 tau,
         uint8 riskyDecimals,
         uint8 stableDecimals
     ) external view returns (uint256);

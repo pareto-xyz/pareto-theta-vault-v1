@@ -778,10 +778,11 @@ contract ParetoVault is
             : manager.getNextGamma();
         require(nextGamma > 0, "!nextGamma");
 
+        /// @dev: tau = maturity timestamp - current timestamp
         uint256 riskyPerLp = manager.getRiskyPerLp(
             nextStrikePrice,
             nextVolatility,
-            nextMaturity,
+            uint256(nextMaturity).sub(block.timestamp),
             IERC20(risky).decimals(),
             IERC20(stable).decimals()
         );

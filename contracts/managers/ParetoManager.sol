@@ -191,7 +191,7 @@ contract ParetoManager is IParetoManager, Ownable {
      * @notice Computes the riskyForLp using oracle as spot price
      * @param strike is the strike price in stable
      * @param sigma is the implied volatility
-     * @param maturity is the maturity timestamp in seconds
+     * @param tau is time to maturity in seconds
      *  The conversion to years will happen within `ReplicationMath`
      * @param riskyDecimals is the decimals for the risky asset
      * @param stableDecimals is the decimals for the stable asset
@@ -201,7 +201,7 @@ contract ParetoManager is IParetoManager, Ownable {
     function getRiskyPerLp(
         uint128 strike,
         uint32 sigma,
-        uint32 maturity,
+        uint256 tau,
         uint8 riskyDecimals,
         uint8 stableDecimals
     ) external view override returns (uint256 riskyForLp) {
@@ -212,7 +212,7 @@ contract ParetoManager is IParetoManager, Ownable {
             uint256(_getOraclePrice(false)),
             uint256(strike),
             uint256(sigma),
-            uint256(maturity).sub(block.timestamp),
+            tau,
             scaleFactorRisky,
             scaleFactorStable
         );
