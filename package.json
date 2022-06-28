@@ -5,6 +5,7 @@
   "main": "index.js",
   "scripts": {
     "test": "npx hardhat test",
+    "trace": "npx hardhat test --trace",
     "compile": "npx hardhat compile",
     "clean": "npx hardhat clean",
     "lint:sol": "./node_modules/.bin/solhint -f table contracts/**/*.sol",
@@ -51,7 +52,7 @@
     "ethereum-waffle": "^3.4.4",
     "ethers": "^5.6.9",
     "ganache-cli": "^6.12.2",
-    "hardhat": "^2.9.7",
+    "hardhat": "^2.9.9",
     "hardhat-dependency-compiler": "^1.1.3",
     "hardhat-deploy": "^0.11.10",
     "hardhat-deploy-ethers": "^0.3.0-beta.13",
@@ -75,7 +76,9 @@
     "@primitivefi/rmm-core": "^1.0.0",
     "@primitivefi/rmm-ethers": "^1.2.0-rc.1",
     "@primitivefi/rmm-manager": "^1.1.0",
-    "axios": "^0.27.2"
+    "axios": "^0.27.2",
+    "evm-bn": "^1.1.1",
+    "mathjs": "^10.6.3"
   },
   "mocha": {
     "timeout": 20000

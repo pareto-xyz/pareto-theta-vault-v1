@@ -46,13 +46,16 @@ interface IParetoManager {
 
     /**
      * @notice Risky token of the risky / stable pair
-     * @return Address of the risky token contract
      */
     function risky() external view returns (address);
 
     /**
      * @notice Stable token of the risky / stable pair
-     * @return Address of the stable token contract
      */
     function stable() external view returns (address);
+
+    /**
+     * @notice Multiplier for strike price (2 decimal places)
+     */
+    function strikeMultiplier() external view returns (uint256);
 }

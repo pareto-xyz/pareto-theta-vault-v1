@@ -8,6 +8,7 @@ import {IParetoManager} from "../interfaces/IParetoManager.sol";
 import {Vault} from "../libraries/Vault.sol";
 import {IERC20} from "../interfaces/IERC20.sol";
 import {ReplicationMath} from "../libraries/ReplicationMath.sol";
+import {console} from "hardhat/console.sol";
 
 /**
  * @notice Automated management of Pareto Theta Vaults
@@ -45,7 +46,7 @@ contract ParetoManager is IParetoManager, Ownable {
     bool public immutable riskyFirst;
 
     // Multiplier for strike selection
-    uint256 public strikeMultiplier;
+    uint256 public override strikeMultiplier;
 
     // Strike multiplier has 2 decimal places e.g. 150 = 1.5x spot price
     uint256 private constant STRIKE_DECIMALS = 10**2;
@@ -120,7 +121,7 @@ contract ParetoManager is IParetoManager, Ownable {
      * @return price is the current exchange rate between the two tokens
      */
     function _getOraclePrice(bool stableToRisky)
-        public
+        internal
         view
         returns (uint256 price)
     {
@@ -133,7 +134,7 @@ contract ParetoManager is IParetoManager, Ownable {
 
         // If riskyFirst is true, then the oracle returns price of risky
         // in terms of stable. We need to invert the price
-        if (riskyFirst && stableToRisky) {
+        if ((riskyFirst && stableToRisky) || (!riskyFirst && !stableToRisky)) {
             uint256 fixedOne = 10**oracleDecimals; // unit
             price = (fixedOne * fixedOne) / price;
         }
@@ -142,8 +143,9 @@ contract ParetoManager is IParetoManager, Ownable {
         uint256 outDecimals = stableToRisky
             ? uint256(IERC20(risky).decimals())
             : uint256(IERC20(stable).decimals());
-        uint8 diffDecimals = uint8(outDecimals.sub(oracleDecimals));
-        price = uint256(price).mul(10**diffDecimals);
+
+        price = uint256(price).mul(10**outDecimals).div(10**oracleDecimals);
+        return price;
     }
 
     /**
@@ -190,9 +192,10 @@ contract ParetoManager is IParetoManager, Ownable {
      * @param strike is the strike price in stable
      * @param sigma is the implied volatility
      * @param maturity is the maturity timestamp in seconds
+     *  The conversion to years will happen within `ReplicationMath`
      * @param riskyDecimals is the decimals for the risky asset
      * @param stableDecimals is the decimals for the stable asset
-     * @return riskyForLp is the R1 variable
+     * @return riskyForLp is the R1 variable (in risky decimals)
      * @dev See page 14 of https://primitive.xyz/whitepaper-rmm-01.pdf
      */
     function getRiskyPerLp(
