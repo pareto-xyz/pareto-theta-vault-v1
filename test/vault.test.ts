@@ -314,5 +314,19 @@ runTest("vault", function () {
         fromBn(await vault.totalStable(), stableDecimals)
       ).to.be.equal("100000");
     });
+    it("correct default number of shares", async function () {
+      expect(
+        fromBn(await vault.getAccountShares(this.wallets.alice.address), 18)
+      ).to.be.equal("0");
+    });
+    it("correct default account balance", async function () {
+      let output = await vault.getAccountBalance(this.wallets.alice.address);
+      expect(
+        fromBn(output.riskyAmount, riskyDecimals)
+      ).to.be.equal("0");
+      expect(
+        fromBn(output.stableAmount, stableDecimals)
+        ).to.be.equal("0");
+    });
   });
 });

@@ -1212,14 +1212,18 @@ contract ParetoVault is
         override
         returns (uint256 riskyAmount, uint256 stableAmount)
     {
+        uint256 supply = totalSupply();
+        if (supply == 0) {  // no supply tokens
+          return (0, 0);
+        }
         uint256 sharePriceInRisky = VaultMath.getSharePrice(
-            totalSupply(),
+            supply,
             totalRisky(),
             vaultState.pendingRisky,
             IERC20(risky).decimals()
         );
         uint256 sharePriceInStable = VaultMath.getSharePrice(
-            totalSupply(),
+            supply,
             totalStable(),
             0,
             IERC20(stable).decimals()
