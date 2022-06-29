@@ -20,7 +20,7 @@ export function runTest(description: string, runTests: Function): void {
     beforeEach(async function () {
       const wallets = await hre.ethers.getSigners();
       // three special roles: deployer (owner), keeper, and fee recipient
-      const [deployer, alice, bob, keeper, feeRecipient] = wallets;
+      const [deployer, alice, keeper, feeRecipient] = wallets;
       const loadFixture = createFixtureLoader(wallets as unknown as Wallet[]);
       const loadedFixture = await loadFixture(fixture);
 
@@ -36,7 +36,7 @@ export function runTest(description: string, runTests: Function): void {
         stable: loadedFixture.stable,
       };
 
-      this.wallets = { deployer, keeper, feeRecipient, alice, bob };
+      this.wallets = { deployer, keeper, feeRecipient, alice };
     });
 
     runTests(); // callback function
@@ -44,7 +44,7 @@ export function runTest(description: string, runTests: Function): void {
 }
 
 export async function fixture(
-  [deployer, alice, bob]: Wallet[],
+  [deployer, alice]: Wallet[],
   provider: MockProvider
 ) {
   // Create and deploy PrimitiveFactory
@@ -125,10 +125,9 @@ export async function fixture(
   await stable.mint(deployer.address, parseWei("100000").raw);
   await risky.mint(alice.address, parseWei("100000").raw);
   await stable.mint(alice.address, parseWei("100000").raw);
-  await risky.mint(bob.address, parseWei("100000").raw);
-  await stable.mint(bob.address, parseWei("100000").raw);
-  await risky.approve(primitiveManager.address, constants.MaxUint256);
-  await stable.approve(primitiveManager.address, constants.MaxUint256);
+
+  await risky.increaseAllowance(primitiveManager.address, constants.MaxUint256);
+  await stable.increaseAllowance(primitiveManager.address, constants.MaxUint256);
 
   return {
     primitiveFactory,

@@ -610,7 +610,8 @@ contract ParetoVault is
         // Find cached receipt for user if already deposited in a previous round
         Vault.DepositReceipt memory receipt = depositReceipts[creditor];
 
-        // Compute owed shares from previous rounds
+        // Compute the number of total shares from (1) previous rounds at the price
+        // at which the user deposited, and (2) 
         uint256 shares = receipt.getSharesFromReceipt(
             currRound,
             roundSharePriceInRisky[receipt.round], // round of deposit

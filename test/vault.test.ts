@@ -14,7 +14,7 @@ let stableDecimals: number;
  * dependencies (or mock contracts of) prior to tests written below
  * @dev see test/shared/fixture.ts
  */
-runTest("vault", function () {
+runTest("ParetoVault", function () {
   beforeEach(async function () {
     const ParetoVault = await hre.ethers.getContractFactory("ParetoVault");
     vault = await ParetoVault.deploy(
@@ -29,8 +29,15 @@ runTest("vault", function () {
       200000,
       20000
     );
+    await vault.initRounds(10);
     riskyDecimals = await this.contracts.risky.decimals();
     stableDecimals = await this.contracts.stable.decimals();
+
+    // Grant vault permission from Alice
+    await this.contracts.risky.connect(this.wallets.alice)
+      .increaseAllowance(vault.address, constants.MaxUint256);
+    await this.contracts.stable.connect(this.wallets.alice)
+      .increaseAllowance(vault.address, constants.MaxUint256);
   });
   /**
    * @notice Checks that the public getter functions return default
@@ -91,11 +98,11 @@ runTest("vault", function () {
     it("correct default round", async function () {
       expect((await vault.vaultState()).round).to.be.equal(1);
     });
-    it("check share price in risky for round 1 is 0", async function () {
-      expect(fromBn(await vault.roundSharePriceInRisky(1))).to.be.equal("0");
+    it("check share price in risky at start", async function () {
+      expect(await vault.roundSharePriceInRisky(1)).to.be.equal(1);
     });
-    it("check share price in stable for round 1 is 0", async function () {
-      expect(fromBn(await vault.roundSharePriceInRisky(1))).to.be.equal("0");
+    it("check share price in stable at start", async function () {
+      expect(await vault.roundSharePriceInStable(1)).to.be.equal(1);
     });
     /**
      * @notice Checks that all the parameters inside vaultState are
@@ -283,6 +290,63 @@ runTest("vault", function () {
     });
   });
   /**
+   * @notice Test depositing into vault 
+   */
+  describe("check depositing into vault", function() {
+    it("correct account balances post deposit", async function () {
+      let aliceStart = parseFloat(fromBn(
+        await this.contracts.risky.balanceOf(this.wallets.alice.address), 
+        riskyDecimals
+      ));
+
+      await vault.connect(this.wallets.alice).deposit(
+        toBn("1000", riskyDecimals)
+      );
+      // The vault should gain 1000
+      expect(
+        fromBn(await vault.totalRisky(), riskyDecimals)
+      ).to.be.equal("1000");
+        
+      let aliceEnd = parseFloat(fromBn(
+        await this.contracts.risky.balanceOf(this.wallets.alice.address), 
+        riskyDecimals
+      ));
+      // Alice should lose that amount
+      expect(aliceStart - aliceEnd).to.be.equal(1000);
+    });
+    it("correct change to pending risky post deposit", async function () {
+      let vaultState: any;
+      vaultState = await vault.vaultState();
+      expect(
+        fromBn(vaultState.pendingRisky, riskyDecimals)
+      ).to.be.equal("0");
+      // Perform the deposit
+      await vault.connect(this.wallets.alice).deposit(
+        toBn("1000", riskyDecimals)
+      );
+      vaultState = await vault.vaultState();
+      expect(
+        fromBn(vaultState.pendingRisky, riskyDecimals)
+      ).to.be.equal("1000");
+    });
+    it("correct receipt post deposit", async function () {
+      await vault.connect(this.wallets.alice).deposit(
+        toBn("1000", riskyDecimals)
+      );
+      var receipt = await vault.depositReceipts(this.wallets.alice.address);
+      expect(receipt.round).to.be.equal(1);
+      expect(fromBn(receipt.riskyAmount, riskyDecimals)).to.be.equal("1000");
+    });
+  });
+  /**
+   * @notice Test withdrawing from vault 
+   */
+  describe("check withdrawing from vault", function() {
+    it("test", async function () {
+      console.log(await vault.totalSupply());
+    });
+  });
+  /**
    * @notice Test public getter functions
    */
   describe("check public getter functions", function () {
@@ -313,20 +377,6 @@ runTest("vault", function () {
       expect(
         fromBn(await vault.totalStable(), stableDecimals)
       ).to.be.equal("100000");
-    });
-    it("correct default number of shares", async function () {
-      expect(
-        fromBn(await vault.getAccountShares(this.wallets.alice.address), 18)
-      ).to.be.equal("0");
-    });
-    it("correct default account balance", async function () {
-      let output = await vault.getAccountBalance(this.wallets.alice.address);
-      expect(
-        fromBn(output.riskyAmount, riskyDecimals)
-      ).to.be.equal("0");
-      expect(
-        fromBn(output.stableAmount, stableDecimals)
-        ).to.be.equal("0");
     });
   });
 });

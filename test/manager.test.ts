@@ -12,7 +12,7 @@ let aggregatorV3: Contract;
 let riskyDecimals: number;
 let stableDecimals: number;
 
-describe("Manager contract", function () {
+describe("ParetoManager contract", function () {
   beforeEach(async function () {
     const [deployer] = await hre.ethers.getSigners();
 
