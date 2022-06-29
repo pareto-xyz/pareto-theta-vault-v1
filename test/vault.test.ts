@@ -282,4 +282,37 @@ runTest("vault", function () {
       expect((await vault.managerState()).manualGammaRound).to.be.equal(1);
     });
   });
+  /**
+   * @notice Test public getter functions
+   */
+  describe("check public getter functions", function () {
+    it("correct default amount of total risky assets", async function () {
+      expect(
+        fromBn(await vault.totalRisky(), riskyDecimals)
+      ).to.be.equal("0");
+    });
+    it("correct default amount of total stable assets", async function () {
+      expect(
+        fromBn(await vault.totalStable(), stableDecimals)
+      ).to.be.equal("0");
+    });
+    it("correct non-zero amount of total risky assets", async function () {
+      await this.contracts.risky.mint(
+        vault.address,
+        parseWei("100000").raw
+      );
+      expect(
+        fromBn(await vault.totalRisky(), riskyDecimals)
+      ).to.be.equal("100000");
+    });
+    it("correct non-zero amount of total stable assets", async function () {
+      await this.contracts.stable.mint(
+        vault.address,
+        parseWei("100000").raw
+      );
+      expect(
+        fromBn(await vault.totalStable(), stableDecimals)
+      ).to.be.equal("100000");
+    });
+  });
 });
