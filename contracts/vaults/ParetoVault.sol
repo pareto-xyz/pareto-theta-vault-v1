@@ -11,12 +11,14 @@ import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IParetoManager} from "../interfaces/IParetoManager.sol";
 import {IParetoVault} from "../interfaces/IParetoVault.sol";
 import {IPrimitiveManager} from "../interfaces/IPrimitiveManager.sol";
+import {IPrimitiveFactory} from "@primitivefi/rmm-core/contracts/interfaces/IPrimitiveFactory.sol";
 import {IManagerBase} from "@primitivefi/rmm-manager/contracts/interfaces/IManagerBase.sol";
 import {IPrimitiveEngineView} from "@primitivefi/rmm-core/contracts/interfaces/engine/IPrimitiveEngineView.sol";
 import {EngineAddress} from "@primitivefi/rmm-manager/contracts/libraries/EngineAddress.sol";
 import {Vault} from "../libraries/Vault.sol";
 import {VaultMath} from "../libraries/VaultMath.sol";
 import {UniswapRouter} from "../libraries/UniswapRouter.sol";
+import {console} from "hardhat/console.sol";
 
 /**
  * @notice Based on RibbonVault.sol
@@ -74,11 +76,7 @@ contract ParetoVault is
     // Uniswap parameters
     Vault.UniswapParams public uniswapParams;
 
-    // Address for the risky asset
-    address public override risky;
-
-    // Address for the stable asset
-    address public override stable;
+    Vault.TokenParams public tokenParams;
 
     // Management fee charged on entire AUM
     uint256 public managementFee;
@@ -250,6 +248,7 @@ contract ParetoVault is
      * @param _vaultManager is the address for pareto manager
      * @param _primitiveManager is the address for primitive manager
      * @param _primitiveEngine is the address for primitive engine
+     * @param _primitiveFactory is the address for primitive factory
      * @param _uniswapRouter is the address for uniswap router
      * @param _risky is the address for the risky token
      * @param _stable is the address for the stable token
@@ -262,6 +261,7 @@ contract ParetoVault is
         address _vaultManager,
         address _primitiveManager,
         address _primitiveEngine,
+        address _primitiveFactory,
         address _uniswapRouter,
         address _risky,
         address _stable,
@@ -272,7 +272,9 @@ contract ParetoVault is
         require(_feeRecipient != address(0), "!_feeRecipient");
         require(_feeRecipient != address(0), "!_feeRecipient");
         require(_vaultManager != address(0), "!_vaultManager");
+        require(_primitiveManager != address(0), "!_primitiveManager");
         require(_primitiveEngine != address(0), "!_primitiveEngine");
+        require(_primitiveFactory != address(0), "!_primitiveFactory");
         require(_uniswapRouter != address(0), "!_uniswapRouter");
         require(_risky != address(0), "!_risky");
         require(_stable != address(0), "!_stable");
@@ -292,18 +294,21 @@ contract ParetoVault is
         vaultManager = _vaultManager;
         primitiveParams.manager = _primitiveManager;
         primitiveParams.engine = _primitiveEngine;
+        primitiveParams.factory = _primitiveFactory;
         uniswapParams.router = _uniswapRouter;
         uniswapParams.poolFee = 3000;
-        risky = _risky;
-        stable = _stable;
+        tokenParams.risky = _risky;
+        tokenParams.stable = _stable;
+        tokenParams.riskyDecimals = IERC20(_risky).decimals();
+        tokenParams.stableDecimals = IERC20(_stable).decimals();
         performanceFee = _performanceFee;
         // Compute management to charge per week by yearly amount
         managementFee = _managementFee.mul(Vault.FEE_MULTIPLIER).div(
             WEEKS_PER_YEAR
         );
         // Account for pre-existing funds
-        uint256 riskyBalance = IERC20(risky).balanceOf(address(this));
-        uint256 stableBalance = IERC20(stable).balanceOf(address(this));
+        uint256 riskyBalance = IERC20(tokenParams.risky).balanceOf(address(this));
+        uint256 stableBalance = IERC20(tokenParams.stable).balanceOf(address(this));
         VaultMath.assertUint104(riskyBalance);
         VaultMath.assertUint104(stableBalance);
         vaultState.lastLockedRisky = uint104(riskyBalance);
@@ -434,6 +439,24 @@ contract ParetoVault is
      ***********************************************/
 
     /**
+     * @notice Save gas for writing values into the roundSharePriceIn* map
+     *  Writing `1 makes subsequent writes warm, reducing the gas from 20k to 5k
+     * @param numRounds is the number of rounds to initialize in the map
+     */
+    function initRounds(uint256 numRounds) external nonReentrant {
+        require(numRounds > 0, "!numRounds");
+        uint256 _round = vaultState.round;
+        for (uint256 i = 0; i < numRounds; i++) {
+            uint256 index = _round + i;
+            // Do not overwrite any existing values
+            require(roundSharePriceInRisky[index] == 0, "Initialized");
+            require(roundSharePriceInStable[index] == 0, "Initialized");
+            roundSharePriceInRisky[index] = 1;
+            roundSharePriceInStable[index] = 1;
+        }
+    }
+
+    /**
      * @notice Deposits risky asset from msg.sender.
      * @param riskyAmount is the amount of risky asset to deposit
      */
@@ -444,7 +467,8 @@ contract ParetoVault is
         _processDeposit(riskyAmount, msg.sender);
 
         // Make transfers from tx caller to contract
-        IERC20(risky).safeTransferFrom(msg.sender, address(this), riskyAmount);
+        IERC20(tokenParams.risky)
+          .safeTransferFrom(msg.sender, address(this), riskyAmount);
     }
 
     /**
@@ -599,8 +623,9 @@ contract ParetoVault is
 
     /**
      * @notice Updates receipts and internal variables
-     *  Minting will be done in the next rollover
-     *  Users only deposit risky assets. Swaps to stable assets is internal
+     *  Users only deposit risky assets
+     * @dev No minting nor token transfers are done within this function
+     * @dev Users can call `deposit` (and hence `_processDeposit`) multiple times
      * @param riskyAmount is the amount of risky asset to be deposited
      * @param creditor is the address to receive the deposit
      */
@@ -610,34 +635,47 @@ contract ParetoVault is
         // Find cached receipt for user if already deposited in a previous round
         Vault.DepositReceipt memory receipt = depositReceipts[creditor];
 
-        // Compute the number of total shares from (1) previous rounds at the price
-        // at which the user deposited, and (2) 
-        uint256 shares = receipt.getSharesFromReceipt(
+        // Compute the number of total shares from (1) user's owned shares from
+        // depositing earlier and (2) new shares from depositing this round
+        uint256 totalShares = receipt.getSharesFromReceipt(
             currRound,
             roundSharePriceInRisky[receipt.round], // round of deposit
-            IERC20(risky).decimals()
+            tokenParams.riskyDecimals
         );
 
         uint256 depositAmount = riskyAmount;
+
         // If another pending deposit exists for current round, add to it
         if (receipt.round == currRound) {
-            depositAmount = uint256(receipt.riskyAmount).add(riskyAmount);
+            depositAmount = uint256(receipt.riskyToDeposit).add(riskyAmount);
         }
 
         VaultMath.assertUint104(depositAmount);
-        VaultMath.assertUint128(shares);
+        VaultMath.assertUint128(totalShares);
 
-        // New receipt has total deposited amount from current round and
-        // the number of owned shares from previous rounds
+        /**
+         * @notice New receipt has total deposited amount from current round and
+         *  the number of owned shares from previous rounds
+         * @dev This overwrites the old receipt
+         * `ownedShares` represents the amount of shares owned by msg.sender up to this point
+         * `riskyToDeposit` is the total amount of risky deposited by user that will be put into
+         * vault at the next rollover.
+         * Critically, `riskyToDeposit` is not accounted for in `ownedShares`.
+         * This is the only place in the code where we update receipts.
+         */
         depositReceipts[creditor] = Vault.DepositReceipt({
             round: currRound,
-            riskyAmount: uint104(depositAmount),
-            shares: uint128(shares)
+            riskyToDeposit: uint104(depositAmount),
+            ownedShares: uint128(totalShares)
         });
 
-        // Pending = money waiting to be converted to shares. Use riskyAmount
-        // not depositAmount as a portion has already been accounted for
-        // This must be in risky asset. Users cannot deposit stable
+        /**
+         * @notice Pending is amount of asset waiting to be converted to shares.
+         * @dev Use `riskyAmount` not `depositAmount` since a portion of `depositAmount` has
+         * already been accounted for in a previous call to `_processDeposit`. If not then
+         * `riskyAmount = depositAmount`.
+         * @dev This must be in risky asset. Users cannot deposit stable
+         */
         uint256 newPendingRisky = uint256(vaultState.pendingRisky).add(
             riskyAmount
         );
@@ -708,12 +746,12 @@ contract ParetoVault is
         uint256 riskyWithdrawn = VaultMath.shareToAsset(
             sharesToWithdraw,
             roundSharePriceInRisky[withdrawRound],
-            IERC20(risky).decimals()
+            tokenParams.riskyDecimals
         );
         uint256 stableWithdrawn = VaultMath.shareToAsset(
             sharesToWithdraw,
             roundSharePriceInStable[withdrawRound],
-            IERC20(stable).decimals()
+            tokenParams.stableDecimals
         );
 
         require(riskyWithdrawn > 0, "!riskyWithdrawn");
@@ -730,8 +768,8 @@ contract ParetoVault is
         _burn(address(this), sharesToWithdraw);
 
         // Transfer tokens from contract to user
-        IERC20(risky).safeTransfer(msg.sender, riskyWithdrawn);
-        IERC20(stable).safeTransfer(msg.sender, stableWithdrawn);
+        IERC20(tokenParams.risky).safeTransfer(msg.sender, riskyWithdrawn);
+        IERC20(tokenParams.stable).safeTransfer(msg.sender, stableWithdrawn);
 
         return (riskyWithdrawn, stableWithdrawn);
     }
@@ -784,8 +822,8 @@ contract ParetoVault is
             nextStrikePrice,
             nextVolatility,
             uint256(nextMaturity).sub(block.timestamp),
-            IERC20(risky).decimals(),
-            IERC20(stable).decimals()
+            tokenParams.riskyDecimals,
+            tokenParams.stableDecimals
         );
 
         // Define params of next pool
@@ -794,8 +832,7 @@ contract ParetoVault is
             sigma: nextVolatility,
             maturity: nextMaturity,
             gamma: nextGamma,
-            riskyPerLp: riskyPerLp,
-            delLiquidity: poolState.currPoolParams.delLiquidity
+            riskyPerLp: riskyPerLp
         });
 
         // Deploy the next Primitive pool; this does not perform rollover
@@ -845,8 +882,8 @@ contract ParetoVault is
             uint256 newSharePriceInStable;
 
             // Get the amount of assets owned by current token
-            uint256 currRisky = IERC20(risky).balanceOf(address(this));
-            uint256 currStable = IERC20(stable).balanceOf(address(this));
+            uint256 currRisky = IERC20(tokenParams.risky).balanceOf(address(this));
+            uint256 currStable = IERC20(tokenParams.stable).balanceOf(address(this));
 
             // Compute supply of Pareto tokens minus what is queued for withdrawal
             uint256 currSupply = totalSupply().sub(
@@ -882,13 +919,13 @@ contract ParetoVault is
                     currSupply,
                     currRisky.sub(vaultState.lastQueuedWithdrawRisky),
                     vaultState.pendingRisky,
-                    IERC20(risky).decimals()
+                    tokenParams.riskyDecimals
                 );
                 newSharePriceInStable = VaultMath.getSharePrice(
                     currSupply,
                     currStable.sub(vaultState.lastQueuedWithdrawStable),
                     0,
-                    IERC20(stable).decimals()
+                    tokenParams.stableDecimals
                 );
 
                 // Update the amount of risky and stable asset to be withdrawn
@@ -897,14 +934,14 @@ contract ParetoVault is
                     VaultMath.shareToAsset(
                         vaultState.currQueuedWithdrawShares,
                         newSharePriceInRisky,
-                        IERC20(risky).decimals()
+                        tokenParams.riskyDecimals
                     )
                 );
                 queuedWithdrawStable = vaultState.lastQueuedWithdrawStable.add(
                     VaultMath.shareToAsset(
                         vaultState.currQueuedWithdrawShares,
                         newSharePriceInStable,
-                        IERC20(stable).decimals()
+                        tokenParams.stableDecimals
                     )
                 );
 
@@ -913,7 +950,7 @@ contract ParetoVault is
                 sharesToMint = VaultMath.assetToShare(
                     vaultState.pendingRisky,
                     newSharePriceInRisky,
-                    IERC20(risky).decimals()
+                    tokenParams.riskyDecimals
                 );
             }
 
@@ -952,10 +989,12 @@ contract ParetoVault is
 
         // Make transfers for fee
         if (feeInRisky > 0) {
-            IERC20(risky).safeTransfer(payable(feeRecipient), feeInRisky);
+            IERC20(tokenParams.risky)
+              .safeTransfer(payable(feeRecipient), feeInRisky);
         }
         if (feeInStable > 0) {
-            IERC20(stable).safeTransfer(payable(feeRecipient), feeInStable);
+            IERC20(tokenParams.stable)
+              .safeTransfer(payable(feeRecipient), feeInStable);
         }
 
         return (
@@ -1073,8 +1112,8 @@ contract ParetoVault is
     {
         stableFromSwap = UniswapRouter.swap(
             address(this),
-            risky,
-            stable,
+            tokenParams.risky,
+            tokenParams.stable,
             uniswapParams.poolFee,
             riskyToSwap,
             0,
@@ -1093,8 +1132,8 @@ contract ParetoVault is
     {
         riskyFromSwap = UniswapRouter.swap(
             address(this),
-            stable,
-            risky,
+            tokenParams.stable,
+            tokenParams.risky,
             uniswapParams.poolFee,
             stableToSwap,
             0,
@@ -1126,16 +1165,30 @@ contract ParetoVault is
         internal
         returns (bytes32)
     {
+        uint256 factor = IPrimitiveFactory(primitiveParams.factory).MIN_LIQUIDITY_FACTOR();
+        uint256 lowestDecimals = tokenParams.riskyDecimals > tokenParams.stableDecimals 
+          ? tokenParams.stableDecimals 
+          : tokenParams.riskyDecimals;
+        uint256 minLiquidity = 10**(lowestDecimals / factor);
+        
+        console.log(tokenParams.risky);
+        console.log(tokenParams.stable);
+        console.logUint(poolParams.strike);
+        console.logUint(poolParams.sigma);
+        console.logUint(poolParams.maturity);
+        console.logUint(poolParams.gamma);
+        console.logUint(poolParams.riskyPerLp);
+        console.logUint(minLiquidity);
         (bytes32 poolId, , ) = IPrimitiveManager(primitiveParams.manager)
             .create(
-                risky,
-                stable,
+                tokenParams.risky,
+                tokenParams.stable,
                 poolParams.strike,
                 poolParams.sigma,
                 poolParams.maturity,
                 poolParams.gamma,
                 poolParams.riskyPerLp,
-                poolParams.delLiquidity
+                minLiquidity
             );
         return poolId;
     }
@@ -1156,8 +1209,8 @@ contract ParetoVault is
         uint256 liquidity = IPrimitiveManager(primitiveParams.manager).allocate(
             address(this),
             poolId,
-            risky,
-            stable,
+            tokenParams.risky,
+            tokenParams.stable,
             riskyAmount,
             stableAmount,
             false,
@@ -1214,30 +1267,31 @@ contract ParetoVault is
         returns (uint256 riskyAmount, uint256 stableAmount)
     {
         uint256 supply = totalSupply();
-        if (supply == 0) {  // no supply tokens
-          return (0, 0);
+        if (supply == 0) {
+            // no supply tokens
+            return (0, 0);
         }
         uint256 sharePriceInRisky = VaultMath.getSharePrice(
             supply,
             totalRisky(),
             vaultState.pendingRisky,
-            IERC20(risky).decimals()
+            tokenParams.riskyDecimals
         );
         uint256 sharePriceInStable = VaultMath.getSharePrice(
             supply,
             totalStable(),
             0,
-            IERC20(stable).decimals()
+            tokenParams.stableDecimals
         );
         riskyAmount = VaultMath.shareToAsset(
             getAccountShares(account),
             sharePriceInRisky,
-            IERC20(risky).decimals()
+            tokenParams.riskyDecimals
         );
         stableAmount = VaultMath.shareToAsset(
             getAccountShares(account),
             sharePriceInStable,
-            IERC20(stable).decimals()
+            tokenParams.stableDecimals
         );
         return (riskyAmount, stableAmount);
     }
@@ -1256,7 +1310,7 @@ contract ParetoVault is
         shares = receipt.getSharesFromReceipt(
             vaultState.round,
             roundSharePriceInRisky[receipt.round],
-            IERC20(risky).decimals()
+            tokenParams.riskyDecimals
         );
         return shares;
     }
@@ -1268,7 +1322,7 @@ contract ParetoVault is
     function totalRisky() public view returns (uint256) {
         return
             uint256(vaultState.lockedRisky).add(
-                IERC20(risky).balanceOf(address(this))
+                IERC20(tokenParams.risky).balanceOf(address(this))
             );
     }
 
@@ -1279,8 +1333,16 @@ contract ParetoVault is
     function totalStable() public view returns (uint256) {
         return
             uint256(vaultState.lockedStable).add(
-                IERC20(stable).balanceOf(address(this))
+                IERC20(tokenParams.stable).balanceOf(address(this))
             );
+    }
+
+    function risky() external override view returns (address) {
+      return tokenParams.risky;
+    }
+
+    function stable() external override view returns (address) {
+      return tokenParams.stable;
     }
 
     /************************************************

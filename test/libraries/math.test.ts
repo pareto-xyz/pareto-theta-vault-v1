@@ -1,6 +1,5 @@
 import hre, { ethers } from "hardhat";
 import { Contract } from "ethers";
-import { parseWei } from "web3-units";
 import expect from "../shared/expect";
 import { fromBn, toBn } from "evm-bn";
 
@@ -12,9 +11,11 @@ let vaultMath: Contract;
 describe("VaultMath contract", () => {
   beforeEach(async function () {
     const [deployer] = await hre.ethers.getSigners();
-    const TestVaultMath = 
-      await ethers.getContractFactory("TestVaultMath", deployer);
-    vaultMath = await TestVaultMath.deploy()
+    const TestVaultMath = await ethers.getContractFactory(
+      "TestVaultMath",
+      deployer
+    );
+    vaultMath = await TestVaultMath.deploy();
   });
   describe("share to price conversions", function () {
     it("correct asset to share calculation", async function () {

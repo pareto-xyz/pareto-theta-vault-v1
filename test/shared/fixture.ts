@@ -97,7 +97,9 @@ export async function fixture(
     deployer
   );
   const aggregatorV3 = await AggregatorV3.deploy();
-  aggregatorV3.setLatestAnswer(1); // initialize price as 1
+  const decimals = await aggregatorV3.decimals();
+  // initialize as equal prices
+  aggregatorV3.setLatestAnswer(parseWei("1", decimals).raw);
 
   // Create and deploy Mock Uniswap router
   const SwapRouter = await ethers.getContractFactory(
@@ -127,7 +129,10 @@ export async function fixture(
   await stable.mint(alice.address, parseWei("100000").raw);
 
   await risky.increaseAllowance(primitiveManager.address, constants.MaxUint256);
-  await stable.increaseAllowance(primitiveManager.address, constants.MaxUint256);
+  await stable.increaseAllowance(
+    primitiveManager.address,
+    constants.MaxUint256
+  );
 
   return {
     primitiveFactory,

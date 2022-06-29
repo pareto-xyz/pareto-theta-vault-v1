@@ -55,17 +55,17 @@ library VaultMath {
             // If receipt is from earlier round, we need to add together shares
             // accumulated in the receipt and shares from current round
             /// @dev Shares stored in the receipt are updated over rounds
-            uint256 currShares = assetToShare(
-                depositReceipt.riskyAmount,
+            uint256 newShares = assetToShare(
+                depositReceipt.riskyToDeposit,
                 sharePrice,
                 decimals
             );
             // added with shares from current round
-            return uint256(depositReceipt.shares).add(currShares);
+            return uint256(depositReceipt.ownedShares).add(newShares);
         } else {
-            // If receipt is from current round, shares from the current round 
-            // have already been added into the `shares` attribute
-            return depositReceipt.shares;
+            // If receipt is from current round, shares from the current round
+            // have already been added into the `ownedShares` attribute
+            return depositReceipt.ownedShares;
         }
     }
 

@@ -26,6 +26,19 @@ library Vault {
     }
 
     /**
+     * @param risky is the address of the risky asset
+     * @param stable is the address of the stable asset
+     * @param riskyDecimals is the decimals for the risky asset
+     * @param stableDecimals is the decimals for the stable asset
+     */
+    struct TokenParams {
+        address risky;
+        address stable;
+        uint8 riskyDecimals;
+        uint8 stableDecimals;
+    }
+
+    /**
      * @param strike is the strike price of the pool
      * @param sigma is the implied volatility of the pool
      * @param maturity is the timestamp when the option pool expires
@@ -41,7 +54,6 @@ library Vault {
         uint32 maturity;
         uint32 gamma;
         uint256 riskyPerLp;
-        uint256 delLiquidity;
     }
 
     /**
@@ -98,13 +110,15 @@ library Vault {
     /**
      * @param round is the round number with a maximum of 65535 rounds
      *  Assuming round is 1 week, max is 1256 yrs
-     * @param riskyAmount is the deposit amount of the risky asset
-     * @param shares is the amount of shares owned by user
+     * @param riskyToDeposit is the deposit amount of the risky asset
+     *  to be converted into shares at rollover
+     * @param ownedShares is the amount of shares owned by user from
+     *  depositing in past rounds
      */
     struct DepositReceipt {
         uint16 round;
-        uint104 riskyAmount;
-        uint128 shares;
+        uint104 riskyToDeposit;
+        uint128 ownedShares;
     }
 
     /**
@@ -147,9 +161,11 @@ library Vault {
     /**
      * @param manager is the address for the Primitive manager contract
      * @param engine is the address for the Primitive engine contract
+     * @param factory is the address for the Primitive factory contract
      */
     struct PrimitiveParams {
         address manager;
         address engine;
+        address factory;
     }
 }

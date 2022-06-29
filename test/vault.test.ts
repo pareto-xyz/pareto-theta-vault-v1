@@ -23,6 +23,7 @@ runTest("ParetoVault", function () {
       this.contracts.vaultManager.address,
       this.contracts.primitiveManager.address,
       this.contracts.primitiveEngine.address,
+      this.contracts.primitiveFactory.address,
       this.contracts.swapRouter.address,
       this.contracts.risky.address,
       this.contracts.stable.address,
@@ -34,9 +35,11 @@ runTest("ParetoVault", function () {
     stableDecimals = await this.contracts.stable.decimals();
 
     // Grant vault permission from Alice
-    await this.contracts.risky.connect(this.wallets.alice)
+    await this.contracts.risky
+      .connect(this.wallets.alice)
       .increaseAllowance(vault.address, constants.MaxUint256);
-    await this.contracts.stable.connect(this.wallets.alice)
+    await this.contracts.stable
+      .connect(this.wallets.alice)
       .increaseAllowance(vault.address, constants.MaxUint256);
   });
   /**
@@ -78,10 +81,12 @@ runTest("ParetoVault", function () {
       );
     });
     it("correct default risky address", async function () {
-      expect(await vault.risky()).to.be.equal(this.contracts.risky.address);
+      let tokenParams = await vault.tokenParams();
+      expect(tokenParams.risky).to.be.equal(this.contracts.risky.address);
     });
     it("correct default stable address", async function () {
-      expect(await vault.stable()).to.be.equal(this.contracts.stable.address);
+      let tokenParams = await vault.tokenParams();
+      expect(tokenParams.stable).to.be.equal(this.contracts.stable.address);
     });
     it("correct default management fee", async function () {
       let expectedFee = 20 / 52.142857;
@@ -290,60 +295,113 @@ runTest("ParetoVault", function () {
     });
   });
   /**
-   * @notice Test depositing into vault 
+   * @notice Test depositing into vault
+   * @dev This does not test rollover nor pool creation
    */
-  describe("check depositing into vault", function() {
+  describe("check depositing into vault", function () {
     it("correct account balances post deposit", async function () {
-      let aliceStart = parseFloat(fromBn(
-        await this.contracts.risky.balanceOf(this.wallets.alice.address), 
-        riskyDecimals
-      ));
-
-      await vault.connect(this.wallets.alice).deposit(
-        toBn("1000", riskyDecimals)
+      let aliceStart = parseFloat(
+        fromBn(
+          await this.contracts.risky.balanceOf(this.wallets.alice.address),
+          riskyDecimals
+        )
       );
+      await vault.connect(this.wallets.alice)
+        .deposit(toBn("1000", riskyDecimals));
       // The vault should gain 1000
-      expect(
-        fromBn(await vault.totalRisky(), riskyDecimals)
-      ).to.be.equal("1000");
-        
-      let aliceEnd = parseFloat(fromBn(
-        await this.contracts.risky.balanceOf(this.wallets.alice.address), 
-        riskyDecimals
-      ));
+      expect(fromBn(await vault.totalRisky(), riskyDecimals)).to.be.equal(
+        "1000"
+      );
+
+      let aliceEnd = parseFloat(
+        fromBn(
+          await this.contracts.risky.balanceOf(this.wallets.alice.address),
+          riskyDecimals
+        )
+      );
       // Alice should lose that amount
       expect(aliceStart - aliceEnd).to.be.equal(1000);
     });
-    it("correct change to pending risky post deposit", async function () {
+    it("correct change to pending risky post single deposit", async function () {
       let vaultState: any;
       vaultState = await vault.vaultState();
-      expect(
-        fromBn(vaultState.pendingRisky, riskyDecimals)
-      ).to.be.equal("0");
+      expect(fromBn(vaultState.pendingRisky, riskyDecimals)).to.be.equal("0");
       // Perform the deposit
-      await vault.connect(this.wallets.alice).deposit(
-        toBn("1000", riskyDecimals)
-      );
+      await vault
+        .connect(this.wallets.alice)
+        .deposit(toBn("1000", riskyDecimals));
       vaultState = await vault.vaultState();
-      expect(
-        fromBn(vaultState.pendingRisky, riskyDecimals)
-      ).to.be.equal("1000");
-    });
-    it("correct receipt post deposit", async function () {
-      await vault.connect(this.wallets.alice).deposit(
-        toBn("1000", riskyDecimals)
+      expect(fromBn(vaultState.pendingRisky, riskyDecimals)).to.be.equal(
+        "1000"
       );
+    });
+    it("correct receipt post single deposit", async function () {
+      await vault
+        .connect(this.wallets.alice)
+        .deposit(toBn("1000", riskyDecimals));
       var receipt = await vault.depositReceipts(this.wallets.alice.address);
       expect(receipt.round).to.be.equal(1);
-      expect(fromBn(receipt.riskyAmount, riskyDecimals)).to.be.equal("1000");
+      expect(fromBn(receipt.riskyToDeposit, riskyDecimals)).to.be.equal("1000");
+      expect(fromBn(receipt.ownedShares, 1)).to.be.equal("0");
+    });
+    it("correct account balances post double deposit", async function () {
+      let aliceStart = parseFloat(
+        fromBn(
+          await this.contracts.risky.balanceOf(this.wallets.alice.address),
+          riskyDecimals
+        )
+      );
+      await vault
+        .connect(this.wallets.alice)
+        .deposit(toBn("1000", riskyDecimals));
+      await vault
+        .connect(this.wallets.alice)
+        .deposit(toBn("500", riskyDecimals));
+      let aliceEnd = parseFloat(
+        fromBn(
+          await this.contracts.risky.balanceOf(this.wallets.alice.address),
+          riskyDecimals
+        )
+      );
+      // Alice should lose that amount
+      expect(aliceStart - aliceEnd).to.be.equal(1500);
+    });
+    it("correct change to pending risky post double deposit", async function () {
+      let vaultState: any;
+      vaultState = await vault.vaultState();
+      expect(fromBn(vaultState.pendingRisky, riskyDecimals)).to.be.equal("0");
+      await vault
+        .connect(this.wallets.alice)
+        .deposit(toBn("1000", riskyDecimals));
+      await vault
+        .connect(this.wallets.alice)
+        .deposit(toBn("500", riskyDecimals));
+      vaultState = await vault.vaultState();
+      expect(fromBn(vaultState.pendingRisky, riskyDecimals)).to.be.equal(
+        "1500"
+      );
+    });
+    it("correct receipt post double deposit", async function () {
+      await vault
+        .connect(this.wallets.alice)
+        .deposit(toBn("1000", riskyDecimals));
+      await vault
+        .connect(this.wallets.alice)
+        .deposit(toBn("500", riskyDecimals));
+      var receipt = await vault.depositReceipts(this.wallets.alice.address);
+      expect(receipt.round).to.be.equal(1);
+      expect(fromBn(receipt.riskyToDeposit, riskyDecimals)).to.be.equal("1500");
+      expect(fromBn(receipt.ownedShares, 1)).to.be.equal("0");
     });
   });
   /**
-   * @notice Test withdrawing from vault 
+   * @notice Test vault deployment
+   * @dev This will call `_prepareNextPool` as well as `_deployPool`
    */
-  describe("check withdrawing from vault", function() {
+  describe("check vault deployment", function () {
     it("test", async function () {
-      console.log(await vault.totalSupply());
+      console.log("hi");
+      await vault.connect(this.wallets.keeper).deployVault();
     });
   });
   /**
@@ -351,32 +409,24 @@ runTest("ParetoVault", function () {
    */
   describe("check public getter functions", function () {
     it("correct default amount of total risky assets", async function () {
-      expect(
-        fromBn(await vault.totalRisky(), riskyDecimals)
-      ).to.be.equal("0");
+      expect(fromBn(await vault.totalRisky(), riskyDecimals)).to.be.equal("0");
     });
     it("correct default amount of total stable assets", async function () {
-      expect(
-        fromBn(await vault.totalStable(), stableDecimals)
-      ).to.be.equal("0");
+      expect(fromBn(await vault.totalStable(), stableDecimals)).to.be.equal(
+        "0"
+      );
     });
     it("correct non-zero amount of total risky assets", async function () {
-      await this.contracts.risky.mint(
-        vault.address,
-        parseWei("100000").raw
+      await this.contracts.risky.mint(vault.address, parseWei("100000").raw);
+      expect(fromBn(await vault.totalRisky(), riskyDecimals)).to.be.equal(
+        "100000"
       );
-      expect(
-        fromBn(await vault.totalRisky(), riskyDecimals)
-      ).to.be.equal("100000");
     });
     it("correct non-zero amount of total stable assets", async function () {
-      await this.contracts.stable.mint(
-        vault.address,
-        parseWei("100000").raw
+      await this.contracts.stable.mint(vault.address, parseWei("100000").raw);
+      expect(fromBn(await vault.totalStable(), stableDecimals)).to.be.equal(
+        "100000"
       );
-      expect(
-        fromBn(await vault.totalStable(), stableDecimals)
-      ).to.be.equal("100000");
     });
   });
 });

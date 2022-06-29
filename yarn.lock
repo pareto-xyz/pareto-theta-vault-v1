@@ -9757,7 +9757,7 @@ web3-shh@1.2.11:
 
 web3-units@^1.4.0:
   version "1.4.0"
-  resolved "https://registry.npmjs.org/web3-units/-/web3-units-1.4.0.tgz"
+  resolved "https://registry.yarnpkg.com/web3-units/-/web3-units-1.4.0.tgz#bd10d35db6ff1f0c8067a248736ed0e61a1df5fb"
   integrity sha512-7bpyX3txBgiWgHjOxXkikwegn9Zx5IND/DJnzciGuythWWiWdkO4ZVm8cEdCvt8gM/l55eXEsxCXytTsKlguAg==
   dependencies:
     "@ethersproject/bignumber" "^5.4.0"
