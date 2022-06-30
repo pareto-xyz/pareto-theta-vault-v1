@@ -482,6 +482,40 @@ runTest("ParetoVault", function () {
   });
 
   /**
+   * @notice Test vault rollover
+   * @dev This will call `_prepareRollover` as well as `_depositLiquidity`
+   *  and `_getVaultFees`
+   */
+  describe("check vault rollover", function () {
+    beforeEach(async function () {
+      await this.contracts.risky.mint(vault.address, parseWei("1000000").raw);
+      await this.contracts.stable.mint(vault.address, parseWei("1000000").raw);
+    });
+    it("check keeper can rollover vault", async function () {
+      await vault.connect(this.wallets.keeper).deployVault();
+      await vault.connect(this.wallets.keeper).rollover();
+    });
+    it("check user cannot rollover vault", async function () {
+      await vault.connect(this.wallets.keeper).deployVault();
+      try {
+        await vault.connect(this.wallets.alice).rollover();
+        expect(false);
+      } catch {
+        expect(true);
+      }
+    });
+    it("check owner cannot rollover vault", async function () {
+      await vault.connect(this.wallets.keeper).deployVault();
+      try {
+        await vault.connect(this.wallets.deployer).rollover();
+        expect(false);
+      } catch {
+        expect(true);
+      }
+    });
+  });
+
+  /**
    * @notice Test public getter functions
    */
   describe("check public getter functions", function () {
