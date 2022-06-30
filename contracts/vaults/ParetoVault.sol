@@ -281,12 +281,12 @@ contract ParetoVault is
         require(_managementFee > 0, "!_managementFee");
         require(_performanceFee > 0, "!_performanceFee");
         require(
-          _managementFee < 100 * 10**Vault.FEE_DECIMALS,
-          "_managementFee > 100"
+            _managementFee < 100 * 10**Vault.FEE_DECIMALS,
+            "_managementFee > 100"
         );
         require(
-          _performanceFee < 100 * 10**Vault.FEE_DECIMALS, 
-          "_performanceFee > 100"
+            _performanceFee < 100 * 10**Vault.FEE_DECIMALS,
+            "_performanceFee > 100"
         );
         require(
             IParetoManager(_vaultManager).risky() == _risky,

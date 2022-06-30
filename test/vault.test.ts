@@ -28,8 +28,8 @@ runTest("ParetoVault", function () {
       this.contracts.swapRouter.address,
       this.contracts.risky.address,
       this.contracts.stable.address,
-      20000000,  /// @dev 20% performance fee
-      2000000    /// @dev 2% yearly management fee
+      20000000, /// @dev 20% performance fee
+      2000000 /// @dev 2% yearly management fee
     );
     await vault.initRounds(10);
 
@@ -525,10 +525,18 @@ runTest("ParetoVault", function () {
     });
     it("check vault state post rollover", async function () {
       // Get the balance of the vault prior to deployment or rollover
-      let vaultRisky = parseFloat(fromBn(
-        await this.contracts.risky.balanceOf(vault.address), riskyDecimals));
-      let vaultStable = parseFloat(fromBn(
-        await this.contracts.stable.balanceOf(vault.address), stableDecimals));
+      let vaultRisky = parseFloat(
+        fromBn(
+          await this.contracts.risky.balanceOf(vault.address),
+          riskyDecimals
+        )
+      );
+      let vaultStable = parseFloat(
+        fromBn(
+          await this.contracts.stable.balanceOf(vault.address),
+          stableDecimals
+        )
+      );
 
       // Keeper deploys fresh vault and immediately rolls over
       await vault.connect(this.wallets.keeper).deployVault();
@@ -551,28 +559,35 @@ runTest("ParetoVault", function () {
 
       // Locked assets = vault assets - fees
       let lockedRisky = parseFloat(
-        fromBn(vaultState.lockedRisky, riskyDecimals));
+        fromBn(vaultState.lockedRisky, riskyDecimals)
+      );
       let lockedStable = parseFloat(
-        fromBn(vaultState.lockedStable, stableDecimals));
+        fromBn(vaultState.lockedStable, stableDecimals)
+      );
       let lastLockedRisky = parseFloat(
-        fromBn(vaultState.lastLockedRisky, riskyDecimals));
+        fromBn(vaultState.lastLockedRisky, riskyDecimals)
+      );
       let lastLockedStable = parseFloat(
-        fromBn(vaultState.lastLockedStable, stableDecimals));
+        fromBn(vaultState.lastLockedStable, stableDecimals)
+      );
 
       // Compute performance and management fee percentages
-      let managementFeePerWeek = 
-        parseFloat(fromBn(await vault.managementFee(), 6));
-      let performanceFee = 
-        parseFloat(fromBn(await vault.performanceFee(), 6));
+      let managementFeePerWeek = parseFloat(
+        fromBn(await vault.managementFee(), 6)
+      );
+      let performanceFee = parseFloat(fromBn(await vault.performanceFee(), 6));
       let managementPercPerWeek = managementFeePerWeek / 100;
       let performancePerc = performanceFee / 100;
 
       // Compute amount of fees for both risky and stable
-      let managementRisky = (vaultRisky - lastLockedRisky) * managementPercPerWeek;
+      let managementRisky =
+        (vaultRisky - lastLockedRisky) * managementPercPerWeek;
       let performanceRisky = (vaultRisky - lastLockedRisky) * performancePerc;
       let feeRisky = managementRisky + performanceRisky;
-      let managementStable = (vaultStable - lastLockedStable) * managementPercPerWeek;
-      let performanceStable = (vaultStable - lastLockedStable) * performancePerc;
+      let managementStable =
+        (vaultStable - lastLockedStable) * managementPercPerWeek;
+      let performanceStable =
+        (vaultStable - lastLockedStable) * performancePerc;
       let feeStable = managementStable + performanceStable;
 
       // check locked amount is the fee amount!
@@ -599,7 +614,7 @@ runTest("ParetoVault", function () {
       // Check pool identifiers match expected
       expect(poolState.currPoolId).to.be.equal(cachePoolId);
       expect(poolState.nextPoolId).to.be.equal(emptyPoolId);
-      
+
       // Pool State now stores liquidity held by contract
       expect(
         parseFloat(fromBn(poolState.currLiquidity, shareDecimals))
