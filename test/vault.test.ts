@@ -605,6 +605,16 @@ runTest("ParetoVault", function () {
         parseFloat(fromBn(poolState.currLiquidity, shareDecimals))
       ).to.be.greaterThan(0);
     });
+    it("check zero shares minted post rollover without deposits", async function () {
+      expect(
+        fromBn(await vault.balanceOf(vault.address), shareDecimals)
+      ).to.be.equal("0");
+      await vault.connect(this.wallets.keeper).deployVault();
+      await vault.connect(this.wallets.keeper).rollover();
+      expect(
+        fromBn(await vault.balanceOf(vault.address), shareDecimals)
+      ).to.be.equal("0");
+    });
   });
 
   /**
