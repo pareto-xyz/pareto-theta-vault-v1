@@ -31,6 +31,7 @@ runTest("ParetoVault", function () {
       20000
     );
     await vault.initRounds(10);
+
     riskyDecimals = await this.contracts.risky.decimals();
     stableDecimals = await this.contracts.stable.decimals();
 
@@ -42,6 +43,7 @@ runTest("ParetoVault", function () {
       .connect(this.wallets.alice)
       .increaseAllowance(vault.address, constants.MaxUint256);
   });
+
   /**
    * @notice Checks that the public getter functions return default
    *  values as expected
@@ -154,9 +156,6 @@ runTest("ParetoVault", function () {
       expect(
         fromBn(poolState.currPoolParams.riskyPerLp, riskyDecimals)
       ).to.be.equal("0");
-      expect(fromBn(poolState.currPoolParams.delLiquidity, 18)).to.be.equal(
-        "0"
-      );
       // Check the parameters in the next pool parameters
       expect(
         fromBn(poolState.nextPoolParams.strike, stableDecimals)
@@ -167,9 +166,6 @@ runTest("ParetoVault", function () {
       expect(
         fromBn(poolState.nextPoolParams.riskyPerLp, riskyDecimals)
       ).to.be.equal("0");
-      expect(fromBn(poolState.nextPoolParams.delLiquidity, 18)).to.be.equal(
-        "0"
-      );
     });
     /**
      * @notice Checks that all the parameters in manager state are
@@ -223,6 +219,7 @@ runTest("ParetoVault", function () {
       ).to.be.equal("0");
     });
   });
+
   /**
    * @notice Tests owner functionalities in setter functions
    */
@@ -260,6 +257,7 @@ runTest("ParetoVault", function () {
       );
     });
   });
+
   /**
    * @notice Tests keeper functionalities in setter functions
    */
@@ -294,6 +292,7 @@ runTest("ParetoVault", function () {
       expect((await vault.managerState()).manualGammaRound).to.be.equal(1);
     });
   });
+
   /**
    * @notice Test depositing into vault
    * @dev This does not test rollover nor pool creation
@@ -394,16 +393,38 @@ runTest("ParetoVault", function () {
       expect(fromBn(receipt.ownedShares, 1)).to.be.equal("0");
     });
   });
+
   /**
    * @notice Test vault deployment
    * @dev This will call `_prepareNextPool` as well as `_deployPool`
    */
   describe("check vault deployment", function () {
-    it("test", async function () {
-      console.log("hi");
+    beforeEach(async function () {
+      // Allocate tokens into the vault (simulates a user having deposited)
+      await this.contracts.risky.mint(vault.address, parseWei("1000000").raw);
+      await this.contracts.stable.mint(vault.address, parseWei("1000000").raw);
+    });
+    it("check keeper can deploy vault", async function () {
       await vault.connect(this.wallets.keeper).deployVault();
     });
+    it("User cannot deploy vault", async function () {
+      try {
+        await vault.connect(this.wallets.alice).deployVault();
+        expect(false); // must fail
+      } catch {
+        expect(true);
+      }
+    });
+    it("Owner cannot deploy vault", async function () {
+      try {
+        await vault.deployVault();
+        expect(false); // must fail
+      } catch {
+        expect(true);
+      }
+    });
   });
+
   /**
    * @notice Test public getter functions
    */

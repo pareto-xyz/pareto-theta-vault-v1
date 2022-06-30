@@ -306,6 +306,11 @@ contract ParetoVault is
         managementFee = _managementFee.mul(Vault.FEE_MULTIPLIER).div(
             WEEKS_PER_YEAR
         );
+
+        // Approval for manager to transfer tokens
+        IERC20(_risky).safeIncreaseAllowance(_primitiveManager, type(uint256).max);
+        IERC20(_stable).safeIncreaseAllowance(_primitiveManager, type(uint256).max);
+
         // Account for pre-existing funds
         uint256 riskyBalance = IERC20(tokenParams.risky).balanceOf(address(this));
         uint256 stableBalance = IERC20(tokenParams.stable).balanceOf(address(this));
@@ -313,6 +318,7 @@ contract ParetoVault is
         VaultMath.assertUint104(stableBalance);
         vaultState.lastLockedRisky = uint104(riskyBalance);
         vaultState.lastLockedStable = uint104(stableBalance);
+
         // Initialize round
         vaultState.round = 1;
     }
@@ -1169,16 +1175,8 @@ contract ParetoVault is
         uint256 lowestDecimals = tokenParams.riskyDecimals > tokenParams.stableDecimals 
           ? tokenParams.stableDecimals 
           : tokenParams.riskyDecimals;
-        uint256 minLiquidity = 10**(lowestDecimals / factor);
-        
-        console.log(tokenParams.risky);
-        console.log(tokenParams.stable);
-        console.logUint(poolParams.strike);
-        console.logUint(poolParams.sigma);
-        console.logUint(poolParams.maturity);
-        console.logUint(poolParams.gamma);
-        console.logUint(poolParams.riskyPerLp);
-        console.logUint(minLiquidity);
+        uint256 minLiquidity = 10**(lowestDecimals / factor + 1);
+
         (bytes32 poolId, , ) = IPrimitiveManager(primitiveParams.manager)
             .create(
                 tokenParams.risky,

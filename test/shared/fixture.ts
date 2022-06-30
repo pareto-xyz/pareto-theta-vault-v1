@@ -1,6 +1,7 @@
 import hre, { ethers } from "hardhat";
 import { constants, Wallet } from "ethers";
 import { parseWei } from "web3-units";
+import { fromBn, toBn } from "evm-bn";
 import { createFixtureLoader, MockProvider } from "ethereum-waffle";
 
 import PrimitiveFactoryArtifact from "@primitivefi/rmm-core/artifacts/contracts/PrimitiveFactory.sol/PrimitiveFactory.json";
@@ -36,7 +37,12 @@ export function runTest(description: string, runTests: Function): void {
         stable: loadedFixture.stable,
       };
 
-      this.wallets = { deployer, keeper, feeRecipient, alice };
+      this.wallets = {
+        deployer,
+        keeper,
+        feeRecipient,
+        alice
+      };
     });
 
     runTests(); // callback function
@@ -115,7 +121,7 @@ export async function fixture(
   );
 
   const vaultManager = await ParetoManager.deploy(
-    150,
+    110,
     risky.address,
     stable.address,
     aggregatorV3.address,
@@ -123,16 +129,12 @@ export async function fixture(
   );
 
   // Mint tokens for address
-  await risky.mint(deployer.address, parseWei("100000").raw);
-  await stable.mint(deployer.address, parseWei("100000").raw);
-  await risky.mint(alice.address, parseWei("100000").raw);
-  await stable.mint(alice.address, parseWei("100000").raw);
-
-  await risky.increaseAllowance(primitiveManager.address, constants.MaxUint256);
-  await stable.increaseAllowance(
-    primitiveManager.address,
-    constants.MaxUint256
-  );
+  await risky.mint(deployer.address, parseWei("1000000").raw);
+  await stable.mint(deployer.address, parseWei("1000000").raw);
+  await risky.mint(alice.address, parseWei("1000000").raw);
+  await stable.mint(alice.address, parseWei("1000000").raw);
+  await risky.mint(primitiveManager.address, parseWei("1000000").raw);
+  await stable.mint(primitiveManager.address, parseWei("1000000").raw);
 
   return {
     primitiveFactory,

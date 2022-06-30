@@ -38,7 +38,7 @@ describe("ParetoManager contract", function () {
     // Load the manager
     const ParetoManager = await hre.ethers.getContractFactory("ParetoManager");
     manager = await ParetoManager.deploy(
-      150,
+      110,
       risky.address,
       stable.address,
       aggregatorV3.address,
@@ -62,7 +62,7 @@ describe("ParetoManager contract", function () {
      * @notice Checks that the manager's stored strike multiplier is correct
      */
     it("correct default strike multiplier", async function () {
-      expect(await manager.strikeMultiplier()).to.be.equal(150); // by initialization
+      expect(await manager.strikeMultiplier()).to.be.equal(110); // by initialization
     });
   });
   describe("function getters", function () {
@@ -152,8 +152,8 @@ describe("ParetoManager contract", function () {
         2 + stableDecimals
       );
       expect(
-        fromBn(await manager.getNextStrikePrice(), stableDecimals)
-      ).to.be.equal(expected);
+        parseFloat(fromBn(await manager.getNextStrikePrice(), stableDecimals))
+      ).to.be.closeTo(parseFloat(expected), 0.0001);
     });
     /**
      * @notice Checks getNextStrikePrice works with a different
@@ -170,8 +170,8 @@ describe("ParetoManager contract", function () {
         2 + stableDecimals
       );
       expect(
-        fromBn(await manager.getNextStrikePrice(), stableDecimals)
-      ).to.be.equal(expected);
+        parseFloat(fromBn(await manager.getNextStrikePrice(), stableDecimals))
+      ).to.be.closeTo(parseFloat(expected), 0.0001);
     });
     /**
      * @notice Checks fetching the volatility for next round
