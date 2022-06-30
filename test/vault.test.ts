@@ -524,6 +524,8 @@ runTest("ParetoVault", function () {
       }
     });
     it("check vault state post rollover", async function () {
+      let vaultState;
+
       // Get the balance of the vault prior to deployment or rollover
       let vaultRisky = parseFloat(
         fromBn(
@@ -538,12 +540,15 @@ runTest("ParetoVault", function () {
         )
       );
 
+      vaultState = await vault.vaultState();
+      let preRound = vaultState.round;
+
       // Keeper deploys fresh vault and immediately rolls over
       await vault.connect(this.wallets.keeper).deployVault();
       await vault.connect(this.wallets.keeper).rollover();
 
       // Check that queued variables in vault state are refreshed
-      let vaultState = await vault.vaultState();
+      vaultState = await vault.vaultState();
       expect(
         fromBn(vaultState.lastQueuedWithdrawRisky, riskyDecimals)
       ).to.be.equal("0");
@@ -590,9 +595,24 @@ runTest("ParetoVault", function () {
         (vaultStable - lastLockedStable) * performancePerc;
       let feeStable = managementStable + performanceStable;
 
-      // check locked amount is the fee amount!
+      // Check locked amount is the fee amount!
       expect(vaultRisky - feeRisky).to.be.closeTo(lockedRisky, 0.001);
       expect(vaultStable - feeStable).to.be.closeTo(lockedStable, 0.001);
+
+      // Check round number
+      expect(vaultState.round).to.be.equal(preRound + 1);
+
+      // Check pending amounts
+      expect(fromBn(vaultState.pendingRisky, riskyDecimals)).to.be.equal("0");
+
+      // Check the cached round prices
+      /// @dev Since totalSupply is 0, roundSharePrice will be 1
+      expect(
+        fromBn(await vault.roundSharePriceInRisky(preRound), riskyDecimals)
+      ).to.be.equal("1");
+      expect(
+        fromBn(await vault.roundSharePriceInStable(preRound), stableDecimals)
+      ).to.be.equal("1");
     });
     it("check pool state post rollover", async function () {
       let poolState;
