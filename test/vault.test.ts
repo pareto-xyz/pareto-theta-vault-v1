@@ -626,9 +626,81 @@ runTest("ParetoVault", function () {
       ).to.be.equal("0");
       await vault.connect(this.wallets.keeper).deployVault();
       await vault.connect(this.wallets.keeper).rollover();
+      // Since pendingRisky is 0, no new shares are minted
       expect(
         fromBn(await vault.balanceOf(vault.address), shareDecimals)
       ).to.be.equal("0");
+    });
+    it("check fee recipient post rollover", async function () {
+      // Prior to rollover, in a fresh vault, fee recipient should be broke
+      expect(fromBn(
+        await this.contracts.risky.balanceOf(
+          this.wallets.feeRecipient.address
+        ),
+        riskyDecimals
+      )).to.be.equal("0");
+      expect(fromBn(
+        await this.contracts.stable.balanceOf(
+          this.wallets.feeRecipient.address
+        ),
+        stableDecimals
+      )).to.be.equal("0");
+
+      // Compute the amount of assets in vault
+      let vaultRisky = parseFloat(
+        fromBn(
+          await this.contracts.risky.balanceOf(vault.address),
+          riskyDecimals
+        )
+      );
+      let vaultStable = parseFloat(
+        fromBn(
+          await this.contracts.stable.balanceOf(vault.address),
+          stableDecimals
+        )
+      );
+
+      // Keeper does deployment and rollover
+      await vault.connect(this.wallets.keeper).deployVault();
+      await vault.connect(this.wallets.keeper).rollover();
+
+      // Derive fees in risky and stable assets
+      let vaultState = await vault.vaultState();
+      let lastLockedRisky = parseFloat(
+        fromBn(vaultState.lastLockedRisky, riskyDecimals)
+      );
+      let lastLockedStable = parseFloat(
+        fromBn(vaultState.lastLockedStable, stableDecimals)
+      );
+      let managementFeePerWeek = parseFloat(
+        fromBn(await vault.managementFee(), 6)
+      );
+      let performanceFee = parseFloat(fromBn(await vault.performanceFee(), 6));
+      let managementPercPerWeek = managementFeePerWeek / 100;
+      let performancePerc = performanceFee / 100;
+      let managementRisky =
+        (vaultRisky - lastLockedRisky) * managementPercPerWeek;
+      let performanceRisky = (vaultRisky - lastLockedRisky) * performancePerc;
+      let feeRisky = managementRisky + performanceRisky;
+      let managementStable =
+        (vaultStable - lastLockedStable) * managementPercPerWeek;
+      let performanceStable =
+        (vaultStable - lastLockedStable) * performancePerc;
+      let feeStable = managementStable + performanceStable;
+
+      // Check agreement between contract and test
+      expect(parseFloat(fromBn(
+        await this.contracts.risky.balanceOf(
+          this.wallets.feeRecipient.address
+        ),
+        riskyDecimals
+      ))).to.be.closeTo(feeRisky, 0.001);
+      expect(parseFloat(fromBn(
+        await this.contracts.stable.balanceOf(
+          this.wallets.feeRecipient.address
+        ),
+        stableDecimals
+      ))).to.be.closeTo(feeStable, 0.001);
     });
   });
 
