@@ -89,8 +89,8 @@ contract ParetoVault is
      ***********************************************/
 
     /**
-     * @notice Number of weeks per year = 52.142857 weeks * FEE_MULTIPLIER = 52142857
-     *  Dividing by weeks per year via num.mul(FEE_MULTIPLIER).div(WEEKS_PER_YEAR)
+     * @notice Number of weeks per year = 52.142857 weeks * 10**FEE_DECIMALS = 52142857
+     *  Dividing by weeks per year via num.mul(10**FEE_DECIMALS).div(WEEKS_PER_YEAR)
      */
     uint256 private constant WEEKS_PER_YEAR = 52142857;
 
@@ -281,6 +281,14 @@ contract ParetoVault is
         require(_managementFee > 0, "!_managementFee");
         require(_performanceFee > 0, "!_performanceFee");
         require(
+          _managementFee < 100 * 10**Vault.FEE_DECIMALS,
+          "_managementFee > 100"
+        );
+        require(
+          _performanceFee < 100 * 10**Vault.FEE_DECIMALS, 
+          "_performanceFee > 100"
+        );
+        require(
             IParetoManager(_vaultManager).risky() == _risky,
             "Risky asset does not match"
         );
@@ -288,7 +296,6 @@ contract ParetoVault is
             IParetoManager(_vaultManager).stable() == _stable,
             "Stable asset does not match"
         );
-
         keeper = _keeper;
         feeRecipient = _feeRecipient;
         vaultManager = _vaultManager;
@@ -303,10 +310,10 @@ contract ParetoVault is
         tokenParams.stableDecimals = IERC20(_stable).decimals();
         performanceFee = _performanceFee;
         // Compute management to charge per week by yearly amount
-        managementFee = _managementFee.mul(Vault.FEE_MULTIPLIER).div(
+        /// @dev Dividing by 52142857 means we need to multiply 10**6
+        managementFee = _managementFee.mul(10**Vault.FEE_DECIMALS).div(
             WEEKS_PER_YEAR
         );
-
         // Approval for manager to transfer tokens
         IERC20(_risky).safeIncreaseAllowance(
             _primitiveManager,
@@ -382,12 +389,12 @@ contract ParetoVault is
      */
     function setManagementFee(uint256 newManagementFee) external onlyOwner {
         require(
-            newManagementFee < 100 * Vault.FEE_MULTIPLIER,
+            newManagementFee < 100 * 10**Vault.FEE_DECIMALS,
             "newManagementFee > 100"
         );
 
         // Divide annualized management fee by num weeks in a year
-        uint256 weeklyFee = newManagementFee.mul(Vault.FEE_MULTIPLIER).div(
+        uint256 weeklyFee = newManagementFee.mul(10**Vault.FEE_DECIMALS).div(
             WEEKS_PER_YEAR
         );
 
@@ -401,7 +408,7 @@ contract ParetoVault is
      */
     function setPerformanceFee(uint256 newPerformanceFee) external onlyOwner {
         require(
-            newPerformanceFee < 100 * Vault.FEE_MULTIPLIER,
+            newPerformanceFee < 100 * 10**Vault.FEE_DECIMALS,
             "newPerformanceFee > 100"
         );
         emit PerformanceFeeSetEvent(performanceFee, newPerformanceFee);
@@ -631,7 +638,6 @@ contract ParetoVault is
             optionLiquidity,
             msg.sender
         );
-
         // Save the liquidity into PoolState
         poolState.currLiquidity = optionLiquidity;
     }
@@ -1099,23 +1105,23 @@ contract ParetoVault is
                 ? currLockedRisky
                     .sub(feeParams.lastLockedRisky)
                     .mul(feeParams.performanceFeePercent)
-                    .div(100 * Vault.FEE_MULTIPLIER)
+                    .div(100 * 10**Vault.FEE_DECIMALS)
                 : 0;
             _performanceFeeInStable = feeParams.performanceFeePercent > 0
                 ? feeParams
                     .currStable
                     .sub(feeParams.lastLockedStable)
                     .mul(feeParams.performanceFeePercent)
-                    .div(100 * Vault.FEE_MULTIPLIER)
+                    .div(100 * 10**Vault.FEE_DECIMALS)
                 : 0;
             _managementFeeInRisky = feeParams.managementFeePercent > 0
                 ? currLockedRisky.mul(feeParams.managementFeePercent).div(
-                    100 * Vault.FEE_MULTIPLIER
+                    100 * 10**Vault.FEE_DECIMALS
                 )
                 : 0;
             _managementFeeInStable = feeParams.managementFeePercent > 0
                 ? feeParams.currStable.mul(feeParams.managementFeePercent).div(
-                    100 * Vault.FEE_MULTIPLIER
+                    100 * 10**Vault.FEE_DECIMALS
                 )
                 : 0;
             feeInRisky = _performanceFeeInRisky.add(_managementFeeInRisky);
