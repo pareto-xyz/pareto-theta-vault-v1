@@ -105,7 +105,7 @@ export async function fixture(
   const aggregatorV3 = await AggregatorV3.deploy();
   const decimals = await aggregatorV3.decimals();
   // initialize as equal prices
-  aggregatorV3.setLatestAnswer(parseWei("1", decimals).raw);
+  await aggregatorV3.setLatestAnswer(parseWei("1", decimals).raw);
 
   // Create and deploy Mock Uniswap router
   const SwapRouter = await ethers.getContractFactory(

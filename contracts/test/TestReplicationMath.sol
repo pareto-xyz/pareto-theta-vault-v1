@@ -15,13 +15,14 @@ contract TestReplicationMath {
         uint256 scaleFactorRisky,
         uint256 scaleFactorStable
     ) external pure returns (uint256 riskyForLp) {
-      return ReplicationMath.getRiskyPerLp(
-        spot,
-        strike,
-        sigma,
-        tau,
-        scaleFactorRisky,
-        scaleFactorStable
-      );
+        return
+            ReplicationMath.getRiskyPerLp(
+                spot,
+                strike,
+                sigma,
+                tau,
+                scaleFactorRisky,
+                scaleFactorStable
+            );
     }
 }

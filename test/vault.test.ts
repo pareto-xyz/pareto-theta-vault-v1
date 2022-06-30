@@ -457,6 +457,28 @@ runTest("ParetoVault", function () {
       expect(fromBn(vaultState.lockedRisky, riskyDecimals)).to.be.equal("0");
       expect(fromBn(vaultState.lockedStable, stableDecimals)).to.be.equal("0");
     });
+    it("check double deployment of same pool fails", async function () {
+      await vault.connect(this.wallets.keeper).deployVault();
+      try {
+        await vault.connect(this.wallets.keeper).deployVault();
+        expect(false);
+      } catch {
+        expect(true);
+      }
+    });
+    /**
+     * @notice Change the strike price to make a different pool!
+     */
+    it("check double deployment of different pools", async function () {
+      await vault.connect(this.wallets.keeper).deployVault();
+
+      const decimals = await this.contracts.aggregatorV3.decimals();
+      await this.contracts.aggregatorV3.setLatestAnswer(
+        parseWei("2", decimals).raw
+      );
+
+      await vault.connect(this.wallets.keeper).deployVault();
+    });
   });
 
   /**
