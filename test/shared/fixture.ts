@@ -41,7 +41,7 @@ export function runTest(description: string, runTests: Function): void {
         deployer,
         keeper,
         feeRecipient,
-        alice
+        alice,
       };
     });
 

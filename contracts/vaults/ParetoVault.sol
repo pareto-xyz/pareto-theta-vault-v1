@@ -308,12 +308,22 @@ contract ParetoVault is
         );
 
         // Approval for manager to transfer tokens
-        IERC20(_risky).safeIncreaseAllowance(_primitiveManager, type(uint256).max);
-        IERC20(_stable).safeIncreaseAllowance(_primitiveManager, type(uint256).max);
+        IERC20(_risky).safeIncreaseAllowance(
+            _primitiveManager,
+            type(uint256).max
+        );
+        IERC20(_stable).safeIncreaseAllowance(
+            _primitiveManager,
+            type(uint256).max
+        );
 
         // Account for pre-existing funds
-        uint256 riskyBalance = IERC20(tokenParams.risky).balanceOf(address(this));
-        uint256 stableBalance = IERC20(tokenParams.stable).balanceOf(address(this));
+        uint256 riskyBalance = IERC20(tokenParams.risky).balanceOf(
+            address(this)
+        );
+        uint256 stableBalance = IERC20(tokenParams.stable).balanceOf(
+            address(this)
+        );
         VaultMath.assertUint104(riskyBalance);
         VaultMath.assertUint104(stableBalance);
         vaultState.lastLockedRisky = uint104(riskyBalance);
@@ -473,8 +483,11 @@ contract ParetoVault is
         _processDeposit(riskyAmount, msg.sender);
 
         // Make transfers from tx caller to contract
-        IERC20(tokenParams.risky)
-          .safeTransferFrom(msg.sender, address(this), riskyAmount);
+        IERC20(tokenParams.risky).safeTransferFrom(
+            msg.sender,
+            address(this),
+            riskyAmount
+        );
     }
 
     /**
@@ -888,8 +901,12 @@ contract ParetoVault is
             uint256 newSharePriceInStable;
 
             // Get the amount of assets owned by current token
-            uint256 currRisky = IERC20(tokenParams.risky).balanceOf(address(this));
-            uint256 currStable = IERC20(tokenParams.stable).balanceOf(address(this));
+            uint256 currRisky = IERC20(tokenParams.risky).balanceOf(
+                address(this)
+            );
+            uint256 currStable = IERC20(tokenParams.stable).balanceOf(
+                address(this)
+            );
 
             // Compute supply of Pareto tokens minus what is queued for withdrawal
             uint256 currSupply = totalSupply().sub(
@@ -995,12 +1012,16 @@ contract ParetoVault is
 
         // Make transfers for fee
         if (feeInRisky > 0) {
-            IERC20(tokenParams.risky)
-              .safeTransfer(payable(feeRecipient), feeInRisky);
+            IERC20(tokenParams.risky).safeTransfer(
+                payable(feeRecipient),
+                feeInRisky
+            );
         }
         if (feeInStable > 0) {
-            IERC20(tokenParams.stable)
-              .safeTransfer(payable(feeRecipient), feeInStable);
+            IERC20(tokenParams.stable).safeTransfer(
+                payable(feeRecipient),
+                feeInStable
+            );
         }
 
         return (
@@ -1171,10 +1192,12 @@ contract ParetoVault is
         internal
         returns (bytes32)
     {
-        uint256 factor = IPrimitiveFactory(primitiveParams.factory).MIN_LIQUIDITY_FACTOR();
-        uint256 lowestDecimals = tokenParams.riskyDecimals > tokenParams.stableDecimals 
-          ? tokenParams.stableDecimals 
-          : tokenParams.riskyDecimals;
+        uint256 factor = IPrimitiveFactory(primitiveParams.factory)
+            .MIN_LIQUIDITY_FACTOR();
+        uint256 lowestDecimals = tokenParams.riskyDecimals >
+            tokenParams.stableDecimals
+            ? tokenParams.stableDecimals
+            : tokenParams.riskyDecimals;
         uint256 minLiquidity = 10**(lowestDecimals / factor + 1);
 
         (bytes32 poolId, , ) = IPrimitiveManager(primitiveParams.manager)
@@ -1335,12 +1358,12 @@ contract ParetoVault is
             );
     }
 
-    function risky() external override view returns (address) {
-      return tokenParams.risky;
+    function risky() external view override returns (address) {
+        return tokenParams.risky;
     }
 
-    function stable() external override view returns (address) {
-      return tokenParams.stable;
+    function stable() external view override returns (address) {
+        return tokenParams.stable;
     }
 
     /************************************************

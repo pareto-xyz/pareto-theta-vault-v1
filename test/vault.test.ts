@@ -305,13 +305,13 @@ runTest("ParetoVault", function () {
           riskyDecimals
         )
       );
-      await vault.connect(this.wallets.alice)
+      await vault
+        .connect(this.wallets.alice)
         .deposit(toBn("1000", riskyDecimals));
       // The vault should gain 1000
       expect(fromBn(await vault.totalRisky(), riskyDecimals)).to.be.equal(
         "1000"
       );
-
       let aliceEnd = parseFloat(
         fromBn(
           await this.contracts.risky.balanceOf(this.wallets.alice.address),
@@ -422,6 +422,40 @@ runTest("ParetoVault", function () {
       } catch {
         expect(true);
       }
+    });
+    it("check pool state post deployment", async function () {
+      await vault.connect(this.wallets.keeper).deployVault();
+
+      let poolState = await vault.poolState();
+      // Check nextPoolId is not empty
+      expect(poolState.nextPoolId == 0).to.be.equal(false);
+      // Check currPoolId is not empty
+      expect(poolState.currPoolId == 0).to.be.equal(true);
+      // Check currLiquidity is 0
+      expect(poolState.currLiquidity).to.be.equal(0);
+      // Check nextPoolParams are not default values
+      expect(
+        parseFloat(fromBn(poolState.nextPoolParams.strike, stableDecimals))
+      ).to.be.greaterThan(0);
+      expect(
+        parseFloat(fromBn(poolState.nextPoolParams.sigma, 4))
+      ).to.be.greaterThan(0);
+      expect(poolState.nextPoolParams.maturity).to.be.greaterThan(0);
+      expect(
+        parseFloat(fromBn(poolState.nextPoolParams.gamma, 4))
+      ).to.be.greaterThan(0);
+      expect(
+        parseFloat(fromBn(poolState.nextPoolParams.riskyPerLp, riskyDecimals))
+      ).to.be.greaterThan(0);
+      // Check that nextPoolReadyAt is not zero
+      expect(poolState.nextPoolReadyAt).to.be.greaterThan(0);
+    });
+    it("check vault state post deployment", async function () {
+      await vault.connect(this.wallets.keeper).deployVault();
+
+      let vaultState = await vault.vaultState();
+      expect(fromBn(vaultState.lockedRisky, riskyDecimals)).to.be.equal("0");
+      expect(fromBn(vaultState.lockedStable, stableDecimals)).to.be.equal("0");
     });
   });
 
