@@ -3,6 +3,7 @@ pragma solidity >=0.8.6;
 
 import {SafeMath} from "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import {Vault} from "./Vault.sol";
+import {console} from "hardhat/console.sol";
 
 library VaultMath {
     using SafeMath for uint256;

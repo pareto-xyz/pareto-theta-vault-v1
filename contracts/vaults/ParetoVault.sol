@@ -1206,6 +1206,11 @@ contract ParetoVault is
             : tokenParams.riskyDecimals;
         uint256 minLiquidity = 10**(lowestDecimals / factor + 1);
 
+        console.logUint(poolParams.strike);
+        console.logUint(poolParams.sigma);
+        console.logUint(poolParams.maturity);
+        console.logUint(poolParams.gamma);
+        console.logUint(poolParams.riskyPerLp);
         (bytes32 poolId, , ) = IPrimitiveManager(primitiveParams.manager)
             .create(
                 tokenParams.risky,
