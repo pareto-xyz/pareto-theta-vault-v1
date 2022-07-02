@@ -4,6 +4,10 @@ import { parseWei } from "web3-units";
 import { fromBn, toBn } from "evm-bn";
 import { runTest } from "./shared/fixture";
 import expect from "./shared/expect";
+import {
+  computeLockedAmounts,
+  fromBnToFloat,
+} from "../scripts/utils/testUtils";
 
 let vault: Contract;
 let riskyDecimals: number;
@@ -29,7 +33,7 @@ runTest("ParetoVault", function () {
       this.contracts.risky.address,
       this.contracts.stable.address,
       20000000, /// @dev 20% performance fee
-      2000000   /// @dev 2% yearly management fee
+      2000000 /// @dev 2% yearly management fee
     );
     await vault.initRounds(10);
 
@@ -95,7 +99,7 @@ runTest("ParetoVault", function () {
     it("correct default management fee", async function () {
       let expectedFee = 20 / 52.142857;
       /// @dev fees are in 4 decimal points
-      expect(parseFloat(fromBn(await vault.managementFee(), 6))).to.be.closeTo(
+      expect(fromBnToFloat(await vault.managementFee(), 6)).to.be.closeTo(
         expectedFee,
         0.001
       );
@@ -181,19 +185,19 @@ runTest("ParetoVault", function () {
       expect(fromBn(managerState.manualVolatility, 4)).to.be.equal("0");
       // Volatility (sigma) must be in [0, 1]
       expect(
-        parseFloat(fromBn(managerState.manualVolatility, 4))
+        fromBnToFloat(managerState.manualVolatility, 4)
       ).to.be.greaterThanOrEqual(0);
       expect(
-        parseFloat(fromBn(managerState.manualVolatility, 4))
+        fromBnToFloat(managerState.manualVolatility, 4)
       ).to.be.lessThanOrEqual(1);
       // Gamma (1 - fee) must be in [0, 1]
       expect(fromBn(managerState.manualGamma, 4)).to.be.equal("0");
       expect(
-        parseFloat(fromBn(managerState.manualGamma, 4))
+        fromBnToFloat(managerState.manualGamma, 4)
       ).to.be.greaterThanOrEqual(0);
-      expect(
-        parseFloat(fromBn(managerState.manualGamma, 4))
-      ).to.be.lessThanOrEqual(1);
+      expect(fromBnToFloat(managerState.manualGamma, 4)).to.be.lessThanOrEqual(
+        1
+      );
       // Rounds are initialized to zero
       expect(managerState.manualStrikeRound).to.be.equal(0);
       expect(managerState.manualVolatilityRound).to.be.equal(0);
@@ -243,7 +247,7 @@ runTest("ParetoVault", function () {
     it("correctly set management fee", async function () {
       let expectedFee = 30 / 52.142857;
       await vault.setManagementFee(300000);
-      expect(parseFloat(fromBn(await vault.managementFee(), 4))).to.be.closeTo(
+      expect(fromBnToFloat(await vault.managementFee(), 4)).to.be.closeTo(
         expectedFee,
         0.001
       );
@@ -301,11 +305,9 @@ runTest("ParetoVault", function () {
    */
   describe("check depositing into vault", function () {
     it("correct account balances post deposit", async function () {
-      let aliceStart = parseFloat(
-        fromBn(
-          await this.contracts.risky.balanceOf(this.wallets.alice.address),
-          riskyDecimals
-        )
+      let aliceStart = fromBnToFloat(
+        await this.contracts.risky.balanceOf(this.wallets.alice.address),
+        riskyDecimals
       );
       await vault
         .connect(this.wallets.alice)
@@ -314,11 +316,9 @@ runTest("ParetoVault", function () {
       expect(fromBn(await vault.totalRisky(), riskyDecimals)).to.be.equal(
         "1000"
       );
-      let aliceEnd = parseFloat(
-        fromBn(
-          await this.contracts.risky.balanceOf(this.wallets.alice.address),
-          riskyDecimals
-        )
+      let aliceEnd = fromBnToFloat(
+        await this.contracts.risky.balanceOf(this.wallets.alice.address),
+        riskyDecimals
       );
       // Alice should lose that amount
       expect(aliceStart - aliceEnd).to.be.equal(1000);
@@ -346,11 +346,9 @@ runTest("ParetoVault", function () {
       expect(fromBn(receipt.ownedShares, 1)).to.be.equal("0");
     });
     it("correct account balances post double deposit", async function () {
-      let aliceStart = parseFloat(
-        fromBn(
-          await this.contracts.risky.balanceOf(this.wallets.alice.address),
-          riskyDecimals
-        )
+      let aliceStart = fromBnToFloat(
+        await this.contracts.risky.balanceOf(this.wallets.alice.address),
+        riskyDecimals
       );
       await vault
         .connect(this.wallets.alice)
@@ -358,11 +356,9 @@ runTest("ParetoVault", function () {
       await vault
         .connect(this.wallets.alice)
         .deposit(toBn("500", riskyDecimals));
-      let aliceEnd = parseFloat(
-        fromBn(
-          await this.contracts.risky.balanceOf(this.wallets.alice.address),
-          riskyDecimals
-        )
+      let aliceEnd = fromBnToFloat(
+        await this.contracts.risky.balanceOf(this.wallets.alice.address),
+        riskyDecimals
       );
       // Alice should lose that amount
       expect(aliceStart - aliceEnd).to.be.equal(1500);
@@ -425,6 +421,27 @@ runTest("ParetoVault", function () {
         expect(true);
       }
     });
+    it("check can deposit before deployment", async function () {
+      // This is expected so we don't want on deployment to allow deposits
+      await vault
+        .connect(this.wallets.alice)
+        .deposit(toBn("1000", riskyDecimals));
+      await vault.connect(this.wallets.keeper).deployVault();
+      let vaultState = await vault.vaultState();
+      expect(fromBn(vaultState.pendingRisky, riskyDecimals)).to.be.equal(
+        "1000"
+      );
+    });
+    it("check can deposit after deployment", async function () {
+      await vault.connect(this.wallets.keeper).deployVault();
+      await vault
+        .connect(this.wallets.alice)
+        .deposit(toBn("1000", riskyDecimals));
+      let vaultState = await vault.vaultState();
+      expect(fromBn(vaultState.pendingRisky, riskyDecimals)).to.be.equal(
+        "1000"
+      );
+    });
     it("check pool state post deployment", async function () {
       await vault.connect(this.wallets.keeper).deployVault();
 
@@ -437,17 +454,17 @@ runTest("ParetoVault", function () {
       expect(fromBn(poolState.currLiquidity, shareDecimals)).to.be.equal("0");
       // Check nextPoolParams are not default values
       expect(
-        parseFloat(fromBn(poolState.nextPoolParams.strike, stableDecimals))
+        fromBnToFloat(poolState.nextPoolParams.strike, stableDecimals)
       ).to.be.greaterThan(0);
       expect(
-        parseFloat(fromBn(poolState.nextPoolParams.sigma, 4))
+        fromBnToFloat(poolState.nextPoolParams.sigma, 4)
       ).to.be.greaterThan(0);
       expect(poolState.nextPoolParams.maturity).to.be.greaterThan(0);
       expect(
-        parseFloat(fromBn(poolState.nextPoolParams.gamma, 4))
+        fromBnToFloat(poolState.nextPoolParams.gamma, 4)
       ).to.be.greaterThan(0);
       expect(
-        parseFloat(fromBn(poolState.nextPoolParams.riskyPerLp, riskyDecimals))
+        fromBnToFloat(poolState.nextPoolParams.riskyPerLp, riskyDecimals)
       ).to.be.greaterThan(0);
       // Check that nextPoolReadyAt is not zero
       expect(poolState.nextPoolReadyAt).to.be.greaterThan(0);
@@ -526,20 +543,6 @@ runTest("ParetoVault", function () {
     it("check vault state post rollover", async function () {
       let vaultState;
 
-      // Get the balance of the vault prior to deployment or rollover
-      let vaultRisky = parseFloat(
-        fromBn(
-          await this.contracts.risky.balanceOf(vault.address),
-          riskyDecimals
-        )
-      );
-      let vaultStable = parseFloat(
-        fromBn(
-          await this.contracts.stable.balanceOf(vault.address),
-          stableDecimals
-        )
-      );
-
       vaultState = await vault.vaultState();
       let preRound = vaultState.round;
 
@@ -562,42 +565,29 @@ runTest("ParetoVault", function () {
         fromBn(vaultState.currQueuedWithdrawShares, stableDecimals)
       ).to.be.equal("0");
 
-      // Locked assets = vault assets - fees
-      let lockedRisky = parseFloat(
-        fromBn(vaultState.lockedRisky, riskyDecimals)
-      );
-      let lockedStable = parseFloat(
-        fromBn(vaultState.lockedStable, stableDecimals)
-      );
-      let lastLockedRisky = parseFloat(
-        fromBn(vaultState.lastLockedRisky, riskyDecimals)
-      );
-      let lastLockedStable = parseFloat(
-        fromBn(vaultState.lastLockedStable, stableDecimals)
-      );
-
       // Compute performance and management fee percentages
-      let managementFeePerWeek = parseFloat(
-        fromBn(await vault.managementFee(), 6)
+      let output = computeLockedAmounts(
+        fromBnToFloat(
+          await this.contracts.risky.balanceOf(vault.address),
+          riskyDecimals
+        ),
+        fromBnToFloat(
+          await this.contracts.stable.balanceOf(vault.address),
+          stableDecimals
+        ),
+        fromBnToFloat(vaultState.lastLockedRisky, riskyDecimals),
+        fromBnToFloat(vaultState.lastLockedStable, stableDecimals),
+        fromBnToFloat(await vault.managementFee(), 6),
+        fromBnToFloat(await vault.performanceFee(), 6)
       );
-      let performanceFee = parseFloat(fromBn(await vault.performanceFee(), 6));
-      let managementPercPerWeek = managementFeePerWeek / 100;
-      let performancePerc = performanceFee / 100;
 
-      // Compute amount of fees for both risky and stable
-      let managementRisky =
-        (vaultRisky - lastLockedRisky) * managementPercPerWeek;
-      let performanceRisky = (vaultRisky - lastLockedRisky) * performancePerc;
-      let feeRisky = managementRisky + performanceRisky;
-      let managementStable =
-        (vaultStable - lastLockedStable) * managementPercPerWeek;
-      let performanceStable =
-        (vaultStable - lastLockedStable) * performancePerc;
-      let feeStable = managementStable + performanceStable;
+      // Locked assets = vault assets - fees
+      let lockedRisky = fromBnToFloat(vaultState.lockedRisky, riskyDecimals);
+      let lockedStable = fromBnToFloat(vaultState.lockedStable, stableDecimals);
 
       // Check locked amount is the fee amount!
-      expect(vaultRisky - feeRisky).to.be.closeTo(lockedRisky, 0.001);
-      expect(vaultStable - feeStable).to.be.closeTo(lockedStable, 0.001);
+      expect(output.lockedRisky).to.be.closeTo(lockedRisky, 0.001);
+      expect(output.lockedStable).to.be.closeTo(lockedStable, 0.001);
 
       // Check round number
       expect(vaultState.round).to.be.equal(preRound + 1);
@@ -637,7 +627,7 @@ runTest("ParetoVault", function () {
 
       // Pool State now stores liquidity held by contract
       expect(
-        parseFloat(fromBn(poolState.currLiquidity, shareDecimals))
+        fromBnToFloat(poolState.currLiquidity, shareDecimals)
       ).to.be.greaterThan(0);
     });
     it("check zero shares minted post rollover without deposits", async function () {
@@ -671,17 +661,13 @@ runTest("ParetoVault", function () {
       ).to.be.equal("0");
 
       // Compute the amount of assets in vault
-      let vaultRisky = parseFloat(
-        fromBn(
-          await this.contracts.risky.balanceOf(vault.address),
-          riskyDecimals
-        )
+      let vaultRisky = fromBnToFloat(
+        await this.contracts.risky.balanceOf(vault.address),
+        riskyDecimals
       );
-      let vaultStable = parseFloat(
-        fromBn(
-          await this.contracts.stable.balanceOf(vault.address),
-          stableDecimals
-        )
+      let vaultStable = fromBnToFloat(
+        await this.contracts.stable.balanceOf(vault.address),
+        stableDecimals
       );
 
       // Keeper does deployment and rollover
@@ -690,49 +676,32 @@ runTest("ParetoVault", function () {
 
       // Derive fees in risky and stable assets
       let vaultState = await vault.vaultState();
-      let lastLockedRisky = parseFloat(
-        fromBn(vaultState.lastLockedRisky, riskyDecimals)
+      let output = computeLockedAmounts(
+        vaultRisky,
+        vaultStable,
+        fromBnToFloat(vaultState.lastLockedRisky, riskyDecimals),
+        fromBnToFloat(vaultState.lastLockedStable, stableDecimals),
+        fromBnToFloat(await vault.managementFee(), 6),
+        fromBnToFloat(await vault.performanceFee(), 6)
       );
-      let lastLockedStable = parseFloat(
-        fromBn(vaultState.lastLockedStable, stableDecimals)
-      );
-      let managementFeePerWeek = parseFloat(
-        fromBn(await vault.managementFee(), 6)
-      );
-      let performanceFee = parseFloat(fromBn(await vault.performanceFee(), 6));
-      let managementPercPerWeek = managementFeePerWeek / 100;
-      let performancePerc = performanceFee / 100;
-      let managementRisky =
-        (vaultRisky - lastLockedRisky) * managementPercPerWeek;
-      let performanceRisky = (vaultRisky - lastLockedRisky) * performancePerc;
-      let feeRisky = managementRisky + performanceRisky;
-      let managementStable =
-        (vaultStable - lastLockedStable) * managementPercPerWeek;
-      let performanceStable =
-        (vaultStable - lastLockedStable) * performancePerc;
-      let feeStable = managementStable + performanceStable;
 
       // Check agreement between contract and test
       expect(
-        parseFloat(
-          fromBn(
-            await this.contracts.risky.balanceOf(
-              this.wallets.feeRecipient.address
-            ),
-            riskyDecimals
-          )
+        fromBnToFloat(
+          await this.contracts.risky.balanceOf(
+            this.wallets.feeRecipient.address
+          ),
+          riskyDecimals
         )
-      ).to.be.closeTo(feeRisky, 0.001);
+      ).to.be.closeTo(output.feeRisky, 0.001);
       expect(
-        parseFloat(
-          fromBn(
-            await this.contracts.stable.balanceOf(
-              this.wallets.feeRecipient.address
-            ),
-            stableDecimals
-          )
+        fromBnToFloat(
+          await this.contracts.stable.balanceOf(
+            this.wallets.feeRecipient.address
+          ),
+          stableDecimals
         )
-      ).to.be.closeTo(feeStable, 0.001);
+      ).to.be.closeTo(output.feeStable, 0.001);
     });
   });
 
@@ -759,9 +728,7 @@ runTest("ParetoVault", function () {
       );
     });
     it("check new shares were minted", async function () {
-      let totalSupply = parseFloat(
-        fromBn(await vault.totalSupply(), shareDecimals)
-      );
+      let totalSupply = fromBnToFloat(await vault.totalSupply(), shareDecimals);
       expect(
         fromBn(await vault.balanceOf(vault.address), shareDecimals)
       ).to.be.equal(totalSupply.toString());
@@ -778,31 +745,122 @@ runTest("ParetoVault", function () {
    * This will test a change in share price over deposits through rounds
    */
   describe("check double deposit and rollovers", function () {
+    let oldLockedRisky: string;
+    let oldLockedStable: string;
+
     beforeEach(async function () {
       // Put in a bit of money so we can create pools
       await this.contracts.risky.mint(vault.address, 10000);
       await this.contracts.stable.mint(vault.address, 10000);
 
-      await vault.connect(this.wallets.keeper).deployVault();
-      await vault.connect(this.wallets.alice)
+      // Alice makes a deposit into the vault
+      await vault
+        .connect(this.wallets.alice)
         .deposit(toBn("1000", riskyDecimals));
+
+      await vault.connect(this.wallets.keeper).deployVault();
       await vault.connect(this.wallets.keeper).rollover();
+      const oracleDecimals = await this.contracts.aggregatorV3.decimals();
+      await this.contracts.aggregatorV3.setLatestAnswer(
+        parseWei("1.2", oracleDecimals).raw
+      );
+
+      let vaultState = await vault.vaultState();
+      oldLockedRisky = fromBn(vaultState.lockedRisky, riskyDecimals);
+      oldLockedStable = fromBn(vaultState.lockedStable, stableDecimals);
+
+      // Alice makes a larger deposit into the vault
+      await vault
+        .connect(this.wallets.alice)
+        .deposit(toBn("2000", riskyDecimals));
+      await vault.connect(this.wallets.keeper).deployVault();
+      await vault.connect(this.wallets.keeper).rollover();
+    });
+    it("check vault state post double rollover", async function () {
+      let vaultState = await vault.vaultState();
+
+      // Check that queued amounts are zero given no withdraws
+      expect(
+        fromBn(vaultState.lastQueuedWithdrawRisky, riskyDecimals)
+      ).to.be.equal("0");
+      expect(
+        fromBn(vaultState.lastQueuedWithdrawStable, stableDecimals)
+      ).to.be.equal("0");
+      expect(
+        fromBn(vaultState.totalQueuedWithdrawShares, stableDecimals)
+      ).to.be.equal("0");
+      expect(
+        fromBn(vaultState.currQueuedWithdrawShares, stableDecimals)
+      ).to.be.equal("0");
+
+      // Check that the cached locked amounts are correct
+      expect(fromBn(vaultState.lastLockedRisky, riskyDecimals)).to.be.equal(
+        oldLockedRisky
+      );
+      expect(fromBn(vaultState.lastLockedStable, stableDecimals)).to.be.equal(
+        oldLockedStable
+      );
+      // This implicitly checks that no fees were taken
+      expect(
+        fromBnToFloat(vaultState.lockedRisky, riskyDecimals)
+      ).to.be.closeTo(3000, 0.001);
+      expect(
+        fromBnToFloat(vaultState.lockedStable, stableDecimals)
+      ).to.be.closeTo(0, 0.001);
+
+      // Check round number
+      expect(vaultState.round).to.be.equal(3);
+
+      // Check pending amounts
+      expect(fromBn(vaultState.pendingRisky, riskyDecimals)).to.be.equal("0");
+    });
+    it("check pool state post double rollover", async function () {});
+    it("check fee recipient post double rollover", async function () {});
+    it("check round share prices post double rollover", async function () {});
+    it("check shares minted post double rollover", async function () {});
+  });
+
+  /**
+   * @notice Check that the fee computation is sensible
+   */
+  describe("check fee computation in vault success", function () {
+    beforeEach(async function () {
+      // Put in a bit of money so we can create pools
+      await this.contracts.risky.mint(vault.address, 10000);
+      await this.contracts.stable.mint(vault.address, 10000);
+
+      // Alice makes a deposit into the vault
+      await vault
+        .connect(this.wallets.alice)
+        .deposit(toBn("1000", riskyDecimals));
+
+      // Vault is started
+      await vault.connect(this.wallets.keeper).deployVault();
+      await vault.connect(this.wallets.keeper).rollover();
+    });
+    it("check out-the-money behavior", async function () {
+      const oracleDecimals = await this.contracts.aggregatorV3.decimals();
+      await this.contracts.aggregatorV3.setLatestAnswer(
+        parseWei("0.95", oracleDecimals).raw
+      );
+      await vault.connect(this.wallets.keeper).deployVault();
+      await vault.connect(this.wallets.keeper).rollover();
+    });
+    it("check in-the-money behavior", async function () {
       const oracleDecimals = await this.contracts.aggregatorV3.decimals();
       await this.contracts.aggregatorV3.setLatestAnswer(
         parseWei("1.2", oracleDecimals).raw
       );
       await vault.connect(this.wallets.keeper).deployVault();
       await vault.connect(this.wallets.keeper).rollover();
-    });0
-    it("check vault state post double rollover", async function () {
     });
-    it("check pool state post double rollover", async function () {
-    });
-    it("check fee recipient post double rollover", async function () {
-    });
-    it("check round share prices post double rollover", async function () {
-    });
-    it("check shares minted post double rollover", async function () {
+    it("check at-the-money behavior", async function () {
+      const oracleDecimals = await this.contracts.aggregatorV3.decimals();
+      await this.contracts.aggregatorV3.setLatestAnswer(
+        parseWei("1", oracleDecimals).raw
+      );
+      await vault.connect(this.wallets.keeper).deployVault();
+      await vault.connect(this.wallets.keeper).rollover();
     });
   });
 

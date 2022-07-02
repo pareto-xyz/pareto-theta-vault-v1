@@ -629,12 +629,12 @@ contract ParetoVault is
         uint256 optionLiquidity = 0;
 
         if ((lockedRisky > MIN_LIQUIDITY) && (lockedStable > MIN_LIQUIDITY)) {
-          // Deposit locked liquidity into Primitive pools
-          optionLiquidity = _depositLiquidity(
-              newPoolId,
-              lockedRisky - MIN_LIQUIDITY,
-              lockedStable - MIN_LIQUIDITY
-          );
+            // Deposit locked liquidity into Primitive pools
+            optionLiquidity = _depositLiquidity(
+                newPoolId,
+                lockedRisky.sub(MIN_LIQUIDITY),
+                lockedStable.sub(MIN_LIQUIDITY)
+            );
         }
 
         emit OpenPositionEvent(
@@ -942,6 +942,8 @@ contract ParetoVault is
                         performanceFeePercent: performanceFee
                     })
                 );
+                console.logUint(feeInRisky);
+                console.logUint(feeInStable);
             }
 
             // Remove fee from assets

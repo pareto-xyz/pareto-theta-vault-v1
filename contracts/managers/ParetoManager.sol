@@ -219,9 +219,9 @@ contract ParetoManager is IParetoManager, Ownable {
         );
         // TODO: check this with Primitive team
         if (riskyForLp < 10000000000000000) {
-          riskyForLp = 10000000000000000;
+            riskyForLp = 10000000000000000;
         } else if (riskyForLp > 990000000000000000) {
-          riskyForLp = 990000000000000000;
+            riskyForLp = 990000000000000000;
         }
         return riskyForLp;
     }
