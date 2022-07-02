@@ -29,7 +29,7 @@ runTest("ParetoVault", function () {
       this.contracts.risky.address,
       this.contracts.stable.address,
       20000000, /// @dev 20% performance fee
-      2000000 /// @dev 2% yearly management fee
+      2000000   /// @dev 2% yearly management fee
     );
     await vault.initRounds(10);
 
@@ -403,8 +403,8 @@ runTest("ParetoVault", function () {
   describe("check vault deployment", function () {
     beforeEach(async function () {
       // Allocate tokens into the vault (simulates a user having deposited)
-      await this.contracts.risky.mint(vault.address, parseWei("1000000").raw);
-      await this.contracts.stable.mint(vault.address, parseWei("1000000").raw);
+      await this.contracts.risky.mint(vault.address, 10000);
+      await this.contracts.stable.mint(vault.address, 10000);
     });
     it("check keeper can deploy vault", async function () {
       await vault.connect(this.wallets.keeper).deployVault();
@@ -490,8 +490,8 @@ runTest("ParetoVault", function () {
    */
   describe("check vault rollover", function () {
     beforeEach(async function () {
-      await this.contracts.risky.mint(vault.address, parseWei("1000000").raw);
-      await this.contracts.stable.mint(vault.address, parseWei("1000000").raw);
+      await this.contracts.risky.mint(vault.address, 10000);
+      await this.contracts.stable.mint(vault.address, 10000);
     });
     it("check keeper can rollover vault", async function () {
       await vault.connect(this.wallets.keeper).deployVault();
@@ -742,14 +742,8 @@ runTest("ParetoVault", function () {
    */
   describe("check vault rollover with deposit", function () {
     beforeEach(async function () {
-      await this.contracts.risky.mint(
-        vault.address,
-        parseWei("100", riskyDecimals).raw
-      );
-      await this.contracts.stable.mint(
-        vault.address,
-        parseWei("100", stableDecimals).raw
-      );
+      await this.contracts.risky.mint(vault.address, 10000);
+      await this.contracts.stable.mint(vault.address, 10000);
       // Keeper deploys vault
       await vault.connect(this.wallets.keeper).deployVault();
       // Alice deposits risky into vault
@@ -783,23 +777,32 @@ runTest("ParetoVault", function () {
    * @notice Check that the vault is well behaved after multiple rollovers
    * This will test a change in share price over deposits through rounds
    */
-  describe("check multiple rollover periods", function () {
+  describe("check double deposit and rollovers", function () {
     beforeEach(async function () {
-      await this.contracts.risky.mint(
-        vault.address,
-        parseWei("100", riskyDecimals).raw
-      );
-      await this.contracts.stable.mint(
-        vault.address,
-        parseWei("100", stableDecimals).raw
-      );
-    });
-    it("test", async function () {
+      // Put in a bit of money so we can create pools
+      await this.contracts.risky.mint(vault.address, 10000);
+      await this.contracts.stable.mint(vault.address, 10000);
+
       await vault.connect(this.wallets.keeper).deployVault();
-      await vault
-        .connect(this.wallets.alice)
+      await vault.connect(this.wallets.alice)
         .deposit(toBn("1000", riskyDecimals));
       await vault.connect(this.wallets.keeper).rollover();
+      const oracleDecimals = await this.contracts.aggregatorV3.decimals();
+      await this.contracts.aggregatorV3.setLatestAnswer(
+        parseWei("1.2", oracleDecimals).raw
+      );
+      await vault.connect(this.wallets.keeper).deployVault();
+      await vault.connect(this.wallets.keeper).rollover();
+    });0
+    it("check vault state post double rollover", async function () {
+    });
+    it("check pool state post double rollover", async function () {
+    });
+    it("check fee recipient post double rollover", async function () {
+    });
+    it("check round share prices post double rollover", async function () {
+    });
+    it("check shares minted post double rollover", async function () {
     });
   });
 

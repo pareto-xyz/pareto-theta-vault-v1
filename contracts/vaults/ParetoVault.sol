@@ -95,6 +95,11 @@ contract ParetoVault is
     uint256 private constant WEEKS_PER_YEAR = 52142857;
 
     /**
+     * @notice Always keep a few units of both assets, used to create pools
+     */
+    uint256 public constant MIN_LIQUIDITY = 10000;
+
+    /**
      * @notice Name of the Pareto receipt token
      */
     string public constant TOKEN_NAME = "Pareto Theta Vault V1";
@@ -569,22 +574,19 @@ contract ParetoVault is
         vaultState.lockedRisky = 0;
         vaultState.lockedStable = 0;
 
-        // Prevent bad things if we already called function
-        if (currPoolId != "") {
-            // Remove liquidity from Primitive pool for token assets
-            (uint256 riskyAmount, uint256 stableAmount) = _removeLiquidity(
-                currPoolId,
-                poolState.currLiquidity
-            );
+        // Remove liquidity from Primitive pool for token assets
+        (uint256 riskyAmount, uint256 stableAmount) = _removeLiquidity(
+            currPoolId,
+            poolState.currLiquidity
+        );
 
-            emit ClosePositionEvent(
-                currPoolId,
-                poolState.currLiquidity,
-                riskyAmount,
-                stableAmount,
-                msg.sender
-            );
-        }
+        emit ClosePositionEvent(
+            currPoolId,
+            poolState.currLiquidity,
+            riskyAmount,
+            stableAmount,
+            msg.sender
+        );
 
         // Reset properties in PoolState
         poolState.currPoolId = "";
@@ -624,12 +626,16 @@ contract ParetoVault is
         vaultState.lockedRisky = uint104(lockedRisky);
         vaultState.lockedStable = uint104(lockedStable);
 
-        // Deposit locked liquidity into Primitive pools
-        uint256 optionLiquidity = _depositLiquidity(
-            newPoolId,
-            lockedRisky,
-            lockedStable
-        );
+        uint256 optionLiquidity = 0;
+
+        if ((lockedRisky > MIN_LIQUIDITY) && (lockedStable > MIN_LIQUIDITY)) {
+          // Deposit locked liquidity into Primitive pools
+          optionLiquidity = _depositLiquidity(
+              newPoolId,
+              lockedRisky - MIN_LIQUIDITY,
+              lockedStable - MIN_LIQUIDITY
+          );
+        }
 
         emit OpenPositionEvent(
             newPoolId,
@@ -1017,16 +1023,16 @@ contract ParetoVault is
         _mint(address(this), sharesToMint);
 
         // Make transfers for fee
-        if (feeInRisky > 0) {
+        if (feeInRisky > MIN_LIQUIDITY) {
             IERC20(tokenParams.risky).safeTransfer(
                 payable(feeRecipient),
-                feeInRisky
+                feeInRisky.sub(MIN_LIQUIDITY)
             );
         }
-        if (feeInStable > 0) {
+        if (feeInStable > MIN_LIQUIDITY) {
             IERC20(tokenParams.stable).safeTransfer(
                 payable(feeRecipient),
-                feeInStable
+                feeInStable.sub(MIN_LIQUIDITY)
             );
         }
 
@@ -1205,12 +1211,6 @@ contract ParetoVault is
             ? tokenParams.stableDecimals
             : tokenParams.riskyDecimals;
         uint256 minLiquidity = 10**(lowestDecimals / factor + 1);
-
-        console.logUint(poolParams.strike);
-        console.logUint(poolParams.sigma);
-        console.logUint(poolParams.maturity);
-        console.logUint(poolParams.gamma);
-        console.logUint(poolParams.riskyPerLp);
         (bytes32 poolId, , ) = IPrimitiveManager(primitiveParams.manager)
             .create(
                 tokenParams.risky,

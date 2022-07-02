@@ -8,6 +8,7 @@ import {IParetoManager} from "../interfaces/IParetoManager.sol";
 import {Vault} from "../libraries/Vault.sol";
 import {IERC20} from "../interfaces/IERC20.sol";
 import {ReplicationMath} from "../libraries/ReplicationMath.sol";
+import {console} from "hardhat/console.sol";
 
 /**
  * @notice Automated management of Pareto Theta Vaults
@@ -196,6 +197,7 @@ contract ParetoManager is IParetoManager, Ownable {
      * @param stableDecimals is the decimals for the stable asset
      * @return riskyForLp is the R1 variable (in risky decimals)
      * @dev See page 14 of https://primitive.xyz/whitepaper-rmm-01.pdf
+     * @dev Thresholds the value to acceptable changes
      */
     function getRiskyPerLp(
         uint128 strike,
@@ -215,6 +217,12 @@ contract ParetoManager is IParetoManager, Ownable {
             scaleFactorRisky,
             scaleFactorStable
         );
+        // TODO: check this with Primitive team
+        if (riskyForLp < 10000000000000000) {
+          riskyForLp = 10000000000000000;
+        } else if (riskyForLp > 990000000000000000) {
+          riskyForLp = 990000000000000000;
+        }
         return riskyForLp;
     }
 

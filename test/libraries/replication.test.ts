@@ -61,5 +61,30 @@ describe("ReplicationMath contract", () => {
         }
       }
     });
+    it("single example riskyPerLp", async function () {
+      let spot = 1;
+      let strike = 1.1;
+      let sigma = 0.8;
+
+      let r1 = fromBn(
+        await replicationMath.getRiskyPerLp(
+          toBn(spot.toString(), 18).toString(),
+          toBn(strike.toString(), 18).toString(),
+          toBn(sigma.toString(), 4).toString(),
+          1656662400,
+          1,
+          1
+        ),
+        18
+      );
+
+      let tau = 18280;
+      let top = Math.log(spot / strike) + (tau * sigma ** 2) / 2;
+      let bot = sigma * Math.sqrt(tau);
+      let d1 = top / bot;
+      let r2 = 1 - normalCDF(d1, 0, 1);
+
+      expect(parseFloat(r1)).to.be.closeTo(r2, 0.01);
+    });
   });
 });
