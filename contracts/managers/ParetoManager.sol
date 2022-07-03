@@ -51,6 +51,12 @@ contract ParetoManager is IParetoManager, Ownable {
     // Strike multiplier has 2 decimal places e.g. 150 = 1.5x spot price
     uint256 private constant STRIKE_DECIMALS = 10**2;
 
+    // Maximum riskyForLp of 1%
+    uint256 private constant MIN_R1 = 10000000000000000;
+    
+    // Maximum riskyForLp of 99%
+    uint256 private constant MAX_R1 = 990000000000000000;
+
     /************************************************
      * Constructor and initializers
      ***********************************************/
@@ -119,10 +125,7 @@ contract ParetoManager is IParetoManager, Ownable {
         returns (uint256 stableToRiskyPrice, uint256 riskyToStablePrice)
     {
         stableToRiskyPrice = _getOraclePrice(true);
-
-        uint256 oracleDecimals = uint256(chainlinkFeed.decimals());
-        uint256 fixedOne = 10**oracleDecimals;
-
+        uint256 fixedOne = 10**uint256(IERC20(risky).decimals());
         riskyToStablePrice = (fixedOne * fixedOne) / stableToRiskyPrice;
 
         return (stableToRiskyPrice, riskyToStablePrice);
@@ -238,10 +241,10 @@ contract ParetoManager is IParetoManager, Ownable {
             scaleFactorStable
         );
         // TODO: check this with Primitive team
-        if (riskyForLp < 10000000000000000) {
-            riskyForLp = 10000000000000000;
-        } else if (riskyForLp > 990000000000000000) {
-            riskyForLp = 990000000000000000;
+        if (riskyForLp < MIN_R1) {
+            riskyForLp = MIN_R1;
+        } else if (riskyForLp > MAX_R1) {
+            riskyForLp = MAX_R1;
         }
         return riskyForLp;
     }

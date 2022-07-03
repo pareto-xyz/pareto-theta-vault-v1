@@ -100,6 +100,17 @@ describe("ParetoManager contract", function () {
       ).to.be.equal("1");
     });
     /**
+     * @notice Checks fetching both prices at a one-to-one exchange rate
+     */
+    it("correct one-to-one prices both ways", async function () {
+      aggregatorV3.setLatestAnswer(
+        parseWei("1", await aggregatorV3.decimals()).raw
+      );
+      let [stableToRiskyPrice, riskyToStablePrice] = await manager.getPrice();
+      expect(fromBn(stableToRiskyPrice, riskyDecimals)).to.be.equal("1");
+      expect(fromBn(riskyToStablePrice, stableDecimals)).to.be.equal("1");
+    });
+    /**
      * @notice Checks that for a unit of stable asset priced as two units
      * of risky asset, we obtain 2 risky in return
      * @dev the oracle price is manually changed
@@ -126,6 +137,17 @@ describe("ParetoManager contract", function () {
       ).to.be.equal("0.5");
     });
     /**
+     * @notice Checks fetching both prices at a one-to-two exchange rate
+     */
+    it("correct one-to-two prices both ways", async function () {
+      aggregatorV3.setLatestAnswer(
+        parseWei("2", await aggregatorV3.decimals()).raw
+      );
+      let [stableToRiskyPrice, riskyToStablePrice] = await manager.getPrice();
+      expect(fromBn(stableToRiskyPrice, riskyDecimals)).to.be.equal("2");
+      expect(fromBn(riskyToStablePrice, stableDecimals)).to.be.equal("0.5");
+    });
+    /**
      * @notice Checks price conversion works when assets have decimals=18
      * and oracle has decimals=12
      */
@@ -137,6 +159,18 @@ describe("ParetoManager contract", function () {
       expect(
         fromBn(await manager.getStableToRiskyPrice(), riskyDecimals)
       ).to.be.equal("1");
+    });
+    /**
+     * @notice Checks fetching both prices with oracle decimals = 12
+     */
+     it("correct prices both ways with oracle decimals = 12", async function () {
+      aggregatorV3.setLatestAnswer(
+        parseWei("1", await aggregatorV3.decimals()).raw
+      );
+      aggregatorV3.setDecimals(12);
+      let [stableToRiskyPrice, riskyToStablePrice] = await manager.getPrice();
+      expect(fromBn(stableToRiskyPrice, riskyDecimals)).to.be.equal("1");
+      expect(fromBn(riskyToStablePrice, stableDecimals)).to.be.equal("1");
     });
   });
   describe("vault management", function () {
@@ -244,6 +278,7 @@ describe("ParetoManager contract", function () {
             let bot = sigmas[j] * Math.sqrt(tau);
             let d1 = top / bot;
             let r2 = 1 - normalCDF(d1, 0, 1);
+            r2 = Math.max(Math.min(r2, 0.99), 0.01);
 
             /// @dev: 0.01 is a generous margin for error
             expect(parseFloat(r1)).to.be.closeTo(r2, 0.01);
