@@ -751,8 +751,8 @@ runTest("ParetoVault", function () {
 
     beforeEach(async function () {
       // Put in a bit of money so we can create pools
-      await this.contracts.risky.mint(vault.address, 10000);
-      await this.contracts.stable.mint(vault.address, 10000);
+      await this.contracts.risky.mint(vault.address, toBn("1", riskyDecimals));
+      await this.contracts.stable.mint(vault.address, toBn("1", stableDecimals));
 
       // Alice makes a deposit into the vault
       await vault
@@ -764,7 +764,7 @@ runTest("ParetoVault", function () {
       const oracleDecimals = await this.contracts.aggregatorV3.decimals();
       await this.contracts.aggregatorV3.setLatestAnswer(
         parseWei("1.2", oracleDecimals).raw
-      );
+      )
 
       let vaultState = await vault.vaultState();
       oldLockedRisky = fromBn(vaultState.lockedRisky, riskyDecimals);
@@ -801,13 +801,14 @@ runTest("ParetoVault", function () {
       expect(fromBn(vaultState.lastLockedStable, stableDecimals)).to.be.equal(
         oldLockedStable
       );
-      // This implicitly checks that no fees were taken
+
+      // 3001 and 1 since we initialized with 1 of each token
       expect(
         fromBnToFloat(vaultState.lockedRisky, riskyDecimals)
-      ).to.be.closeTo(3000, 0.001);
+      ).to.be.closeTo(3001, 0.1);
       expect(
         fromBnToFloat(vaultState.lockedStable, stableDecimals)
-      ).to.be.closeTo(0, 0.001);
+      ).to.be.closeTo(1, 0.1);
 
       // Check round number
       expect(vaultState.round).to.be.equal(3);
@@ -815,9 +816,24 @@ runTest("ParetoVault", function () {
       // Check pending amounts
       expect(fromBn(vaultState.pendingRisky, riskyDecimals)).to.be.equal("0");
     });
-    it("check pool state post double rollover", async function () {});
+    it("check pool state post double rollover", async function () {
+      let poolState = await vault.poolState();
+      // Check nextPoolId is empty (after rollover)
+      expect(poolState.nextPoolId == 0).to.be.equal(true);
+      // Check currPoolId is not empty (after rollover)
+      expect(poolState.currPoolId == 0).to.be.equal(false);
+      // Check currLiquidity is not zero
+      expect(
+        fromBnToFloat(poolState.currLiquidity, shareDecimals)
+      ).to.be.greaterThan(0);
+    });
     it("check round share prices post double rollover", async function () {});
-    it("check shares minted post double rollover", async function () {});
+    it("check shares minted post double rollover", async function () {
+      // Since Alice deposited and has not withdrawn, minted shares exist
+      expect(
+        fromBnToFloat(await vault.balanceOf(vault.address), shareDecimals)
+      ).to.be.greaterThan(0);
+    });
   });
 
   /**

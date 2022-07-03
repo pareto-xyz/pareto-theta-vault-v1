@@ -1105,10 +1105,14 @@ contract ParetoVault is
                 inputs.postVaultRisky.mul(oraclePrice).div(10**oracleDecimals)
             );
         }
+        success = postVaultValue > preVaultValue;
+        if (success) {
+            valueForPerformanceFee = postVaultValue.sub(preVaultValue);
+        }
         return (
-            postVaultValue > preVaultValue,
+            success,
             moreRisky,
-            postVaultValue.sub(preVaultValue)
+            valueForPerformanceFee
         );
     }
 
