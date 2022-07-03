@@ -827,7 +827,20 @@ runTest("ParetoVault", function () {
         fromBnToFloat(poolState.currLiquidity, shareDecimals)
       ).to.be.greaterThan(0);
     });
-    it("check round share prices post double rollover", async function () {});
+    it("check round share prices post double rollover", async function () {
+      expect(
+        fromBn(await vault.roundSharePriceInRisky(1), riskyDecimals)
+      ).to.be.equal("1");
+      expect(
+        fromBn(await vault.roundSharePriceInRisky(2), riskyDecimals)
+      );
+      expect(
+        fromBn(await vault.roundSharePriceInStable(1), stableDecimals)
+      ).to.be.equal("1");;
+      expect(
+        fromBn(await vault.roundSharePriceInStable(2), stableDecimals)
+      ).to.not.be.equal("1");
+    });
     it("check shares minted post double rollover", async function () {
       // Since Alice deposited and has not withdrawn, minted shares exist
       expect(
