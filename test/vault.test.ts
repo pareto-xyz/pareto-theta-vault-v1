@@ -629,7 +629,6 @@ runTest("ParetoVault", function () {
       expect(poolState.currPoolId).to.be.equal(cachePoolId);
       expect(poolState.nextPoolId).to.be.equal(emptyPoolId);
 
-      console.log( fromBnToFloat(poolState.currLiquidity, shareDecimals));
       // Pool State now stores liquidity held by contract
       expect(
         fromBnToFloat(poolState.currLiquidity, shareDecimals)
@@ -756,7 +755,10 @@ runTest("ParetoVault", function () {
     beforeEach(async function () {
       // Put in a bit of money so we can create pools
       await this.contracts.risky.mint(vault.address, toBn("1", riskyDecimals));
-      await this.contracts.stable.mint(vault.address, toBn("1", stableDecimals));
+      await this.contracts.stable.mint(
+        vault.address,
+        toBn("1", stableDecimals)
+      );
 
       // Alice makes a deposit into the vault
       await vault
@@ -768,7 +770,7 @@ runTest("ParetoVault", function () {
       const oracleDecimals = await this.contracts.aggregatorV3.decimals();
       await this.contracts.aggregatorV3.setLatestAnswer(
         parseWei("1.2", oracleDecimals).raw
-      )
+      );
 
       let vaultState = await vault.vaultState();
       oldLockedRisky = fromBn(vaultState.lockedRisky, riskyDecimals);
@@ -840,7 +842,7 @@ runTest("ParetoVault", function () {
       ).to.be.not.equal("1");
       expect(
         fromBn(await vault.roundSharePriceInStable(1), stableDecimals)
-      ).to.be.not.equal("1");;
+      ).to.be.equal("1");
       expect(
         fromBn(await vault.roundSharePriceInStable(2), stableDecimals)
       ).to.be.not.equal("1");

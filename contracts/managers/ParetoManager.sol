@@ -53,7 +53,7 @@ contract ParetoManager is IParetoManager, Ownable {
 
     // Maximum riskyForLp of 1%
     uint256 private constant MIN_R1 = 10000000000000000;
-    
+
     // Maximum riskyForLp of 99%
     uint256 private constant MAX_R1 = 990000000000000000;
 

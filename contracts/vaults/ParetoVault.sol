@@ -1109,11 +1109,7 @@ contract ParetoVault is
         if (success) {
             valueForPerformanceFee = postVaultValue.sub(preVaultValue);
         }
-        return (
-            success,
-            moreRisky,
-            valueForPerformanceFee
-        );
+        return (success, moreRisky, valueForPerformanceFee);
     }
 
     /**

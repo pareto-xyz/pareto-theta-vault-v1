@@ -163,7 +163,7 @@ describe("ParetoManager contract", function () {
     /**
      * @notice Checks fetching both prices with oracle decimals = 12
      */
-     it("correct prices both ways with oracle decimals = 12", async function () {
+    it("correct prices both ways with oracle decimals = 12", async function () {
       aggregatorV3.setLatestAnswer(
         parseWei("1", await aggregatorV3.decimals()).raw
       );
