@@ -10,7 +10,7 @@ export function computePoolId(
 ): string {
   return utils.keccak256(
     utils.solidityPack(
-      ["address", "uint128", "uint32", "uint32", "uint32"], 
+      ["address", "uint128", "uint32", "uint32", "uint32"],
       [engine, strike, sigma, maturity, gamma]
     )
   );
@@ -34,13 +34,9 @@ export function computeEngineAddress(
     ["bytes"],
     [utils.defaultAbiCoder.encode(["address", "address"], [risky, stable])]
   );
-  return utils.getCreate2Address(factory, salt, utils.keccak256(bytecode))
+  return utils.getCreate2Address(factory, salt, utils.keccak256(bytecode));
 }
 
-export function normalCDF(
-  x: number,
-  mean: number, 
-  sigma: number
-): number {
-  return (1 - erf((mean - x ) / (Math.sqrt(2) * sigma))) / 2;
+export function normalCDF(x: number, mean: number, sigma: number): number {
+  return (1 - erf((mean - x) / (Math.sqrt(2) * sigma))) / 2;
 }

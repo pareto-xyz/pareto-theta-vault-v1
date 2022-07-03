@@ -3,6 +3,7 @@ pragma solidity >=0.8.6;
 
 import {SafeMath} from "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import {Vault} from "./Vault.sol";
+import {console} from "hardhat/console.sol";
 
 library VaultMath {
     using SafeMath for uint256;
@@ -38,8 +39,7 @@ library VaultMath {
     }
 
     /**
-     * @notice Returns the shares unredeemed by the user
-     * These shares must roll over to the next vault
+     * @notice Returns the shares owned by the user
      * @param depositReceipt is the user's deposit receipt
      * @param currRound is the `round` stored on the vault
      * @param sharePrice is the price of one share in assets
@@ -53,18 +53,20 @@ library VaultMath {
         uint8 decimals
     ) internal pure returns (uint256 shares) {
         if (depositReceipt.round > 0 && depositReceipt.round < currRound) {
-            // If receipt is from earlier round, compute shares value
-            // At max only one of these as continuously updated
-            uint256 currShares = assetToShare(
-                depositReceipt.riskyAmount,
+            // If receipt is from earlier round, we need to add together shares
+            // accumulated in the receipt and shares from current round
+            /// @dev Shares stored in the receipt are updated over rounds
+            uint256 newShares = assetToShare(
+                depositReceipt.riskyToDeposit,
                 sharePrice,
                 decimals
             );
             // added with shares from current round
-            return uint256(depositReceipt.shares).add(currShares);
+            return uint256(depositReceipt.ownedShares).add(newShares);
         } else {
-            // If receipt is from current round, return directly
-            return depositReceipt.shares;
+            // If receipt is from current round, shares from the current round
+            // have already been added into the `ownedShares` attribute
+            return depositReceipt.ownedShares;
         }
     }
 

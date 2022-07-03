@@ -108,6 +108,26 @@ contract ParetoManager is IParetoManager, Ownable {
         return _getOraclePrice(false);
     }
 
+    /**
+     * @notice Helper function to return both stable-to-risky and
+     * risky-to-stable prices
+     */
+    function getPrice()
+        external
+        view
+        override
+        returns (uint256 stableToRiskyPrice, uint256 riskyToStablePrice)
+    {
+        stableToRiskyPrice = _getOraclePrice(true);
+
+        uint256 oracleDecimals = uint256(chainlinkFeed.decimals());
+        uint256 fixedOne = 10**oracleDecimals;
+
+        riskyToStablePrice = (fixedOne * fixedOne) / stableToRiskyPrice;
+
+        return (stableToRiskyPrice, riskyToStablePrice);
+    }
+
     function getOracleDecimals() external view override returns (uint8) {
         return chainlinkFeed.decimals();
     }
@@ -183,7 +203,7 @@ contract ParetoManager is IParetoManager, Ownable {
      * @return gamma is the Gamma for the next pool
      */
     function getNextGamma() external pure override returns (uint32 gamma) {
-        gamma = 9500; // TODO - placeholder 99% gamma = 5% fee
+        gamma = 9500; // TODO - placeholder 95% gamma = 5% fee
         return gamma;
     }
 
@@ -191,17 +211,18 @@ contract ParetoManager is IParetoManager, Ownable {
      * @notice Computes the riskyForLp using oracle as spot price
      * @param strike is the strike price in stable
      * @param sigma is the implied volatility
-     * @param maturity is the maturity timestamp in seconds
+     * @param tau is time to maturity in seconds
      *  The conversion to years will happen within `ReplicationMath`
      * @param riskyDecimals is the decimals for the risky asset
      * @param stableDecimals is the decimals for the stable asset
      * @return riskyForLp is the R1 variable (in risky decimals)
      * @dev See page 14 of https://primitive.xyz/whitepaper-rmm-01.pdf
+     * @dev Thresholds the value to acceptable changes
      */
     function getRiskyPerLp(
         uint128 strike,
         uint32 sigma,
-        uint32 maturity,
+        uint256 tau,
         uint8 riskyDecimals,
         uint8 stableDecimals
     ) external view override returns (uint256 riskyForLp) {
@@ -212,10 +233,16 @@ contract ParetoManager is IParetoManager, Ownable {
             uint256(_getOraclePrice(false)),
             uint256(strike),
             uint256(sigma),
-            uint256(maturity).sub(block.timestamp),
+            tau,
             scaleFactorRisky,
             scaleFactorStable
         );
+        // TODO: check this with Primitive team
+        if (riskyForLp < 10000000000000000) {
+            riskyForLp = 10000000000000000;
+        } else if (riskyForLp > 990000000000000000) {
+            riskyForLp = 990000000000000000;
+        }
         return riskyForLp;
     }
 

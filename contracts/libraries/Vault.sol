@@ -6,7 +6,7 @@ pragma solidity >=0.8.6;
  */
 library Vault {
     // Fees are 6-decimal places. For example: 20 * 10**6 = 20%
-    uint256 internal constant FEE_MULTIPLIER = 10**6;
+    uint256 internal constant FEE_DECIMALS = 6;
 
     struct PoolState {
         // Primitive pool that the vault is depositing into next cycle
@@ -21,6 +21,19 @@ library Vault {
         PoolParams nextPoolParams;
         // The timestamp when the `nextPoolId` can be used by the vault
         uint32 nextPoolReadyAt;
+    }
+
+    /**
+     * @param risky is the address of the risky asset
+     * @param stable is the address of the stable asset
+     * @param riskyDecimals is the decimals for the risky asset
+     * @param stableDecimals is the decimals for the stable asset
+     */
+    struct TokenParams {
+        address risky;
+        address stable;
+        uint8 riskyDecimals;
+        uint8 stableDecimals;
     }
 
     /**
@@ -39,7 +52,6 @@ library Vault {
         uint32 maturity;
         uint32 gamma;
         uint256 riskyPerLp;
-        uint256 delLiquidity;
     }
 
     /**
@@ -96,13 +108,15 @@ library Vault {
     /**
      * @param round is the round number with a maximum of 65535 rounds
      *  Assuming round is 1 week, max is 1256 yrs
-     * @param riskyAmount is the deposit amount of the risky asset
-     * @param shares is the amount of shares owned by user
+     * @param riskyToDeposit is the deposit amount of the risky asset
+     *  to be converted into shares at rollover
+     * @param ownedShares is the amount of shares owned by user from
+     *  depositing in past rounds
      */
     struct DepositReceipt {
         uint16 round;
-        uint104 riskyAmount;
-        uint128 shares;
+        uint104 riskyToDeposit;
+        uint128 ownedShares;
     }
 
     /**
@@ -134,6 +148,19 @@ library Vault {
     }
 
     /**
+     * @param preVaultRisky is the amount of risky token the vault owns at the start of the round
+     * @param preVaultStable is the amount of stable token the vault owns at the start of the round
+     * @param postVaultRisky is the amount of risky token the vault owns at the end of the round
+     * @param postVaultStable is the amount of stable token the vault owns at the end of the round
+     */
+    struct VaultSuccessInput {
+        uint256 preVaultRisky;
+        uint256 preVaultStable;
+        uint256 postVaultRisky;
+        uint256 postVaultStable;
+    }
+
+    /**
      * @param router is the address for the Uniswap router contract
      * @param poolFee for swaps in uniswap pool to search for
      */
@@ -145,9 +172,11 @@ library Vault {
     /**
      * @param manager is the address for the Primitive manager contract
      * @param engine is the address for the Primitive engine contract
+     * @param factory is the address for the Primitive factory contract
      */
     struct PrimitiveParams {
         address manager;
         address engine;
+        address factory;
     }
 }
