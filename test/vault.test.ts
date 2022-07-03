@@ -491,9 +491,12 @@ runTest("ParetoVault", function () {
     it("check double deployment of different pools", async function () {
       await vault.connect(this.wallets.keeper).deployVault();
 
+      await this.contracts.risky.mint(vault.address, 10000);
+      await this.contracts.stable.mint(vault.address, 10000);
+
       const decimals = await this.contracts.aggregatorV3.decimals();
       await this.contracts.aggregatorV3.setLatestAnswer(
-        parseWei("2", decimals).raw
+        parseWei("1.2", decimals).raw
       );
 
       await vault.connect(this.wallets.keeper).deployVault();
@@ -626,6 +629,7 @@ runTest("ParetoVault", function () {
       expect(poolState.currPoolId).to.be.equal(cachePoolId);
       expect(poolState.nextPoolId).to.be.equal(emptyPoolId);
 
+      console.log( fromBnToFloat(poolState.currLiquidity, shareDecimals));
       // Pool State now stores liquidity held by contract
       expect(
         fromBnToFloat(poolState.currLiquidity, shareDecimals)
@@ -833,13 +837,13 @@ runTest("ParetoVault", function () {
       ).to.be.equal("1");
       expect(
         fromBn(await vault.roundSharePriceInRisky(2), riskyDecimals)
-      );
+      ).to.be.not.equal("1");
       expect(
         fromBn(await vault.roundSharePriceInStable(1), stableDecimals)
-      ).to.be.equal("1");;
+      ).to.be.not.equal("1");;
       expect(
         fromBn(await vault.roundSharePriceInStable(2), stableDecimals)
-      ).to.not.be.equal("1");
+      ).to.be.not.equal("1");
     });
     it("check shares minted post double rollover", async function () {
       // Since Alice deposited and has not withdrawn, minted shares exist
