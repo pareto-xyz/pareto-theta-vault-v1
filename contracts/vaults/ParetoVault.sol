@@ -942,8 +942,6 @@ contract ParetoVault is
                         performanceFeePercent: performanceFee
                     })
                 );
-                console.logUint(feeInRisky);
-                console.logUint(feeInStable);
             }
 
             // Remove fee from assets
@@ -1048,32 +1046,70 @@ contract ParetoVault is
     }
 
     /**
-     * Check if the vault was successful in making money. This converts stable
-     * to risky to compute value, using an oracle price
-     * @param preVaultRisky is the amount of risky before the vault
-     * @param preVaultStable is the amount of stable before the vault
-     * @param postVaultRisky is the amount of risky after the vault
-     * @param postVaultStable is the amount of stable after the vault
+     * Check if the vault was successful in making money. This function also
+     * decides if the performance fee should be token through risky or stable
+     * token depending on the vault balances.
+     *
+     * @dev This function does not transfer tokens.
+     *
+     * @param inputs is contains the pre- and post- week vault stats
      * @return success is true if current value is higher than before the vault
      *  at the same oracle price; otherwise false
+     * @return riskyForPerformanceFee is if we charge the performance fee in
+     *  terms of the risky asset or the stable asset
+     * @return valueForPerformanceFee is the amount of value to charge a
+     *  performance fee (it is the difference between pre- and post-)
      */
-    function _checkVaultSuccess(
-        uint256 preVaultRisky,
-        uint256 preVaultStable,
-        uint256 postVaultRisky,
-        uint256 postVaultStable
-    ) internal view returns (bool success) {
+    function _checkVaultSuccess(Vault.VaultSuccessInput memory inputs)
+        internal
+        view
+        returns (
+            bool success,
+            bool riskyForPerformanceFee,
+            uint256 valueForPerformanceFee
+        )
+    {
+        // risky was earned throughout vault
+        bool moreRisky = inputs.postVaultRisky > inputs.preVaultRisky;
+        // stable was earned throughout vault
+        bool moreStable = inputs.postVaultStable > inputs.preVaultStable;
+
         uint8 oracleDecimals = IParetoManager(vaultManager).getOracleDecimals();
-        uint256 stableToRiskyPrice = IParetoManager(vaultManager)
-            .getStableToRiskyPrice();
-        uint256 preVaultValue = preVaultRisky.add(
-            preVaultStable.mul(stableToRiskyPrice).div(10**oracleDecimals)
+        uint256 oraclePrice;
+        uint256 preVaultValue;
+        uint256 postVaultValue;
+
+        if (!moreRisky && !moreStable) {
+            /// @dev Clearly lost money
+            return (false, false, 0);
+        }
+
+        if (moreRisky) {
+            /// @dev This covers two cases: either more risky and less stable, or
+            ///      both more risky and more stable
+            oraclePrice = IParetoManager(vaultManager).getStableToRiskyPrice();
+            preVaultValue = inputs.preVaultRisky.add(
+                inputs.preVaultStable.mul(oraclePrice).div(10**oracleDecimals)
+            );
+            postVaultValue = inputs.postVaultRisky.add(
+                inputs.postVaultStable.mul(oraclePrice).div(10**oracleDecimals)
+            );
+        } else {
+            /// @dev This covers the case with more stable but less risky
+            require(moreStable, "!moreStable");
+            oraclePrice = IParetoManager(vaultManager).getRiskyToStablePrice();
+            preVaultValue = inputs.preVaultStable.add(
+                inputs.preVaultRisky.mul(oraclePrice).div(10**oracleDecimals)
+            );
+            postVaultValue = inputs.postVaultStable.add(
+                inputs.postVaultRisky.mul(oraclePrice).div(10**oracleDecimals)
+            );
+        }
+        return (
+            postVaultValue > preVaultValue,
+            moreRisky,
+            postVaultValue.sub(preVaultValue)
         );
-        uint256 postVaultValue = postVaultRisky.add(
-            postVaultStable.mul(stableToRiskyPrice).div(10**oracleDecimals)
-        );
-        success = postVaultValue >= preVaultValue;
-        return success;
     }
 
     /**
@@ -1101,27 +1137,36 @@ contract ParetoVault is
 
         // Take performance fee and management fee ONLY if the value of vault's
         // current assets (at current oracle price) is higher than the value of
-        // vault before the round (at the same oracle price).
-        bool vaultSuccess = _checkVaultSuccess(
-            feeParams.lastLockedRisky,
-            feeParams.lastLockedStable,
-            currLockedRisky,
-            feeParams.currStable
-        );
+        // vault before the round (at the same oracle price)
+        (
+            bool vaultSuccess,
+            bool riskyForPerformanceFee,
+            uint256 valueForPerformanceFee
+        ) = _checkVaultSuccess(
+                Vault.VaultSuccessInput({
+                    preVaultRisky: feeParams.lastLockedRisky,
+                    preVaultStable: feeParams.lastLockedStable,
+                    postVaultRisky: currLockedRisky,
+                    postVaultStable: feeParams.currStable
+                })
+            );
         if (vaultSuccess) {
-            _performanceFeeInRisky = feeParams.performanceFeePercent > 0
-                ? currLockedRisky
-                    .sub(feeParams.lastLockedRisky)
-                    .mul(feeParams.performanceFeePercent)
-                    .div(100 * 10**Vault.FEE_DECIMALS)
-                : 0;
-            _performanceFeeInStable = feeParams.performanceFeePercent > 0
-                ? feeParams
-                    .currStable
-                    .sub(feeParams.lastLockedStable)
-                    .mul(feeParams.performanceFeePercent)
-                    .div(100 * 10**Vault.FEE_DECIMALS)
-                : 0;
+            if (riskyForPerformanceFee) {
+                _performanceFeeInRisky = feeParams.performanceFeePercent > 0
+                    ? valueForPerformanceFee
+                        .mul(feeParams.performanceFeePercent)
+                        .div(100 * 10**Vault.FEE_DECIMALS)
+                    : 0;
+            } else {
+                _performanceFeeInStable = feeParams.performanceFeePercent > 0
+                    ? valueForPerformanceFee
+                        .mul(feeParams.performanceFeePercent)
+                        .div(100 * 10**Vault.FEE_DECIMALS)
+                    : 0;
+            }
+
+            // Management fee is take on the entire locked amount; this removes the
+            // amount scheduled to be
             _managementFeeInRisky = feeParams.managementFeePercent > 0
                 ? currLockedRisky.mul(feeParams.managementFeePercent).div(
                     100 * 10**Vault.FEE_DECIMALS
@@ -1132,6 +1177,8 @@ contract ParetoVault is
                     100 * 10**Vault.FEE_DECIMALS
                 )
                 : 0;
+
+            // Total fee is just the sum of the two
             feeInRisky = _performanceFeeInRisky.add(_managementFeeInRisky);
             feeInStable = _performanceFeeInStable.add(_managementFeeInStable);
         }

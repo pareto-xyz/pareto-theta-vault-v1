@@ -13,6 +13,15 @@ interface IParetoManager {
     function getRiskyToStablePrice() external view returns (uint256);
 
     /**
+     * @notice Query oracle for price of both stable to risky asset
+     *  and the risky to stable asset
+     */
+    function getPrice()
+        external
+        view
+        returns (uint256 stableToRiskyPrice, uint256 riskyToStablePrice);
+
+    /**
      * @notice Query oracle for its decimals
      */
     function getOracleDecimals() external view returns (uint8);

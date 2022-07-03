@@ -148,6 +148,19 @@ library Vault {
     }
 
     /**
+     * @param preVaultRisky is the amount of risky token the vault owns at the start of the round
+     * @param preVaultStable is the amount of stable token the vault owns at the start of the round
+     * @param postVaultRisky is the amount of risky token the vault owns at the end of the round
+     * @param postVaultStable is the amount of stable token the vault owns at the end of the round
+     */
+    struct VaultSuccessInput {
+        uint256 preVaultRisky;
+        uint256 preVaultStable;
+        uint256 postVaultRisky;
+        uint256 postVaultStable;
+    }
+
+    /**
      * @param router is the address for the Uniswap router contract
      * @param poolFee for swaps in uniswap pool to search for
      */

@@ -575,6 +575,7 @@ runTest("ParetoVault", function () {
           await this.contracts.stable.balanceOf(vault.address),
           stableDecimals
         ),
+        1.0,
         fromBnToFloat(vaultState.lastLockedRisky, riskyDecimals),
         fromBnToFloat(vaultState.lastLockedStable, stableDecimals),
         fromBnToFloat(await vault.managementFee(), 6),
@@ -660,7 +661,6 @@ runTest("ParetoVault", function () {
         )
       ).to.be.equal("0");
 
-      // Compute the amount of assets in vault
       let vaultRisky = fromBnToFloat(
         await this.contracts.risky.balanceOf(vault.address),
         riskyDecimals
@@ -679,6 +679,7 @@ runTest("ParetoVault", function () {
       let output = computeLockedAmounts(
         vaultRisky,
         vaultStable,
+        1.0,
         fromBnToFloat(vaultState.lastLockedRisky, riskyDecimals),
         fromBnToFloat(vaultState.lastLockedStable, stableDecimals),
         fromBnToFloat(await vault.managementFee(), 6),
@@ -815,7 +816,6 @@ runTest("ParetoVault", function () {
       expect(fromBn(vaultState.pendingRisky, riskyDecimals)).to.be.equal("0");
     });
     it("check pool state post double rollover", async function () {});
-    it("check fee recipient post double rollover", async function () {});
     it("check round share prices post double rollover", async function () {});
     it("check shares minted post double rollover", async function () {});
   });
@@ -843,24 +843,85 @@ runTest("ParetoVault", function () {
       await this.contracts.aggregatorV3.setLatestAnswer(
         parseWei("0.95", oracleDecimals).raw
       );
+
+      /// @dev Simulate OTM by minting a "premium" (e.g. 10%)
+      await this.contracts.risky.mint(
+        vault.address,
+        toBn("100", riskyDecimals)
+      );
+
+      let vaultRisky = fromBnToFloat(
+        await this.contracts.risky.balanceOf(vault.address),
+        riskyDecimals
+      );
+      let vaultStable = fromBnToFloat(
+        await this.contracts.stable.balanceOf(vault.address),
+        stableDecimals
+      );
+
       await vault.connect(this.wallets.keeper).deployVault();
       await vault.connect(this.wallets.keeper).rollover();
+
+      let vaultState = await vault.vaultState();
+      let output = computeLockedAmounts(
+        vaultRisky,
+        vaultStable,
+        0.95,
+        fromBnToFloat(vaultState.lastLockedRisky, riskyDecimals),
+        fromBnToFloat(vaultState.lastLockedStable, stableDecimals),
+        fromBnToFloat(await vault.managementFee(), 6),
+        fromBnToFloat(await vault.performanceFee(), 6)
+      );
+
+      // Locked assets = vault assets - fees
+      let lockedRisky = fromBnToFloat(vaultState.lockedRisky, riskyDecimals);
+      let lockedStable = fromBnToFloat(vaultState.lockedStable, stableDecimals);
+
+      expect(output.lockedRisky).to.be.closeTo(lockedRisky, 0.001);
+      expect(output.lockedStable).to.be.closeTo(lockedStable, 0.001);
+
+      // For this setup, fee in stable ~ 0
+      expect(output.feeRisky).to.be.greaterThan(0);
+      expect(output.feeStable).to.be.closeTo(0, 0.001);
     });
     it("check in-the-money behavior", async function () {
       const oracleDecimals = await this.contracts.aggregatorV3.decimals();
       await this.contracts.aggregatorV3.setLatestAnswer(
         parseWei("1.2", oracleDecimals).raw
       );
-      await vault.connect(this.wallets.keeper).deployVault();
-      await vault.connect(this.wallets.keeper).rollover();
-    });
-    it("check at-the-money behavior", async function () {
-      const oracleDecimals = await this.contracts.aggregatorV3.decimals();
-      await this.contracts.aggregatorV3.setLatestAnswer(
-        parseWei("1", oracleDecimals).raw
+
+      /// @dev no minting is needed here because expires OTM
+      let vaultRisky = fromBnToFloat(
+        await this.contracts.risky.balanceOf(vault.address),
+        riskyDecimals
       );
+      let vaultStable = fromBnToFloat(
+        await this.contracts.stable.balanceOf(vault.address),
+        stableDecimals
+      );
+
       await vault.connect(this.wallets.keeper).deployVault();
       await vault.connect(this.wallets.keeper).rollover();
+
+      let vaultState = await vault.vaultState();
+      let output = computeLockedAmounts(
+        vaultRisky,
+        vaultStable,
+        1.2,
+        fromBnToFloat(vaultState.lastLockedRisky, riskyDecimals),
+        fromBnToFloat(vaultState.lastLockedStable, stableDecimals),
+        fromBnToFloat(await vault.managementFee(), 6),
+        fromBnToFloat(await vault.performanceFee(), 6)
+      );
+
+      let lockedRisky = fromBnToFloat(vaultState.lockedRisky, riskyDecimals);
+      let lockedStable = fromBnToFloat(vaultState.lockedStable, stableDecimals);
+
+      expect(output.lockedRisky).to.be.closeTo(lockedRisky, 0.001);
+      expect(output.lockedStable).to.be.closeTo(lockedStable, 0.001);
+
+      expect(output.feeRisky).to.be.closeTo(0, 0.001);
+      expect(output.feeStable).to.be.closeTo(0, 0.001);
     });
   });
 

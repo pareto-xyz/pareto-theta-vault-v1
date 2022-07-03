@@ -108,6 +108,26 @@ contract ParetoManager is IParetoManager, Ownable {
         return _getOraclePrice(false);
     }
 
+    /**
+     * @notice Helper function to return both stable-to-risky and
+     * risky-to-stable prices
+     */
+    function getPrice()
+        external
+        view
+        override
+        returns (uint256 stableToRiskyPrice, uint256 riskyToStablePrice)
+    {
+        stableToRiskyPrice = _getOraclePrice(true);
+
+        uint256 oracleDecimals = uint256(chainlinkFeed.decimals());
+        uint256 fixedOne = 10**oracleDecimals;
+
+        riskyToStablePrice = (fixedOne * fixedOne) / stableToRiskyPrice;
+
+        return (stableToRiskyPrice, riskyToStablePrice);
+    }
+
     function getOracleDecimals() external view override returns (uint8) {
         return chainlinkFeed.decimals();
     }

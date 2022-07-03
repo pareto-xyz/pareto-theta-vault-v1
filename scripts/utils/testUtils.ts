@@ -5,6 +5,7 @@ import { fromBn, toBn } from "evm-bn";
  *  Takes into account the fees
  * @param vaultRisky is the amount of risky token in the vault
  * @param vaultStable is the amount of stable token in the vault
+ * @param stableToRiskyPrice is the price of a stable token in risky
  * @param lastLockedRisky is the amount of locked risky from last round
  * @param lastLockedStable is the amount of locked stable from last round
  * @param managementFeePerWeek is the management fee in percentage per week
@@ -14,6 +15,7 @@ import { fromBn, toBn } from "evm-bn";
 export function computeLockedAmounts(
   vaultRisky: number,
   vaultStable: number,
+  stableToRiskyPrice: number,
   lastLockedRisky: number,
   lastLockedStable: number,
   managementFeePerWeek: number,
@@ -24,18 +26,56 @@ export function computeLockedAmounts(
   feeRisky: number,
   feeStable: number
 } {
+  let riskyToStablePrice = 1 / stableToRiskyPrice;
   let managementPercPerWeek = managementFeePerWeek / 100;
   let performancePerc = performanceFee / 100;
 
-  let managementRisky =
-    (vaultRisky - lastLockedRisky) * managementPercPerWeek;
-  let performanceRisky = (vaultRisky - lastLockedRisky) * performancePerc;
-  let feeRisky = managementRisky + performanceRisky;
-  let managementStable =
-    (vaultStable - lastLockedStable) * managementPercPerWeek;
-  let performanceStable =
-    (vaultStable - lastLockedStable) * performancePerc;
-  let feeStable = managementStable + performanceStable;
+  let moreRisky = vaultRisky > lastLockedRisky;
+  let moreStable = vaultStable > lastLockedStable;
+
+  let feeRisky: number = 0;
+  let feeStable: number = 0;
+
+  if (!moreRisky && !moreStable) {
+    return {
+      lockedRisky: vaultRisky, 
+      lockedStable: vaultStable,
+      feeRisky: feeRisky,
+      feeStable: feeStable,
+    };
+  }
+  
+  let preVaultValue: number;
+  let postVaultValue: number;
+
+  if (moreRisky) {
+    preVaultValue = lastLockedRisky + lastLockedStable * stableToRiskyPrice;
+    postVaultValue = vaultRisky + vaultStable * stableToRiskyPrice;
+  } else { 
+    preVaultValue = lastLockedStable + lastLockedRisky * riskyToStablePrice;
+    postVaultValue = vaultStable + vaultRisky * riskyToStablePrice;
+  }
+
+  let vaultSuccess = postVaultValue > preVaultValue;
+  let riskyForPerformanceFee = moreRisky;
+  let valueForPerformanceFee = postVaultValue - preVaultValue;
+
+  if (vaultSuccess) {
+    let managementRisky = vaultRisky  * managementPercPerWeek;
+    let managementStable = vaultStable * managementPercPerWeek;
+    
+    let performanceRisky: number = 0;
+    let performanceStable: number = 0;
+
+    if (riskyForPerformanceFee) {
+      performanceRisky = valueForPerformanceFee * performancePerc;
+    } else {
+      performanceStable = valueForPerformanceFee * performancePerc;
+    }
+    
+    feeRisky = managementRisky + performanceRisky;
+    feeStable = managementStable + performanceStable;
+  }
 
   let lockedRisky = vaultRisky - feeRisky;
   let lockedStable = vaultStable - feeStable;
