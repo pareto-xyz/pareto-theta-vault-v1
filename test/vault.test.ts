@@ -510,8 +510,9 @@ runTest("ParetoVault", function () {
    */
   describe("check vault rollover", function () {
     beforeEach(async function () {
-      await this.contracts.risky.mint(vault.address, 10000);
-      await this.contracts.stable.mint(vault.address, 10000);
+      // Put in 1 ETH in the beginning
+      await this.contracts.risky.mint(vault.address, toBn("1", riskyDecimals));
+      await this.contracts.stable.mint(vault.address, toBn("1", stableDecimals));
     });
     it("check keeper can rollover vault", async function () {
       await vault.connect(this.wallets.keeper).deployVault();
@@ -549,6 +550,15 @@ runTest("ParetoVault", function () {
       vaultState = await vault.vaultState();
       let preRound = vaultState.round;
 
+      let vaultRisky = fromBnToFloat(
+        await this.contracts.risky.balanceOf(vault.address),
+        riskyDecimals
+      );
+      let vaultStable = fromBnToFloat(
+        await this.contracts.stable.balanceOf(vault.address),
+        stableDecimals
+      );
+
       // Keeper deploys fresh vault and immediately rolls over
       await vault.connect(this.wallets.keeper).deployVault();
       await vault.connect(this.wallets.keeper).rollover();
@@ -570,14 +580,8 @@ runTest("ParetoVault", function () {
 
       // Compute performance and management fee percentages
       let output = computeLockedAmounts(
-        fromBnToFloat(
-          await this.contracts.risky.balanceOf(vault.address),
-          riskyDecimals
-        ),
-        fromBnToFloat(
-          await this.contracts.stable.balanceOf(vault.address),
-          stableDecimals
-        ),
+        vaultRisky,
+        vaultStable,
         1.0,
         fromBnToFloat(vaultState.lastLockedRisky, riskyDecimals),
         fromBnToFloat(vaultState.lastLockedStable, stableDecimals),
