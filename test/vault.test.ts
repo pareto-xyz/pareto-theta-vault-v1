@@ -512,7 +512,10 @@ runTest("ParetoVault", function () {
     beforeEach(async function () {
       // Put in 1 ETH in the beginning
       await this.contracts.risky.mint(vault.address, toBn("1", riskyDecimals));
-      await this.contracts.stable.mint(vault.address, toBn("1", stableDecimals));
+      await this.contracts.stable.mint(
+        vault.address,
+        toBn("1", stableDecimals)
+      );
     });
     it("check keeper can rollover vault", async function () {
       await vault.connect(this.wallets.keeper).deployVault();
@@ -967,51 +970,114 @@ runTest("ParetoVault", function () {
   /**
    * @notice Test account queries
    */
-   describe("check account statistics", function () {
-      it("check default account shares", async function () {
-        let shares = await vault.getAccountShares(this.wallets.alice.address);
-        expect(fromBn(shares, shareDecimals)).to.be.equal("0");
-      });
-      it("check default account balance", async function () {
-        let [riskyBalance, stableBalance] = 
-          await vault.getAccountBalance(this.wallets.alice.address);
-        /// @dev this is amount of risky and stable held in vault for account
-        /// not the amount owned by the user's wallet
-        expect(fromBn(riskyBalance, riskyDecimals)).to.be.equal("0");
-        expect(fromBn(stableBalance, stableDecimals)).to.be.equal("0");
-      });
-      it("check account shares after rollover", async function () {
-        await this.contracts.risky.mint(vault.address, 10000);
-        await this.contracts.stable.mint(vault.address, 10000);
+  describe("check account statistics", function () {
+    it("check default account shares", async function () {
+      let shares = await vault.getAccountShares(this.wallets.alice.address);
+      expect(fromBn(shares, shareDecimals)).to.be.equal("0");
+    });
+    it("check default account balance", async function () {
+      let [riskyBalance, stableBalance] = await vault.getAccountBalance(
+        this.wallets.alice.address
+      );
+      /// @dev this is amount of risky and stable held in vault for account
+      /// not the amount owned by the user's wallet
+      expect(fromBn(riskyBalance, riskyDecimals)).to.be.equal("0");
+      expect(fromBn(stableBalance, stableDecimals)).to.be.equal("0");
+    });
+    it("check account shares after rollover", async function () {
+      await this.contracts.risky.mint(vault.address, 10000);
+      await this.contracts.stable.mint(vault.address, 10000);
 
-        await vault
-          .connect(this.wallets.alice)
-          .deposit(toBn("1000", riskyDecimals));
+      await vault
+        .connect(this.wallets.alice)
+        .deposit(toBn("1000", riskyDecimals));
 
-        await vault.connect(this.wallets.keeper).deployVault();
-        await vault.connect(this.wallets.keeper).rollover();
+      await vault.connect(this.wallets.keeper).deployVault();
+      await vault.connect(this.wallets.keeper).rollover();
 
-        let shares = await vault.getAccountShares(this.wallets.alice.address);
-        expect(fromBnToFloat(shares, shareDecimals)).to.be.greaterThan(0);
-      });
-      it("check account balance after rollover", async function () {
-        await this.contracts.risky.mint(vault.address, 10000);
-        await this.contracts.stable.mint(vault.address, 10000);
+      let shares = await vault.getAccountShares(this.wallets.alice.address);
+      expect(fromBnToFloat(shares, shareDecimals)).to.be.greaterThan(0);
+    });
+    it("check account balance after rollover", async function () {
+      await this.contracts.risky.mint(vault.address, 10000);
+      await this.contracts.stable.mint(vault.address, 10000);
 
-        await vault
-          .connect(this.wallets.alice)
-          .deposit(toBn("1000", riskyDecimals));
+      let [riskyBalance, stableBalance] = await vault.getAccountBalance(
+        this.wallets.alice.address
+      );
 
-        await vault.connect(this.wallets.keeper).deployVault();
-        await vault.connect(this.wallets.keeper).rollover();
+      await vault
+        .connect(this.wallets.alice)
+        .deposit(toBn("1000", riskyDecimals));
 
-        let [riskyBalance, stableBalance] = 
-          await vault.getAccountBalance(this.wallets.alice.address);
+      await vault.connect(this.wallets.keeper).deployVault();
+      await vault.connect(this.wallets.keeper).rollover();
 
-        expect(fromBnToFloat(riskyBalance, riskyDecimals)).to.be.greaterThan(0);
-        expect(fromBnToFloat(stableBalance, stableDecimals)).to.be.greaterThan(0);
-      });
-   });
+      [riskyBalance, stableBalance] = await vault.getAccountBalance(
+        this.wallets.alice.address
+      );
+
+      expect(fromBnToFloat(riskyBalance, riskyDecimals)).to.be.greaterThan(0);
+      expect(fromBnToFloat(stableBalance, stableDecimals)).to.be.greaterThan(0);
+    });
+  });
+
+  /**
+   * @notice Test withdrawal requests and completion
+   */
+  describe("check user withdraw", function () {
+    beforeEach(async function () {
+      // Put in a bit of money so we can create pools
+      await this.contracts.risky.mint(vault.address, 10000);
+      await this.contracts.stable.mint(vault.address, 10000);
+
+      // Alice makes a deposit into the vault
+      await vault
+        .connect(this.wallets.alice)
+        .deposit(toBn("1000", riskyDecimals));
+
+      // Vault is started
+      await vault.connect(this.wallets.keeper).deployVault();
+      await vault.connect(this.wallets.keeper).rollover();
+    });
+    it("correct request withdrawal behavior", async function () {
+      let shares = await vault.getAccountShares(this.wallets.alice.address);
+      await vault.connect(this.wallets.alice).requestWithdraw(shares);
+
+      // Check vault state is updated
+      let vaultState = await vault.vaultState();
+      expect(
+        fromBn(vaultState.currQueuedWithdrawShares, shareDecimals)
+      ).to.be.equal("1000");
+
+      // Check pending withdraws are updated
+      let pendingWithdraw = await vault.pendingWithdraw(
+        this.wallets.alice.address
+      );
+      expect(pendingWithdraw.round).to.be.equal(vaultState.round);
+      expect(fromBn(pendingWithdraw.shares, shareDecimals)).to.be.equal(
+        fromBn(shares, shareDecimals)
+      );
+    });
+    it("cannot complete withdrawal in same round as request", async function () {
+      let shares = await vault.getAccountShares(this.wallets.alice.address);
+      await vault.connect(this.wallets.alice).requestWithdraw(shares);
+      try {
+        await vault.connect(this.wallets.alice).completeWithdraw();
+        expect(false);
+      } catch (err) {
+        expect(err.message).to.include("Too early to withdraw");
+      }
+    });
+    it("correct completing withdrawal behavior", async function () {
+      let shares = await vault.getAccountShares(this.wallets.alice.address);
+      await vault.connect(this.wallets.alice).requestWithdraw(shares);
+      await vault.connect(this.wallets.alice).completeWithdraw();
+    });
+    it("try completion without withdrawal request", async function () {});
+    it("test two withdrawals in same round", async function () {});
+    it("test two withdrawals in two separate rounds", async function () {});
+  });
 
   /**
    * @notice Test public getter functions
