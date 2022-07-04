@@ -965,6 +965,55 @@ runTest("ParetoVault", function () {
   });
 
   /**
+   * @notice Test account queries
+   */
+   describe("check account statistics", function () {
+      it("check default account shares", async function () {
+        let shares = await vault.getAccountShares(this.wallets.alice.address);
+        expect(fromBn(shares, shareDecimals)).to.be.equal("0");
+      });
+      it("check default account balance", async function () {
+        let [riskyBalance, stableBalance] = 
+          await vault.getAccountBalance(this.wallets.alice.address);
+        /// @dev this is amount of risky and stable held in vault for account
+        /// not the amount owned by the user's wallet
+        expect(fromBn(riskyBalance, riskyDecimals)).to.be.equal("0");
+        expect(fromBn(stableBalance, stableDecimals)).to.be.equal("0");
+      });
+      it("check account shares after rollover", async function () {
+        await this.contracts.risky.mint(vault.address, 10000);
+        await this.contracts.stable.mint(vault.address, 10000);
+
+        await vault
+          .connect(this.wallets.alice)
+          .deposit(toBn("1000", riskyDecimals));
+
+        await vault.connect(this.wallets.keeper).deployVault();
+        await vault.connect(this.wallets.keeper).rollover();
+
+        let shares = await vault.getAccountShares(this.wallets.alice.address);
+        expect(fromBnToFloat(shares, shareDecimals)).to.be.greaterThan(0);
+      });
+      it("check account balance after rollover", async function () {
+        await this.contracts.risky.mint(vault.address, 10000);
+        await this.contracts.stable.mint(vault.address, 10000);
+
+        await vault
+          .connect(this.wallets.alice)
+          .deposit(toBn("1000", riskyDecimals));
+
+        await vault.connect(this.wallets.keeper).deployVault();
+        await vault.connect(this.wallets.keeper).rollover();
+
+        let [riskyBalance, stableBalance] = 
+          await vault.getAccountBalance(this.wallets.alice.address);
+
+        expect(fromBnToFloat(riskyBalance, riskyDecimals)).to.be.greaterThan(0);
+        expect(fromBnToFloat(stableBalance, stableDecimals)).to.be.greaterThan(0);
+      });
+   });
+
+  /**
    * @notice Test public getter functions
    */
   describe("check public getter functions", function () {
