@@ -7,7 +7,7 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {IParetoManager} from "../interfaces/IParetoManager.sol";
 import {Vault} from "../libraries/Vault.sol";
 import {IERC20} from "../interfaces/IERC20.sol";
-import {ReplicationMath} from "../libraries/ReplicationMath.sol";
+import {MoreReplicationMath} from "../libraries/MoreReplicationMath.sol";
 import {console} from "hardhat/console.sol";
 
 /**
@@ -215,7 +215,7 @@ contract ParetoManager is IParetoManager, Ownable {
      * @param strike is the strike price in stable
      * @param sigma is the implied volatility
      * @param tau is time to maturity in seconds
-     *  The conversion to years will happen within `ReplicationMath`
+     *  The conversion to years will happen within `MoreReplicationMath`
      * @param riskyDecimals is the decimals for the risky asset
      * @param stableDecimals is the decimals for the stable asset
      * @return riskyForLp is the R1 variable (in risky decimals)
@@ -232,7 +232,7 @@ contract ParetoManager is IParetoManager, Ownable {
         uint256 scaleFactorRisky = 10**(18 - riskyDecimals);
         uint256 scaleFactorStable = 10**(18 - stableDecimals);
         /// @dev: for a new pool, tau = maturity - current time
-        riskyForLp = ReplicationMath.getRiskyPerLp(
+        riskyForLp = MoreReplicationMath.getRiskyPerLp(
             uint256(_getOraclePrice(false)),
             uint256(strike),
             uint256(sigma),

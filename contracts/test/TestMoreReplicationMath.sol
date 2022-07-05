@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.6;
 
-import {ReplicationMath} from "../libraries/ReplicationMath.sol";
+import {MoreReplicationMath} from "../libraries/MoreReplicationMath.sol";
 
 /**
  * @notice Test contract to wrap around ReplicationMath.sol library
  */
-contract TestReplicationMath {
+contract TestMoreReplicationMath {
     function getRiskyPerLp(
         uint256 spot,
         uint256 strike,
@@ -16,7 +16,7 @@ contract TestReplicationMath {
         uint256 scaleFactorStable
     ) external pure returns (uint256 riskyForLp) {
         return
-            ReplicationMath.getRiskyPerLp(
+            MoreReplicationMath.getRiskyPerLp(
                 spot,
                 strike,
                 sigma,

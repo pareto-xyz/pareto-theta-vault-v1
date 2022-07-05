@@ -4,16 +4,16 @@ import expect from "../shared/expect";
 import { normalCDF } from "../shared/utils";
 import { fromBn, toBn } from "evm-bn";
 
-let replicationMath: Contract;
+let moreReplicationMath: Contract;
 
-describe("ReplicationMath contract", () => {
+describe("MoreReplicationMath contract", () => {
   beforeEach(async function () {
     const [deployer] = await hre.ethers.getSigners();
-    const TestReplicationMath = await ethers.getContractFactory(
-      "TestReplicationMath",
+    const TestMoreReplicationMath = await ethers.getContractFactory(
+      "TestMoreReplicationMath",
       deployer
     );
-    replicationMath = await TestReplicationMath.deploy();
+    moreReplicationMath = await TestMoreReplicationMath.deploy();
   });
   describe("directly calculate riskyPerLp", function () {
     it("correct computation of R1", async function () {
@@ -38,7 +38,7 @@ describe("ReplicationMath contract", () => {
             strike = toBn(strikes[i].toString(), 18).toString();
             sigma = toBn(sigmas[j].toString(), 4).toString();
             r1 = fromBn(
-              await replicationMath.getRiskyPerLp(
+              await moreReplicationMath.getRiskyPerLp(
                 spot,
                 strike,
                 sigma,
@@ -67,7 +67,7 @@ describe("ReplicationMath contract", () => {
       let sigma = 0.8;
 
       let r1 = fromBn(
-        await replicationMath.getRiskyPerLp(
+        await moreReplicationMath.getRiskyPerLp(
           toBn(spot.toString(), 18).toString(),
           toBn(strike.toString(), 18).toString(),
           toBn(sigma.toString(), 4).toString(),
