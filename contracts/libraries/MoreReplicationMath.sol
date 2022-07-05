@@ -63,6 +63,7 @@ library MoreReplicationMath {
 
     /**
      * @notice Compute stableForLp using Primitive's `ReplicationMath`
+     * @dev stablePerLp = K*CDF(CDF^-1(1 - riskyPerLp) - sigma*sqrt(tau)) + invariantLastX64
      * @dev This function is a wrapper around `ReplicatioMath.getStableGivenRisky`
      * @param invariantX64 is the output of `PrimitiveEngine.invariantOf`
      * @param riskyPerLp is the output of `MoreReplicationMath.getRiskyPerLp`

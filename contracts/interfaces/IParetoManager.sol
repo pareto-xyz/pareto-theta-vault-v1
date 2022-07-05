@@ -54,6 +54,20 @@ interface IParetoManager {
     ) external view returns (uint256);
 
     /**
+     * @notice Compute stableForLp for RMM-01 pool creation
+     * @return Stable reserve per liquidity with stable decimals
+     */
+    function getStablePerLp(
+        int128 invariantX64,
+        uint256 riskyPerLp,
+        uint128 strike,
+        uint32 sigma,
+        uint256 tau,
+        uint8 riskyDecimals,
+        uint8 stableDecimals
+    ) external pure returns (uint256);
+
+    /**
      * @notice Risky token of the risky / stable pair
      */
     function risky() external view returns (address);

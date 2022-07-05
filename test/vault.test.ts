@@ -520,7 +520,10 @@ runTest("ParetoVault", function () {
       );
 
       expect(
-        fromBnToFloat(await this.contracts.risky.balanceOf(vault.address), riskyDecimals)
+        fromBnToFloat(
+          await this.contracts.risky.balanceOf(vault.address),
+          riskyDecimals
+        )
       ).to.be.closeTo(0, 0.001);
 
       // Do a second deployment and vault
@@ -531,12 +534,15 @@ runTest("ParetoVault", function () {
       await this.contracts.aggregatorV3.setLatestAnswer(
         parseWei("0.95", await this.contracts.aggregatorV3.decimals()).raw
       );
-      // Do a third deployment. This is the first round liquidity is 
+      // Do a third deployment. This is the first round liquidity is
       // actually taken out of a Primitive pool
       await vault.connect(this.wallets.keeper).deployVault();
 
       expect(
-        fromBnToFloat(await this.contracts.risky.balanceOf(vault.address), riskyDecimals)
+        fromBnToFloat(
+          await this.contracts.risky.balanceOf(vault.address),
+          riskyDecimals
+        )
       ).to.not.be.closeTo(0, 0.001);
     });
   });
@@ -1066,14 +1072,8 @@ runTest("ParetoVault", function () {
   describe("check user withdraw", function () {
     beforeEach(async function () {
       // Put in a decent starting money so we can create pools
-      await this.contracts.risky.mint(
-        vault.address,
-        100000
-      );
-      await this.contracts.stable.mint(
-        vault.address,
-        100000
-      );
+      await this.contracts.risky.mint(vault.address, 100000);
+      await this.contracts.stable.mint(vault.address, 100000);
 
       // Alice makes a deposit into the vault
       await vault
@@ -1154,7 +1154,7 @@ runTest("ParetoVault", function () {
       let newState = await vault.vaultState();
       expect(newState.round).to.be.equal(oldState.round + 1);
 
-      // Check last queued is 0 for both risky and stable since alice 
+      // Check last queued is 0 for both risky and stable since alice
       // was the only liquidity provider
       expect(
         fromBn(newState.lastQueuedWithdrawRisky, riskyDecimals)
@@ -1166,12 +1166,12 @@ runTest("ParetoVault", function () {
       expect(
         fromBn(newState.currQueuedWithdrawShares, shareDecimals)
       ).to.be.equal("0");
-      // Withdrawal also subtracts the old currQueuedWithdrawShares from 
+      // Withdrawal also subtracts the old currQueuedWithdrawShares from
       // totalQueuedWithdrawShares, which in this case, results in zero
       expect(
         fromBn(newState.totalQueuedWithdrawShares, shareDecimals)
       ).to.be.equal("0");
-      // After rollover, totalQueuedWithdrawShares should equal the amount 
+      // After rollover, totalQueuedWithdrawShares should equal the amount
       // currQueuedWithdrawShares before rollover
       expect(
         fromBn(midState.totalQueuedWithdrawShares, shareDecimals)
@@ -1200,8 +1200,14 @@ runTest("ParetoVault", function () {
 
       // Since only Alice is withdrawing as the only LP - this logic does not
       // hold if more than one individual is withdrawing
-      let withdrawnRisky = fromBnToFloat(midState.lastQueuedWithdrawRisky, riskyDecimals);
-      let withdrawnStable = fromBnToFloat(midState.lastQueuedWithdrawStable, stableDecimals);
+      let withdrawnRisky = fromBnToFloat(
+        midState.lastQueuedWithdrawRisky,
+        riskyDecimals
+      );
+      let withdrawnStable = fromBnToFloat(
+        midState.lastQueuedWithdrawStable,
+        stableDecimals
+      );
       expect(aliceNewRisky).to.be.equal(aliceOldRisky + withdrawnRisky);
       expect(aliceNewStable).to.be.equal(aliceOldStable + withdrawnStable);
     });

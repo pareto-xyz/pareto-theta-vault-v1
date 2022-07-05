@@ -43,8 +43,7 @@ library Vault {
      * @param gamma is the gamma of the pool (1 - fee)
      * @param riskyPerLp is the risky reserve per liq. with risky decimals,
      *  = 1 - N(d1), d1 = (ln(S/K)+(r*sigma^2/2))/sigma*sqrt(tau)
-     * @param delLiquidity is the amount of liquidity to allocate to the curve
-     * wei value with 18 decimals of precision
+     * @param stablePerLp is the stable reserve per liq. with stable decimals
      */
     struct PoolParams {
         uint128 strike;
@@ -52,6 +51,7 @@ library Vault {
         uint32 maturity;
         uint32 gamma;
         uint256 riskyPerLp;
+        uint256 stablePerLp;
     }
 
     /**

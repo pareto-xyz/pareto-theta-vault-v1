@@ -185,6 +185,20 @@ contract ParetoVault is
     );
 
     /**
+     * @notice Emitted as an internal step in rollover
+     * @dev reminder[Risky/Stable] is the amount of each token that is
+     * potentially not being put into the next vault
+     */
+    event RebalanceVaultEvent(
+        bytes32 poolId,
+        uint256 remainderRisky,
+        uint256 remainderStable,
+        uint256 optimalRisky,
+        uint256 optimalStable,
+        address indexed keeper
+    );
+
+    /**
      * @notice Emitted when vault swaps assets to deposit in RMM-01.
      */
     event SwapAssetsEvent(
@@ -848,11 +862,12 @@ contract ParetoVault is
             : manager.getNextGamma();
         require(nextGamma > 0, "!nextGamma");
 
+        uint256 tau = uint256(nextMaturity).sub(block.timestamp);
         /// @dev: tau = maturity timestamp - current timestamp
         uint256 riskyPerLp = manager.getRiskyPerLp(
             nextStrikePrice,
             nextVolatility,
-            uint256(nextMaturity).sub(block.timestamp),
+            tau,
             tokenParams.riskyDecimals,
             tokenParams.stableDecimals
         );
@@ -863,12 +878,27 @@ contract ParetoVault is
             sigma: nextVolatility,
             maturity: nextMaturity,
             gamma: nextGamma,
-            riskyPerLp: riskyPerLp
+            riskyPerLp: riskyPerLp,
+            stablePerLp: 0 // will complete below
         });
 
         // Deploy the next Primitive pool; this does not perform rollover
         // The current pool is still the active one
         nextPoolId = _deployPool(nextParams);
+
+        // After obtaining pool id, we back-derive LP price in stable
+        uint256 stablePerLp = manager.getStablePerLp(
+            IPrimitiveEngineView(primitiveParams.engine).invariantOf(
+                nextPoolId
+            ),
+            riskyPerLp,
+            nextStrikePrice,
+            nextVolatility,
+            tau,
+            tokenParams.riskyDecimals,
+            tokenParams.stableDecimals
+        );
+        nextParams.stablePerLp = stablePerLp;
         poolState.nextPoolParams = nextParams;
 
         return (nextPoolId, nextStrikePrice, nextVolatility, nextGamma);
@@ -1046,7 +1076,23 @@ contract ParetoVault is
     }
 
     /**
-     * Check if the vault was successful in making money. This function also
+     * @notice Given some amounts of risky and stable token from the last round, or
+     * equivalently, initalization, rebalance the tokens in accordance with the
+     * current market price
+     * @dev This function will make swaps internally via UniswapRouter to achieve
+     * the optimal risky and stable
+     * @param lockedRisky is the amount of risky available to put into the pool
+     * @param lockedStable is the amount of stable available to put into the pool
+     * @return optimalRisky is the amount of risky to put into the pool
+     * @return optimalStable is the amount of stable to put into the pool
+     */
+    function _rebalance(uint256 lockedRisky, uint256 lockedStable)
+        internal
+        returns (uint256 optimalRisky, uint256 optimalStable)
+    {}
+
+    /**
+     * @notice Check if the vault was successful in making money. This function also
      * decides if the performance fee should be token through risky or stable
      * token depending on the vault balances.
      *

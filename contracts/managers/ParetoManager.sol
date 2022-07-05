@@ -250,6 +250,39 @@ contract ParetoManager is IParetoManager, Ownable {
     }
 
     /**
+     * @notice Computs the stablePerLp assuming riskyPerLp is known
+     * @param invariantX64 is the invariant currently for the pool
+     * @param riskyPerLp is amount of risky token to trade for 1 LP token
+     * @param strike is the strike price in stable
+     * @param sigma is the implied volatility
+     * @param tau is time to maturity in seconds
+     * @param riskyDecimals is the decimals for the risky asset
+     * @param stableDecimals is the decimals for the stable asset
+     * @return stableForLp is amount of stable token to trade for 1 LP token
+     */
+    function getStablePerLp(
+        int128 invariantX64,
+        uint256 riskyPerLp,
+        uint128 strike,
+        uint32 sigma,
+        uint256 tau,
+        uint8 riskyDecimals,
+        uint8 stableDecimals
+    ) external pure override returns (uint256 stableForLp) {
+        uint256 scaleFactorRisky = 10**(18 - riskyDecimals);
+        uint256 scaleFactorStable = 10**(18 - stableDecimals);
+        stableForLp = MoreReplicationMath.getStablePerLp(
+            invariantX64,
+            riskyPerLp,
+            uint256(strike),
+            uint256(sigma),
+            tau,
+            scaleFactorRisky,
+            scaleFactorStable
+        );
+    }
+
+    /**
      * @notice Set the multiplier for setting the strike price
      * @param _strikeMultiplier is the strike multiplier (decimals = 2)
      */
