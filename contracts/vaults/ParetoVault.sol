@@ -308,6 +308,7 @@ contract ParetoVault is
         primitiveParams.engine = _primitiveEngine;
         primitiveParams.factory = _primitiveFactory;
         uniswapParams.router = _uniswapRouter;
+        /// @dev we may not want this to be a constant
         uniswapParams.poolFee = 3000;
         tokenParams.risky = _risky;
         tokenParams.stable = _stable;
@@ -328,7 +329,6 @@ contract ParetoVault is
             _primitiveManager,
             type(uint256).max
         );
-
         // Account for pre-existing funds
         uint256 riskyBalance = IERC20(tokenParams.risky).balanceOf(
             address(this)
@@ -644,6 +644,7 @@ contract ParetoVault is
             optionLiquidity,
             msg.sender
         );
+
         // Save the liquidity into PoolState
         poolState.currLiquidity = optionLiquidity;
     }
@@ -730,7 +731,6 @@ contract ParetoVault is
         emit WithdrawRequestEvent(msg.sender, shares, currRound);
 
         uint256 sharesToWithdraw;
-
         if (withdrawal.round == currRound) {
             // If the user has a pending withdrawal from same round, merge
             sharesToWithdraw = uint256(withdrawal.shares).add(shares);
@@ -1320,14 +1320,12 @@ contract ParetoVault is
         ).remove(primitiveParams.engine, poolId, liquidity, 0, 0);
 
         // Moves from margin into this contract
-        // TODO: multicall?
         IPrimitiveManager(primitiveParams.manager).withdraw(
             address(this),
             primitiveParams.engine,
             riskyAmount,
             stableAmount
         );
-
         return (riskyAmount, stableAmount);
     }
 
