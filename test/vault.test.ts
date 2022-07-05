@@ -1072,11 +1072,108 @@ runTest("ParetoVault", function () {
     it("correct completing withdrawal behavior", async function () {
       let shares = await vault.getAccountShares(this.wallets.alice.address);
       await vault.connect(this.wallets.alice).requestWithdraw(shares);
+      let oldState = await vault.vaultState();
+
+      // Save amount of risky and stable owed by alice
+      let aliceOldRisky = fromBnToFloat(
+        await this.contracts.risky.balanceOf(this.wallets.alice.address),
+        riskyDecimals
+      );
+      let aliceOldStable = fromBnToFloat(
+        await this.contracts.stable.balanceOf(this.wallets.alice.address),
+        stableDecimals
+      );
+
+      // Rollover to the next round
+      // Change price to make pool unique (since old pool still exists)
+      const oracleDecimals = await this.contracts.aggregatorV3.decimals();
+      await this.contracts.aggregatorV3.setLatestAnswer(
+        parseWei("0.95", oracleDecimals).raw
+      );
+      await vault.connect(this.wallets.keeper).deployVault();
+      await vault.connect(this.wallets.keeper).rollover();
+
+      let midState = await vault.vaultState();
+      expect(midState.round).to.be.equal(oldState.round + 1);
+
+      // User completes the withdrawal
       await vault.connect(this.wallets.alice).completeWithdraw();
+
+      // Overwrite state again to get post complete-withdraw state
+      let newState = await vault.vaultState();
+      expect(newState.round).to.be.equal(oldState.round + 1);
+
+      // Check last queued is 0 for both risky and stable since alice 
+      // was the only liquidity provider
+      expect(
+        fromBn(newState.lastQueuedWithdrawRisky, riskyDecimals)
+      ).to.be.equal("0");
+      expect(
+        fromBn(newState.lastQueuedWithdrawStable, stableDecimals)
+      ).to.be.equal("0");
+      // Rollover should reset the curr queued shares for withdrawal
+      expect(
+        fromBn(newState.currQueuedWithdrawShares, shareDecimals)
+      ).to.be.equal("0");
+      // Withdrawal also subtracts the old currQueuedWithdrawShares from 
+      // totalQueuedWithdrawShares, which in this case, results in zero
+      expect(
+        fromBn(newState.totalQueuedWithdrawShares, shareDecimals)
+      ).to.be.equal("0");
+      // After rollover, totalQueuedWithdrawShares should equal the amount 
+      // currQueuedWithdrawShares before rollover
+      expect(
+        fromBn(midState.totalQueuedWithdrawShares, shareDecimals)
+      ).to.be.equal(fromBn(oldState.currQueuedWithdrawShares, shareDecimals));
+
+      // Check the pending withdraws cache is reset to zero
+      let pendingWithdraw = await vault.pendingWithdraw(
+        this.wallets.alice.address
+      );
+      expect(fromBn(pendingWithdraw.shares, shareDecimals)).to.be.equal("0");
+
+      // Check no shares remaining (all burned)
+      expect(
+        fromBn(await vault.balanceOf(vault.address), shareDecimals)
+      ).to.be.equal("0");
+
+      // Check that alice has more tokens than before
+      let aliceNewRisky = fromBnToFloat(
+        await this.contracts.risky.balanceOf(this.wallets.alice.address),
+        riskyDecimals
+      );
+      let aliceNewStable = fromBnToFloat(
+        await this.contracts.stable.balanceOf(this.wallets.alice.address),
+        stableDecimals
+      );
+
+      // Since only Alice is withdrawing as the only LP - this logic does not
+      // hold if more than one individual is withdrawing
+      let withdrawnRisky = fromBnToFloat(midState.lastQueuedWithdrawRisky, riskyDecimals);
+      let withdrawnStable = fromBnToFloat(midState.lastQueuedWithdrawStable, stableDecimals);
+      expect(aliceNewRisky).to.be.equal(aliceOldRisky + withdrawnRisky);
+      expect(aliceNewStable).to.be.equal(aliceOldStable + withdrawnStable);
     });
-    it("try completion without withdrawal request", async function () {});
-    it("test two withdrawals in same round", async function () {});
-    it("test two withdrawals in two separate rounds", async function () {});
+    it("try completion without withdrawal request", async function () {
+      try {
+        await vault.connect(this.wallets.alice).completeWithdraw();
+      } catch (err) {
+        expect(err.message).to.include("!sharesToWithdraw");
+      }
+    });
+    it("test two withdrawals in same round", async function () {
+      let shares = await vault.getAccountShares(this.wallets.alice.address);
+      // Withdraw in 2 segments
+      await vault.connect(this.wallets.alice).requestWithdraw(shares.div(2));
+      await vault.connect(this.wallets.alice).requestWithdraw(shares.div(2));
+
+      let pendingWithdraw = await vault.pendingWithdraw(
+        this.wallets.alice.address
+      );
+      expect(fromBn(pendingWithdraw.shares, shareDecimals)).to.be.equal(
+        fromBn(shares, shareDecimals)
+      );
+    });
   });
 
   /**
