@@ -644,6 +644,7 @@ contract ParetoVault is
             optionLiquidity,
             msg.sender
         );
+
         // Save the liquidity into PoolState
         poolState.currLiquidity = optionLiquidity;
     }
@@ -1319,14 +1320,12 @@ contract ParetoVault is
         ).remove(primitiveParams.engine, poolId, liquidity, 0, 0);
 
         // Moves from margin into this contract
-        // TODO: multicall?
         IPrimitiveManager(primitiveParams.manager).withdraw(
             address(this),
             primitiveParams.engine,
             riskyAmount,
             stableAmount
         );
-
         return (riskyAmount, stableAmount);
     }
 

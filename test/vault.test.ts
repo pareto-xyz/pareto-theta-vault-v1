@@ -399,8 +399,8 @@ runTest("ParetoVault", function () {
   describe("check vault deployment", function () {
     beforeEach(async function () {
       // Allocate tokens into the vault (simulates a user having deposited)
-      await this.contracts.risky.mint(vault.address, 10000);
-      await this.contracts.stable.mint(vault.address, 10000);
+      await this.contracts.risky.mint(vault.address, 100000);
+      await this.contracts.stable.mint(vault.address, 100000);
     });
     it("check keeper can deploy vault", async function () {
       await vault.connect(this.wallets.keeper).deployVault();
@@ -500,6 +500,44 @@ runTest("ParetoVault", function () {
       );
 
       await vault.connect(this.wallets.keeper).deployVault();
+    });
+    /**
+     * @notice Check that liquidity is extracted out of primitive pools
+     * in _removeLiquidity (called in deployVault)
+     */
+    it("check liquidity is taken out of pool in deployment", async function () {
+      // Alice makes a deposit into the vault (pending)
+      await vault
+        .connect(this.wallets.alice)
+        .deposit(toBn("1000", riskyDecimals));
+
+      // Vault is started
+      await vault.connect(this.wallets.keeper).deployVault();
+      await vault.connect(this.wallets.keeper).rollover();
+
+      await this.contracts.aggregatorV3.setLatestAnswer(
+        parseWei("0.99", await this.contracts.aggregatorV3.decimals()).raw
+      );
+
+      expect(
+        fromBnToFloat(await this.contracts.risky.balanceOf(vault.address), riskyDecimals)
+      ).to.be.closeTo(0, 0.001);
+
+      // Do a second deployment and vault
+      // Alice's pending becomes locked for this round
+      await vault.connect(this.wallets.keeper).deployVault();
+      await vault.connect(this.wallets.keeper).rollover();
+
+      await this.contracts.aggregatorV3.setLatestAnswer(
+        parseWei("0.95", await this.contracts.aggregatorV3.decimals()).raw
+      );
+      // Do a third deployment. This is the first round liquidity is 
+      // actually taken out of a Primitive pool
+      await vault.connect(this.wallets.keeper).deployVault();
+
+      expect(
+        fromBnToFloat(await this.contracts.risky.balanceOf(vault.address), riskyDecimals)
+      ).to.not.be.closeTo(0, 0.001);
     });
   });
 
@@ -1027,9 +1065,15 @@ runTest("ParetoVault", function () {
    */
   describe("check user withdraw", function () {
     beforeEach(async function () {
-      // Put in a bit of money so we can create pools
-      await this.contracts.risky.mint(vault.address, 10000);
-      await this.contracts.stable.mint(vault.address, 10000);
+      // Put in a decent starting money so we can create pools
+      await this.contracts.risky.mint(
+        vault.address,
+        100000
+      );
+      await this.contracts.stable.mint(
+        vault.address,
+        100000
+      );
 
       // Alice makes a deposit into the vault
       await vault
@@ -1037,6 +1081,14 @@ runTest("ParetoVault", function () {
         .deposit(toBn("1000", riskyDecimals));
 
       // Vault is started
+      await vault.connect(this.wallets.keeper).deployVault();
+      await vault.connect(this.wallets.keeper).rollover();
+
+      await this.contracts.aggregatorV3.setLatestAnswer(
+        parseWei("0.99", await this.contracts.aggregatorV3.decimals()).raw
+      );
+
+      // Do a second deployment and vault
       await vault.connect(this.wallets.keeper).deployVault();
       await vault.connect(this.wallets.keeper).rollover();
     });
@@ -1086,9 +1138,8 @@ runTest("ParetoVault", function () {
 
       // Rollover to the next round
       // Change price to make pool unique (since old pool still exists)
-      const oracleDecimals = await this.contracts.aggregatorV3.decimals();
       await this.contracts.aggregatorV3.setLatestAnswer(
-        parseWei("0.95", oracleDecimals).raw
+        parseWei("0.95", await this.contracts.aggregatorV3.decimals()).raw
       );
       await vault.connect(this.wallets.keeper).deployVault();
       await vault.connect(this.wallets.keeper).rollover();
