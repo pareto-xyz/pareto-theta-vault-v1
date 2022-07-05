@@ -5,3 +5,4 @@ python3 -m venv env;
 source env/bin/activate;
 pip install numpy;
 pip install cvxpy;
+pip install tqdm;

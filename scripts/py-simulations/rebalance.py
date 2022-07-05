@@ -4,6 +4,7 @@
 import math
 import cvxpy as cp
 import numpy as np
+from tqdm import tqdm
 
 
 def closed_form_solution(
@@ -37,8 +38,9 @@ def closed_form_solution(
     # check the constraints
     value1 = risky_to_stable_price * risky1 + stable1
     assert risky1 >= 0 and stable1 >= 0, "x >= 0 constraint broken"
-    assert stable_per_lp * risky1 == risky_per_lp * stable1, \
-        "Cx = d constraint broken"
+    assert math.isclose(
+        stable_per_lp * risky1, risky_per_lp * stable1, abs_tol=0.001
+    ), "Cx = d constraint broken"
     assert value1 <= value0, "Ax <= b constraint broken"
 
     return risky1, stable1, value1 - value0
@@ -108,9 +110,31 @@ def make_simulation(rs=None):
         stable_per_lp,
         risky_to_stable_price,
     )
-    print(cvxpy_outputs)
+    our_outputs = closed_form_solution(
+        risky0,
+        stable0,
+        risky_per_lp,
+        stable_per_lp,
+        risky_to_stable_price,
+    )
+
+    cvxpy_risky, cvxpy_stable, _ = cvxpy_outputs
+    our_risky, our_stable, _ = our_outputs
+
+    # decent amount of leeway here
+    assert math.isclose(cvxpy_risky, our_risky, abs_tol=0.1)
+    assert math.isclose(cvxpy_stable, our_stable, abs_tol=0.1)
 
 
 if __name__ == "__main__":
     rs = np.random.RandomState(42)
-    make_simulation(rs=rs)
+
+    num_fail = 0
+    for _ in tqdm(range(1000)):
+        try:
+            make_simulation(rs=rs)
+        except:
+            num_fail += 1
+
+    pp = round(float(1000 - num_fail) / 1000. * 100, 1)
+    print(f'Success rate: {1000-num_fail} out of 1000 ({pp}%)')
