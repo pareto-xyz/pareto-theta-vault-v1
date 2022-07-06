@@ -14,7 +14,6 @@ import {IPrimitiveManager} from "../interfaces/IPrimitiveManager.sol";
 import {IPrimitiveFactory} from "@primitivefi/rmm-core/contracts/interfaces/IPrimitiveFactory.sol";
 import {IManagerBase} from "@primitivefi/rmm-manager/contracts/interfaces/IManagerBase.sol";
 import {IPrimitiveEngineView} from "@primitivefi/rmm-core/contracts/interfaces/engine/IPrimitiveEngineView.sol";
-import {EngineAddress} from "@primitivefi/rmm-manager/contracts/libraries/EngineAddress.sol";
 import {Vault} from "../libraries/Vault.sol";
 import {VaultMath} from "../libraries/VaultMath.sol";
 import {UniswapRouter} from "../libraries/UniswapRouter.sol";
@@ -610,8 +609,13 @@ contract ParetoVault is
         ) = _prepareRollover();
 
         // Rebalance the locked assets
-        (uint256 lockedRisky, uint256 lockedStable) = 
-            _rebalance(initialRisky, initialStable);
+        (uint256 lockedRisky, uint256 lockedStable) = _rebalance(
+            initialRisky,
+            initialStable
+        );
+
+        lockedRisky = initialRisky;
+        lockedStable = initialStable;
 
         emit RebalanceVaultEvent(
             initialRisky,
@@ -1109,7 +1113,7 @@ contract ParetoVault is
         Vault.PoolParams memory poolParams = poolState.currPoolParams;
 
         // Compute best swap values from `initialRisky` and `initialStable`
-        // TODO: replace `spotAtCreation` with current Uniswap price? Doing so 
+        // TODO: replace `spotAtCreation` with current Uniswap price? Doing so
         //       may reduce any loss we must take in the loss
         (uint256 optimalRisky, uint256 optimalStable) = _getBestSwap(
             initialRisky,
@@ -1119,20 +1123,27 @@ contract ParetoVault is
             poolParams.stablePerLp
         );
 
-        // When swapping, we must specify a minimum return that we are happy with
-        if (initialRisky > optimalRisky) {
-            // Case 1: trade risky for stable.
-            lockedStable = _swapRiskyForStable(
+        if (
+            (initialRisky >= optimalRisky) && (initialStable >= optimalStable)
+        ) {
+            // Case 1: no swap needed - sufficient liquidity on both sides
+            lockedRisky = optimalRisky;
+            lockedStable = optimalStable;
+        } else if (initialRisky > optimalRisky) {
+            // Case 2: trade risky for stable
+            uint256 deltaStable = _swapRiskyForStable(
                 initialRisky.sub(optimalRisky),
                 optimalStable.sub(initialStable)
             );
             lockedRisky = optimalRisky;
+            lockedStable = initialStable.add(deltaStable);
         } else if (initialStable > optimalStable) {
-            // Case 2: trade stable for risky
-            lockedRisky = _swapStableForRisky(
+            // Case 3: trade stable for risky
+            uint256 deltaRisky = _swapStableForRisky(
                 initialStable.sub(optimalStable),
                 optimalRisky.sub(initialRisky)
             );
+            lockedRisky = initialRisky.add(deltaRisky);
             lockedStable = optimalStable;
         }
         return (lockedRisky, lockedStable);
