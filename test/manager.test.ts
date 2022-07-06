@@ -264,6 +264,7 @@ describe("ParetoManager contract", function () {
             sigma = toBn(sigmas[j].toString(), 4).toString();
             r1 = fromBn(
               await manager.getRiskyPerLp(
+                toBn("1", stableDecimals).toString(),
                 strike,
                 sigma,
                 tauInSeconds[k],
