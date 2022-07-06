@@ -41,7 +41,9 @@ def closed_form_solution(
     assert math.isclose(
         stable_per_lp * risky1, risky_per_lp * stable1, abs_tol=0.001
     ), "Cx = d constraint broken"
-    assert value1 <= value0, "Ax <= b constraint broken"
+    assert (
+        (value1 <= value0) or math.isclose(value1, value0, abs_tol=1e-6)
+    ), "Ax <= b constraint broken"
 
     return risky1, stable1, value1 - value0
 
@@ -84,12 +86,13 @@ def linear_program_solution(
     assert x1[0] >= 0 and x1[1] >= 0, "x >= 0 constraint broken"
     assert math.isclose(C.T @ x1, 0, abs_tol=0.001), \
         "Cx = d constraint broken"
-    assert value1 <= value0, "Ax <= b constraint broken"
-
+    assert (
+        (value1 <= value0) or math.isclose(value1, value0, abs_tol=1e-6)
+    ), "Ax <= b constraint broken"
     return x1[0], x1[1], value1 - value0
 
 
-def make_simulation(rs=None):
+def make_simulation(rs=None, tol=1e-3):
     """
     Randomly generate input values and pass to both closed-form and the 
     linear program to solve.
@@ -122,8 +125,18 @@ def make_simulation(rs=None):
     our_risky, our_stable, _ = our_outputs
 
     # decent amount of leeway here
-    assert math.isclose(cvxpy_risky, our_risky, abs_tol=0.1)
-    assert math.isclose(cvxpy_stable, our_stable, abs_tol=0.1)
+    outcome = (
+        math.isclose(cvxpy_risky, our_risky, abs_tol=tol) and 
+        math.isclose(cvxpy_stable, our_stable, abs_tol=tol)
+    )
+
+    return {
+        'success': outcome,
+        'data': {
+            'cvxpy': {'risky': cvxpy_risky, 'stable': cvxpy_stable},
+            'ours': {'risky': our_risky, 'stable': our_stable},
+        }
+    }
 
 
 if __name__ == "__main__":
@@ -131,9 +144,9 @@ if __name__ == "__main__":
 
     num_fail = 0
     for _ in tqdm(range(1000)):
-        try:
-            make_simulation(rs=rs)
-        except:
+        results = make_simulation(rs=rs, tol=0.01)
+
+        if not results['success']:
             num_fail += 1
 
     pp = round(float(1000 - num_fail) / 1000. * 100, 1)
