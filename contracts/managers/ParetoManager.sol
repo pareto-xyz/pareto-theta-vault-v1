@@ -52,10 +52,10 @@ contract ParetoManager is IParetoManager, Ownable {
     uint256 private constant STRIKE_DECIMALS = 10**2;
 
     // Maximum riskyForLp of 1%
-    uint256 private constant MIN_R1 = 10000000000000000;
+    uint256 private constant MIN_PER_LP = 10000000000000000;
 
     // Maximum riskyForLp of 99%
-    uint256 private constant MAX_R1 = 990000000000000000;
+    uint256 private constant MAX_PER_LP = 990000000000000000;
 
     /************************************************
      * Constructor and initializers
@@ -212,6 +212,8 @@ contract ParetoManager is IParetoManager, Ownable {
 
     /**
      * @notice Computes the riskyForLp using oracle as spot price
+     *         Wrapper around MoreReplicationMath
+     * @param spot is the spot price in stable
      * @param strike is the strike price in stable
      * @param sigma is the implied volatility
      * @param tau is time to maturity in seconds
@@ -223,34 +225,37 @@ contract ParetoManager is IParetoManager, Ownable {
      * @dev Thresholds the value to acceptable changes
      */
     function getRiskyPerLp(
+        uint256 spot,
         uint128 strike,
         uint32 sigma,
         uint256 tau,
         uint8 riskyDecimals,
         uint8 stableDecimals
-    ) external view override returns (uint256 riskyForLp) {
+    ) external pure override returns (uint256 riskyForLp) {
         uint256 scaleFactorRisky = 10**(18 - riskyDecimals);
         uint256 scaleFactorStable = 10**(18 - stableDecimals);
         /// @dev: for a new pool, tau = maturity - current time
         riskyForLp = MoreReplicationMath.getRiskyPerLp(
-            uint256(_getOraclePrice(false)),
+            spot,
             uint256(strike),
             uint256(sigma),
             tau,
             scaleFactorRisky,
             scaleFactorStable
         );
-        // TODO: check this with Primitive team
-        if (riskyForLp < MIN_R1) {
-            riskyForLp = MIN_R1;
-        } else if (riskyForLp > MAX_R1) {
-            riskyForLp = MAX_R1;
+        // TODO: check this with Primitive team; outside of these
+        //       bounds, I get an error on `.create`
+        if (riskyForLp < MIN_PER_LP) {
+            riskyForLp = MIN_PER_LP;
+        } else if (riskyForLp > MAX_PER_LP) {
+            riskyForLp = MAX_PER_LP;
         }
         return riskyForLp;
     }
 
     /**
-     * @notice Computs the stablePerLp assuming riskyPerLp is known
+     * @notice Computes the stablePerLp assuming riskyPerLp is known
+     *         Wrapper around MoreReplicationMath
      * @param invariantX64 is the invariant currently for the pool
      * @param riskyPerLp is amount of risky token to trade for 1 LP token
      * @param strike is the strike price in stable
@@ -280,6 +285,12 @@ contract ParetoManager is IParetoManager, Ownable {
             scaleFactorRisky,
             scaleFactorStable
         );
+        if (stableForLp < MIN_PER_LP) {
+            stableForLp = MIN_PER_LP;
+        } else if (stableForLp > MAX_PER_LP) {
+            stableForLp = MAX_PER_LP;
+        }
+        return stableForLp;
     }
 
     /**

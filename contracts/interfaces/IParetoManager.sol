@@ -46,6 +46,7 @@ interface IParetoManager {
      * @return Risky reserve per liquidity with risky decimals
      */
     function getRiskyPerLp(
+        uint256 spot,
         uint128 strike,
         uint32 sigma,
         uint256 tau,

@@ -863,8 +863,14 @@ contract ParetoVault is
         require(nextGamma > 0, "!nextGamma");
 
         uint256 tau = uint256(nextMaturity).sub(block.timestamp);
+
+        // Fetch the oracle price - this will be used to RMM-01 initial price
+        // as well as how much liquidity to swap
+        uint256 spotAtCreation = manager.getRiskyToStablePrice();
+
         /// @dev: tau = maturity timestamp - current timestamp
         uint256 riskyPerLp = manager.getRiskyPerLp(
+            spotAtCreation,
             nextStrikePrice,
             nextVolatility,
             tau,
@@ -872,14 +878,17 @@ contract ParetoVault is
             tokenParams.stableDecimals
         );
 
+        VaultMath.assertUint128(spotAtCreation);
+
         // Define params of next pool
         Vault.PoolParams memory nextParams = Vault.PoolParams({
+            spotAtCreation: uint128(spotAtCreation),
             strike: nextStrikePrice,
             sigma: nextVolatility,
             maturity: nextMaturity,
             gamma: nextGamma,
             riskyPerLp: riskyPerLp,
-            stablePerLp: 0 // will complete below
+            stablePerLp: 0 /// @dev placeholder value
         });
 
         // Deploy the next Primitive pool; this does not perform rollover
@@ -1077,19 +1086,88 @@ contract ParetoVault is
 
     /**
      * @notice Given some amounts of risky and stable token from the last round, or
-     * equivalently, initalization, rebalance the tokens in accordance with the
-     * current market price
+     *         equivalently, initalization, rebalance the tokens in accordance with
+     *         the current market price
      * @dev This function will make swaps internally via UniswapRouter to achieve
-     * the optimal risky and stable
-     * @param lockedRisky is the amount of risky available to put into the pool
-     * @param lockedStable is the amount of stable available to put into the pool
-     * @return optimalRisky is the amount of risky to put into the pool
-     * @return optimalStable is the amount of stable to put into the pool
+     *      the optimal risky and stable
+     * @dev Not all of `initialRisky` and `initialStable` will be used. Likely one of
+     *      the two assets will have a small remainder, which will be left with the
+     *      vault as owner
+     * @dev This function is called after `_prepareRollover` within `rollover`
+     * @param initialRisky is the amount of risky available to put into the pool
+     * @param initialStable is the amount of stable available to put into the pool
+     * @return lockedRisky is the amount of risky obtained from swap
+     * @return lockedStable is the amount of stable obtained from swap
      */
-    function _rebalance(uint256 lockedRisky, uint256 lockedStable)
+    function _rebalance(uint256 initialRisky, uint256 initialStable)
         internal
-        returns (uint256 optimalRisky, uint256 optimalStable)
-    {}
+        returns (uint256 lockedRisky, uint256 lockedStable)
+    {
+        // Fetch parameters of pool, which are updated after `_prepareRollover`
+        Vault.PoolParams memory poolParams = poolState.currPoolParams;
+
+        // Compute best swap values from `initialRisky` and `initialStable`
+        // TODO: replace `spotAtCreation` with current Uniswap price?
+        (uint256 optimalRisky, uint256 optimalStable) = _getBestSwap(
+            initialRisky,
+            initialStable,
+            poolParams.spotAtCreation,
+            poolParams.riskyPerLp,
+            poolParams.stablePerLp
+        );
+
+        // When swapping, we must specify a minimum return that we are happy with.
+        // We opt for a simple policy: max loss of 5% (TODO: is this okay?)
+        if (initialRisky > optimalRisky) {
+            // Case 1: trade risky for stable.
+            lockedStable = _swapRiskyForStable(
+                initialRisky.sub(optimalRisky),
+                optimalStable.sub(initialStable).mul(95).div(100)
+            );
+            lockedRisky = optimalRisky;
+        } else if (initialStable > optimalStable) {
+            // Case 2: trade stable for risky
+            lockedRisky = _swapStableForRisky(
+                initialStable.sub(optimalStable),
+                optimalRisky.sub(initialRisky).mul(95).div(100)
+            );
+            lockedStable = optimalStable;
+        }
+        return (lockedRisky, lockedStable);
+    }
+
+    /**
+     * @notice Compute optimal swap amounts to deposit into RMM-01 pool
+     * @param riskyAmount is the amount of risky token currently in portfolio
+     * @param stableAmount is the amount of stable token currently in portfolio
+     * @param riskyToStablePrice is the oracle price from risky to stable asset
+     * @param riskyPerLp is the Black-Scholes value of an RMM-01 LP token in risky
+     * @param stablePerLp is the Black-Scholes value of an RMM-01 LP token in stable
+     * @return riskyBest is the amount of risky to place into the RMM-01 pool
+     *                   Obtainable by a trade at price `riskyToStablePrice`
+     * @return stableBest is the amount of stable to place into the RMM-01 pool
+     *                    Obtainable by a trade at price `riskyToStablePrice`
+     */
+    function _getBestSwap(
+        uint256 riskyAmount,
+        uint256 stableAmount,
+        uint256 riskyToStablePrice,
+        uint256 riskyPerLp,
+        uint256 stablePerLp
+    ) internal pure returns (uint256 riskyBest, uint256 stableBest) {
+        uint256 value = riskyToStablePrice.mul(riskyAmount).add(stableAmount);
+        uint256 denom = riskyPerLp.mul(riskyToStablePrice).add(stablePerLp);
+        riskyBest = riskyPerLp.mul(value).div(denom);
+        stableBest = stablePerLp.mul(value).div(denom);
+
+        // Check that the allocation is feasible
+        require(
+            !((riskyBest > riskyAmount) && (stableBest > stableAmount)),
+            "Unobtainable portfolio"
+        );
+
+        return (riskyBest, stableBest);
+    }
 
     /**
      * @notice Check if the vault was successful in making money. This function also
@@ -1237,10 +1315,12 @@ contract ParetoVault is
 
     /**
      * @notice Use UniswapRouter to swap risky for stable tokens
-     * @param riskyToSwap is the amount of risky token traded
+     * @param riskyToSwap is the amount of risky token to trade
+     * @param stableMinExpected is the minimum amount of stable token expected
+     *                          from trade
      * @return stableFromSwap is the amount of stable token obtained
      */
-    function _swapRiskyForStable(uint256 riskyToSwap)
+    function _swapRiskyForStable(uint256 riskyToSwap, uint256 stableMinExpected)
         internal
         returns (uint256 stableFromSwap)
     {
@@ -1250,7 +1330,7 @@ contract ParetoVault is
             tokenParams.stable,
             uniswapParams.poolFee,
             riskyToSwap,
-            0,
+            stableMinExpected,
             uniswapParams.router
         );
     }
@@ -1258,9 +1338,11 @@ contract ParetoVault is
     /**
      * @notice Use UniswapRouter to swap risky for stable tokens
      * @param stableToSwap is the amount of risky token traded
+     * @param riskyMinExpected is the minimum amount of risky token expected
+     *                         from trade
      * @return riskyFromSwap is the amount of stable token obtained
      */
-    function _swapStableForRisky(uint256 stableToSwap)
+    function _swapStableForRisky(uint256 stableToSwap, uint256 riskyMinExpected)
         internal
         returns (uint256 riskyFromSwap)
     {
@@ -1270,7 +1352,7 @@ contract ParetoVault is
             tokenParams.risky,
             uniswapParams.poolFee,
             stableToSwap,
-            0,
+            riskyMinExpected,
             uniswapParams.router
         );
     }

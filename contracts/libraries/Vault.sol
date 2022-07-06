@@ -37,6 +37,8 @@ library Vault {
     }
 
     /**
+     * @param spotAtCreation is the spot price at the time the pool was created
+     *                       Used to compute riskyPerLp (and thus stablePerLp)
      * @param strike is the strike price of the pool
      * @param sigma is the implied volatility of the pool
      * @param maturity is the timestamp when the option pool expires
@@ -46,6 +48,7 @@ library Vault {
      * @param stablePerLp is the stable reserve per liq. with stable decimals
      */
     struct PoolParams {
+        uint128 spotAtCreation;
         uint128 strike;
         uint32 sigma;
         uint32 maturity;
