@@ -186,28 +186,15 @@ contract ParetoVault is
 
     /**
      * @notice Emitted as an internal step in rollover
-     * @dev reminder[Risky/Stable] is the amount of each token that is
-     * potentially not being put into the next vault
+     * @param initialRisky/Stable are the amounts of each token pre-rebalancing
+     * @param optimalRisky/Stable are the amounts of each token post-rebalancing
      */
     event RebalanceVaultEvent(
-        bytes32 poolId,
-        uint256 remainderRisky,
-        uint256 remainderStable,
+        uint256 initialRisky,
+        uint256 initialStable,
         uint256 optimalRisky,
         uint256 optimalStable,
         address indexed keeper
-    );
-
-    /**
-     * @notice Emitted when vault swaps assets to deposit in RMM-01.
-     */
-    event SwapAssetsEvent(
-        uint256 riskyPre,
-        uint256 stablePre,
-        uint256 riskyPost,
-        uint256 stablePost,
-        uint24 poolFee,
-        address indexed router
     );
 
     /**
@@ -616,11 +603,26 @@ contract ParetoVault is
     function rollover() external onlyKeeper nonReentrant {
         (
             bytes32 newPoolId,
-            uint256 lockedRisky,
-            uint256 lockedStable,
+            uint256 initialRisky,
+            uint256 initialStable,
             uint256 queuedWithdrawRisky,
             uint256 queuedWithdrawStable
         ) = _prepareRollover();
+
+        // Rebalance the locked assets
+        (uint256 lockedRisky, uint256 lockedStable) = 
+            _rebalance(initialRisky, initialStable);
+
+        emit RebalanceVaultEvent(
+            initialRisky,
+            initialStable,
+            lockedRisky,
+            lockedStable,
+            keeper
+        );
+
+        delete initialRisky;
+        delete initialStable;
 
         // Queued withdraws from current round are set to last round
         vaultState.lastQueuedWithdrawRisky = queuedWithdrawRisky;
@@ -1107,7 +1109,8 @@ contract ParetoVault is
         Vault.PoolParams memory poolParams = poolState.currPoolParams;
 
         // Compute best swap values from `initialRisky` and `initialStable`
-        // TODO: replace `spotAtCreation` with current Uniswap price?
+        // TODO: replace `spotAtCreation` with current Uniswap price? Doing so 
+        //       may reduce any loss we must take in the loss
         (uint256 optimalRisky, uint256 optimalStable) = _getBestSwap(
             initialRisky,
             initialStable,
@@ -1116,20 +1119,19 @@ contract ParetoVault is
             poolParams.stablePerLp
         );
 
-        // When swapping, we must specify a minimum return that we are happy with.
-        // We opt for a simple policy: max loss of 5% (TODO: is this okay?)
+        // When swapping, we must specify a minimum return that we are happy with
         if (initialRisky > optimalRisky) {
             // Case 1: trade risky for stable.
             lockedStable = _swapRiskyForStable(
                 initialRisky.sub(optimalRisky),
-                optimalStable.sub(initialStable).mul(95).div(100)
+                optimalStable.sub(initialStable)
             );
             lockedRisky = optimalRisky;
         } else if (initialStable > optimalStable) {
             // Case 2: trade stable for risky
             lockedRisky = _swapStableForRisky(
                 initialStable.sub(optimalStable),
-                optimalRisky.sub(initialRisky).mul(95).div(100)
+                optimalRisky.sub(initialRisky)
             );
             lockedStable = optimalStable;
         }
