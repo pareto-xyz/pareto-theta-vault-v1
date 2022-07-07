@@ -10,6 +10,7 @@ import {
   getLockedAmounts,
   fromBnToFloat,
   getVaultBalance,
+  getBestSwap,
 } from "../scripts/utils/testUtils";
 
 let vault: Contract;
@@ -787,6 +788,107 @@ runTest("ParetoVault", function () {
           stableDecimals
         )
       ).to.be.closeTo(feeOutput.feeStable, 0.001);
+    });
+    it("check rollover: swap risky for stable", async function () {
+      // mint more risky to get into case 2
+      await this.contracts.risky.mint(
+        vault.address,
+        toBn("100", riskyDecimals)
+      );
+
+      await vault.connect(this.wallets.keeper).deployVault();
+
+      // Get raw vault balances
+      let [vaultRisky, vaultStable] = await getVaultBalance(
+        this.contracts.risky,
+        this.contracts.stable,
+        vault.address,
+        riskyDecimals,
+        stableDecimals
+      );
+      // Compute round vault fees
+      let feeOutput = getVaultFees(
+        fromBnToFloat((await vault.vaultState()).lastLockedRisky, riskyDecimals),
+        fromBnToFloat((await vault.vaultState()).lastLockedStable, stableDecimals),
+        vaultRisky,
+        vaultStable,
+        1.0,
+        fromBnToFloat(await vault.managementFee(), 6),
+        fromBnToFloat(await vault.performanceFee(), 6)
+      );
+
+      await vault.connect(this.wallets.keeper).rollover();
+
+      let vaultState = await vault.vaultState();
+      let poolState = await vault.poolState();
+
+      let [optimalRisky, optimalStable] = getBestSwap(
+        vaultRisky - feeOutput.feeRisky, 
+        vaultStable - feeOutput.feeStable, 
+        fromBnToFloat(poolState.currPoolParams.riskyPerLp, riskyDecimals),
+        fromBnToFloat(poolState.currPoolParams.stablePerLp, stableDecimals),
+        1.0,
+      );
+
+      expect(
+        fromBnToFloat(vaultState.lockedRisky, riskyDecimals)
+      ).to.be.closeTo(optimalRisky, 1e-6);
+      expect(
+        fromBnToFloat(vaultState.lockedStable, stableDecimals)
+      ).to.be.closeTo(optimalStable, 1e-6);
+      expect(
+        fromBnToFloat(poolState.currLiquidity, shareDecimals)
+      ).to.be.greaterThan(0);
+    });
+    it("check rollover: swap stable for risky", async function () {
+      // mint more stable to get into case 3
+      await this.contracts.stable.mint(
+        vault.address,
+        toBn("100", stableDecimals)
+      );
+      await vault.connect(this.wallets.keeper).deployVault();
+
+      // Get raw vault balances
+      let [vaultRisky, vaultStable] = await getVaultBalance(
+        this.contracts.risky,
+        this.contracts.stable,
+        vault.address,
+        riskyDecimals,
+        stableDecimals
+      );
+      // Compute round vault fees
+      let feeOutput = getVaultFees(
+        fromBnToFloat((await vault.vaultState()).lastLockedRisky, riskyDecimals),
+        fromBnToFloat((await vault.vaultState()).lastLockedStable, stableDecimals),
+        vaultRisky,
+        vaultStable,
+        1.0,
+        fromBnToFloat(await vault.managementFee(), 6),
+        fromBnToFloat(await vault.performanceFee(), 6)
+      );
+
+      await vault.connect(this.wallets.keeper).rollover();
+
+      let vaultState = await vault.vaultState();
+      let poolState = await vault.poolState();
+
+      let [optimalRisky, optimalStable] = getBestSwap(
+        vaultRisky - feeOutput.feeRisky, 
+        vaultStable - feeOutput.feeStable, 
+        fromBnToFloat(poolState.currPoolParams.riskyPerLp, riskyDecimals),
+        fromBnToFloat(poolState.currPoolParams.stablePerLp, stableDecimals),
+        1.0,
+      );
+
+      expect(
+        fromBnToFloat(vaultState.lockedRisky, riskyDecimals)
+      ).to.be.closeTo(optimalRisky, 1e-6);
+      expect(
+        fromBnToFloat(vaultState.lockedStable, stableDecimals)
+      ).to.be.closeTo(optimalStable, 1e-6);
+      expect(
+        fromBnToFloat(poolState.currLiquidity, shareDecimals)
+      ).to.be.greaterThan(0);
     });
   });
 

@@ -146,7 +146,7 @@ export function getLockedAmounts(
   };
 }
 
-function getBestSwap(
+export function getBestSwap(
   risky0: number,
   stable0: number,
   riskyPerLp: number,

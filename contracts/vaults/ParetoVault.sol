@@ -1161,6 +1161,7 @@ contract ParetoVault is
             lockedRisky = initialRisky.add(deltaRisky);
             lockedStable = optimalStable;
         }
+
         return (lockedRisky, lockedStable);
     }
 
