@@ -602,31 +602,28 @@ contract ParetoVault is
     function rollover() external onlyKeeper nonReentrant {
         (
             bytes32 newPoolId,
-            uint256 initialRisky,
-            uint256 initialStable,
+            uint256 idealLockedRisky,
+            uint256 idealLockedStable,
             uint256 queuedWithdrawRisky,
             uint256 queuedWithdrawStable
         ) = _prepareRollover();
 
         // Rebalance the locked assets
         (uint256 lockedRisky, uint256 lockedStable) = _rebalance(
-            initialRisky,
-            initialStable
+            idealLockedRisky,
+            idealLockedStable
         );
 
-        lockedRisky = initialRisky;
-        lockedStable = initialStable;
-
         emit RebalanceVaultEvent(
-            initialRisky,
-            initialStable,
+            idealLockedRisky,
+            idealLockedStable,
             lockedRisky,
             lockedStable,
             keeper
         );
 
-        delete initialRisky;
-        delete initialStable;
+        delete idealLockedRisky;
+        delete idealLockedStable;
 
         // Queued withdraws from current round are set to last round
         vaultState.lastQueuedWithdrawRisky = queuedWithdrawRisky;
@@ -1167,10 +1164,17 @@ contract ParetoVault is
         uint256 riskyToStablePrice,
         uint256 riskyPerLp,
         uint256 stablePerLp
-    ) internal pure returns (uint256 riskyBest, uint256 stableBest) {
-        uint256 value = riskyToStablePrice.mul(riskyAmount).add(stableAmount);
-        uint256 denom = riskyPerLp.mul(riskyToStablePrice).add(stablePerLp);
+    ) internal view returns (uint256 riskyBest, uint256 stableBest) {
+        uint256 value = riskyToStablePrice.mul(riskyAmount)
+          .div(10**tokenParams.stableDecimals)
+          .add(stableAmount);
+        uint256 denom = riskyPerLp.mul(riskyToStablePrice)
+          .div(10**tokenParams.stableDecimals)
+          .add(stablePerLp);
+        
+        // decimals from mul and div cancel out
         riskyBest = riskyPerLp.mul(value).div(denom);
+        // decimals from mul and div cancel out
         stableBest = stablePerLp.mul(value).div(denom);
 
         // Check that the allocation is feasible
