@@ -95,7 +95,7 @@ contract ParetoVault is
 
     /**
      * @notice Always keep a few units of both assets, used to create pools
-     *         The owner is responsible for providing this initial deposit 
+     *         The owner is responsible for providing this initial deposit
      *         In fee computation, guarantee at least this amount is left in vault
      */
     uint256 public constant MIN_LIQUIDITY = 100000;
@@ -348,17 +348,23 @@ contract ParetoVault is
     }
 
     /**
-     * @notice Seeds vault with minimum funding 
+     * @notice Seeds vault with minimum funding
      * @dev Requires approval by owner to contract of at least MIN_LIQUIDITY
      *      This is used to satisfy the minimum liquidity to start RMM-01 pools
-     *      At least this liquidity will always remain in the vault 
+     *      At least this liquidity will always remain in the vault
      *      regardless of withdrawals or fee transfers
      */
     function seedVault() external onlyOwner {
         IERC20(tokenParams.risky).safeTransferFrom(
-          msg.sender, address(this), MIN_LIQUIDITY);
+            msg.sender,
+            address(this),
+            MIN_LIQUIDITY
+        );
         IERC20(tokenParams.stable).safeTransferFrom(
-          msg.sender, address(this), MIN_LIQUIDITY);
+            msg.sender,
+            address(this),
+            MIN_LIQUIDITY
+        );
 
         // Update state so we don't count seed as profit
         /// @dev This has the effect that first round will not take any fees
@@ -718,7 +724,7 @@ contract ParetoVault is
          *         the number of owned shares from previous rounds
          * @dev This overwrites the old receipt
          *      `ownedShares` represents the amount of shares owned by msg.sender up to this point
-         *      `riskyToDeposit` is the total amount of risky deposited by user that will be put into 
+         *      `riskyToDeposit` is the total amount of risky deposited by user that will be put into
          *      vault at the next rollover.
          *      Critically, `riskyToDeposit` is not accounted for in `ownedShares`.
          *      This is the only place in the code where we update receipts.
@@ -732,7 +738,7 @@ contract ParetoVault is
         /**
          * @notice Pending is amount of asset waiting to be converted to shares.
          * @dev Use `riskyAmount` not `depositAmount` since a portion of `depositAmount` has
-         *      already been accounted for in a previous call to `_processDeposit`. If not then 
+         *      already been accounted for in a previous call to `_processDeposit`. If not then
          *     `riskyAmount = depositAmount`.
          * @dev This must be in risky asset. Users cannot deposit stable
          */
@@ -1177,13 +1183,15 @@ contract ParetoVault is
         uint256 riskyPerLp,
         uint256 stablePerLp
     ) internal view returns (uint256 riskyBest, uint256 stableBest) {
-        uint256 value = riskyToStablePrice.mul(riskyAmount)
-          .div(10**tokenParams.stableDecimals)
-          .add(stableAmount);
-        uint256 denom = riskyPerLp.mul(riskyToStablePrice)
-          .div(10**tokenParams.stableDecimals)
-          .add(stablePerLp);
-        
+        uint256 value = riskyToStablePrice
+            .mul(riskyAmount)
+            .div(10**tokenParams.stableDecimals)
+            .add(stableAmount);
+        uint256 denom = riskyPerLp
+            .mul(riskyToStablePrice)
+            .div(10**tokenParams.stableDecimals)
+            .add(stablePerLp);
+
         // decimals from mul and div cancel out
         riskyBest = riskyPerLp.mul(value).div(denom);
         // decimals from mul and div cancel out
@@ -1210,7 +1218,7 @@ contract ParetoVault is
      *                 at the same oracle price; otherwise false
      * @return riskyForPerformanceFee is if we charge the performance fee in
      *                                terms of the risky asset or the stable asset
-     * @return valueForPerformanceFee is the amount of value to charge a performance fee 
+     * @return valueForPerformanceFee is the amount of value to charge a performance fee
      *                                (it is the difference between pre- and post-)
      */
     function _checkVaultSuccess(Vault.VaultSuccessInput memory inputs)
@@ -1279,7 +1287,7 @@ contract ParetoVault is
         view
         returns (uint256 feeInRisky, uint256 feeInStable)
     {
-        // Locked amount should not include new pending amount as deposits should 
+        // Locked amount should not include new pending amount as deposits should
         // not be counted towards profits
         uint256 currLockedRisky = feeParams.currRisky > feeParams.pendingRisky
             ? feeParams.currRisky.sub(feeParams.pendingRisky)

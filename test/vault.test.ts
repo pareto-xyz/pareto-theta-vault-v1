@@ -35,11 +35,11 @@ runTest("ParetoVault", function () {
       this.contracts.swapRouter.address,
       this.contracts.risky.address,
       this.contracts.stable.address,
-      20000000,  /// 20% performance fee
-      2000000    /// 2% yearly management fee
+      20000000, /// 20% performance fee
+      2000000 /// 2% yearly management fee
     );
 
-    // Owner should provide a bit of liquidity 
+    // Owner should provide a bit of liquidity
     const deployFee = vault.MIN_LIQUIDITY();
     await this.contracts.risky
       .connect(this.wallets.deployer)
@@ -142,10 +142,10 @@ runTest("ParetoVault", function () {
       expect(fromBn(vaultState.lockedRisky, riskyDecimals)).to.be.equal("0");
       expect(fromBn(vaultState.lockedStable, stableDecimals)).to.be.equal("0");
       expect(fromBn(vaultState.lastLockedRisky, riskyDecimals)).to.be.equal(
-        "0"
+        fromBn(BigNumber.from(100000), riskyDecimals).toString()
       );
       expect(fromBn(vaultState.lastLockedStable, stableDecimals)).to.be.equal(
-        "0"
+        fromBn(BigNumber.from(100000), riskyDecimals).toString()
       );
       expect(fromBn(vaultState.pendingRisky, riskyDecimals)).to.be.equal("0");
       expect(
@@ -229,15 +229,15 @@ runTest("ParetoVault", function () {
           await this.contracts.risky.balanceOf(vault.address),
           riskyDecimals
         )
-      ).to.be.equal("0");
+      ).to.be.equal(fromBn(BigNumber.from(100000), riskyDecimals).toString());
       expect(
         fromBn(
           await this.contracts.stable.balanceOf(vault.address),
           stableDecimals
         )
-      ).to.be.equal("0");
+      ).to.be.equal(fromBn(BigNumber.from(100000), riskyDecimals).toString());
       expect(
-        fromBn(await vault.balanceOf(vault.address), stableDecimals)
+        fromBn(await vault.balanceOf(vault.address), shareDecimals)
       ).to.be.equal("0");
     });
   });
@@ -329,8 +329,10 @@ runTest("ParetoVault", function () {
         .connect(this.wallets.alice)
         .deposit(toBn("1000", riskyDecimals));
       // The vault should gain 1000
+      console.log(fromBn(await vault.totalRisky(), riskyDecimals));
       expect(fromBn(await vault.totalRisky(), riskyDecimals)).to.be.equal(
-        "1000"
+        // the 0.0000000000001 is from the owner's initial deposit
+        "1000.0000000000001"
       );
       let aliceEnd = fromBnToFloat(
         await this.contracts.risky.balanceOf(this.wallets.alice.address),
@@ -604,7 +606,7 @@ runTest("ParetoVault", function () {
         this.contracts.stable,
         vault.address,
         riskyDecimals,
-        stableDecimals,
+        stableDecimals
       );
 
       let pendingRisky = fromBnToFloat(
@@ -627,7 +629,7 @@ runTest("ParetoVault", function () {
         1.0,
         fromBnToFloat(await vault.managementFee(), 6),
         fromBnToFloat(await vault.performanceFee(), 6)
-      )
+      );
       let lockOutput = getLockedAmounts(
         vaultRisky,
         vaultStable,
@@ -635,7 +637,7 @@ runTest("ParetoVault", function () {
         feeOutput.feeStable,
         1.0,
         fromBnToFloat(poolState.currPoolParams.riskyPerLp, riskyDecimals),
-        fromBnToFloat(poolState.currPoolParams.stablePerLp, stableDecimals),
+        fromBnToFloat(poolState.currPoolParams.stablePerLp, stableDecimals)
       );
 
       // Check that queued variables in vault state are refreshed
@@ -678,6 +680,10 @@ runTest("ParetoVault", function () {
     });
     it("check pool state post rollover", async function () {
       let poolState;
+
+      // Alice deposits 1 eth
+      await vault.connect(this.wallets.alice).deposit(toBn("1", riskyDecimals));
+
       // Keeper deploys vault
       await vault.connect(this.wallets.keeper).deployVault();
 
@@ -693,6 +699,7 @@ runTest("ParetoVault", function () {
       await vault.connect(this.wallets.keeper).rollover();
 
       poolState = await vault.poolState();
+
       // Check pool identifiers match expected
       expect(poolState.currPoolId).to.be.equal(cachePoolId);
       expect(poolState.nextPoolId).to.be.equal(emptyPoolId);
@@ -740,7 +747,7 @@ runTest("ParetoVault", function () {
         this.contracts.stable,
         vault.address,
         riskyDecimals,
-        stableDecimals,
+        stableDecimals
       );
       let pendingRisky = fromBnToFloat(
         (await vault.vaultState()).pendingRisky,
@@ -761,7 +768,7 @@ runTest("ParetoVault", function () {
         1.0,
         fromBnToFloat(await vault.managementFee(), 6),
         fromBnToFloat(await vault.performanceFee(), 6)
-      )
+      );
 
       // Check agreement between contract and test
       expect(
@@ -856,10 +863,10 @@ runTest("ParetoVault", function () {
         this.contracts.stable,
         vault.address,
         riskyDecimals,
-        stableDecimals,
+        stableDecimals
       );
       pendingRisky = fromBnToFloat(
-        (await vault.vaultState()).pendingRisky, 
+        (await vault.vaultState()).pendingRisky,
         riskyDecimals
       );
 
@@ -908,7 +915,7 @@ runTest("ParetoVault", function () {
         feeOutput.feeStable,
         1 / 1.2,
         fromBnToFloat(poolState.currPoolParams.riskyPerLp, riskyDecimals),
-        fromBnToFloat(poolState.currPoolParams.stablePerLp, stableDecimals),
+        fromBnToFloat(poolState.currPoolParams.stablePerLp, stableDecimals)
       );
 
       expect(
@@ -991,7 +998,7 @@ runTest("ParetoVault", function () {
         this.contracts.stable,
         vault.address,
         riskyDecimals,
-        stableDecimals,
+        stableDecimals
       );
 
       let pendingRisky = fromBnToFloat(
@@ -1004,7 +1011,7 @@ runTest("ParetoVault", function () {
 
       let vaultState = await vault.vaultState();
       let poolState = await vault.poolState();
-      
+
       // Compute locked amounts
       let feeOutput = getVaultFees(
         fromBnToFloat(vaultState.lastLockedRisky, riskyDecimals),
@@ -1014,7 +1021,7 @@ runTest("ParetoVault", function () {
         1 / 0.95,
         fromBnToFloat(await vault.managementFee(), 6),
         fromBnToFloat(await vault.performanceFee(), 6)
-      )
+      );
       let lockOutput = getLockedAmounts(
         vaultRisky,
         vaultStable,
@@ -1022,7 +1029,7 @@ runTest("ParetoVault", function () {
         feeOutput.feeStable,
         1 / 0.95,
         fromBnToFloat(poolState.currPoolParams.riskyPerLp, riskyDecimals),
-        fromBnToFloat(poolState.currPoolParams.stablePerLp, stableDecimals),
+        fromBnToFloat(poolState.currPoolParams.stablePerLp, stableDecimals)
       );
 
       // Locked assets = vault assets - fees
@@ -1050,7 +1057,7 @@ runTest("ParetoVault", function () {
         this.contracts.stable,
         vault.address,
         riskyDecimals,
-        stableDecimals,
+        stableDecimals
       );
 
       let pendingRisky = fromBnToFloat(
@@ -1071,7 +1078,7 @@ runTest("ParetoVault", function () {
         1 / 1.2,
         fromBnToFloat(await vault.managementFee(), 6),
         fromBnToFloat(await vault.performanceFee(), 6)
-      )
+      );
       let lockOutput = getLockedAmounts(
         vaultRisky,
         vaultStable,
@@ -1079,7 +1086,7 @@ runTest("ParetoVault", function () {
         feeOutput.feeStable,
         1 / 1.2,
         fromBnToFloat(poolState.currPoolParams.riskyPerLp, riskyDecimals),
-        fromBnToFloat(poolState.currPoolParams.stablePerLp, stableDecimals),
+        fromBnToFloat(poolState.currPoolParams.stablePerLp, stableDecimals)
       );
 
       let lockedRisky = fromBnToFloat(vaultState.lockedRisky, riskyDecimals);
@@ -1321,7 +1328,7 @@ runTest("ParetoVault", function () {
     });
     it("correct non-zero amount of total risky assets", async function () {
       await this.contracts.risky.mint(vault.address, parseWei("1").raw);
-      let seededAmount = fromBnToFloat(BigNumber.from(100000), riskyDecimals)
+      let seededAmount = fromBnToFloat(BigNumber.from(100000), riskyDecimals);
       let mintedAmount = fromBnToFloat(parseWei("1").raw, riskyDecimals);
       expect(fromBn(await vault.totalRisky(), riskyDecimals)).to.be.equal(
         (seededAmount + mintedAmount).toString()
@@ -1329,7 +1336,7 @@ runTest("ParetoVault", function () {
     });
     it("correct non-zero amount of total stable assets", async function () {
       await this.contracts.stable.mint(vault.address, parseWei("1").raw);
-      let seededAmount = fromBnToFloat(BigNumber.from(100000), stableDecimals)
+      let seededAmount = fromBnToFloat(BigNumber.from(100000), stableDecimals);
       let mintedAmount = fromBnToFloat(parseWei("1").raw, stableDecimals);
       expect(fromBn(await vault.totalStable(), stableDecimals)).to.be.equal(
         (seededAmount + mintedAmount).toString()
