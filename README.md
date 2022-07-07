@@ -1,6 +1,6 @@
 # Pareto Theta Vault v1
 
-Pareto Theta Vault v1 is the first version of Pareto's Theta Vault built on top of Primitive's RMM-01 pools.
+Pareto Theta Vault v1 is a Replicating Theta Vault built on top of Primitive's RMM-01 pools. Pareto's vault provides users weekly payoffs equal to the premiums from rolling out-the-money covered calls through a replicating market maker rather than a marketplace.
 
 ## Documentation
 
