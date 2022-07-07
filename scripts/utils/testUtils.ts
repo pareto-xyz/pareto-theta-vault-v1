@@ -4,20 +4,20 @@ import { fromBn, toBn } from "evm-bn";
 
 /**
  * @notice Compute expected performance and management fees
- * @param vaultRisky is the amount of risky token in the vault
- * @param vaultStable is the amount of stable token in the vault
+ * @param preVaultRisky is the amount of locked risky from last round
+ * @param preVaultStable is the amount of locked stable from last round
+ * @param postVaultRisky is the amount of risky token in the vault
+ * @param postVaultStable is the amount of stable token in the vault
  * @param riskyToStablePrice is the price of a risky token in stable
- * @param lastLockedRisky is the amount of locked risky from last round
- * @param lastLockedStable is the amount of locked stable from last round
  * @param managementFeePerWeek is the management fee in percentage per week
  * @param performanceFee is the performance fee in percentage per week
  */
 export function getVaultFees(
-  vaultRisky: number,
-  vaultStable: number,
+  preVaultRisky: number,
+  preVaultStable: number,
+  postVaultRisky: number,
+  postVaultStable: number,
   riskyToStablePrice: number,
-  lastLockedRisky: number,
-  lastLockedStable: number,
   managementFeePerWeek: number,
   performanceFee: number,
 ): {
@@ -32,8 +32,8 @@ export function getVaultFees(
   let performancePerc = performanceFee / 100;
 
   // Check if there more risky tokens this round than last
-  let moreRisky = vaultRisky > lastLockedRisky;
-  let moreStable = vaultStable > lastLockedStable;
+  let moreRisky = postVaultRisky > preVaultRisky;
+  let moreStable = postVaultStable > preVaultStable;
 
   let feeRisky: number = 0;
   let feeStable: number = 0;
@@ -51,11 +51,11 @@ export function getVaultFees(
   let postVaultValue: number;  // value of the vault after round
 
   if (moreRisky) {
-    preVaultValue = lastLockedRisky + lastLockedStable * stableToRiskyPrice;
-    postVaultValue = vaultRisky + vaultStable * stableToRiskyPrice;
+    preVaultValue = preVaultRisky + preVaultStable * stableToRiskyPrice;
+    postVaultValue = postVaultRisky + postVaultStable * stableToRiskyPrice;
   } else { 
-    preVaultValue = lastLockedStable + lastLockedRisky * riskyToStablePrice;
-    postVaultValue = vaultStable + vaultRisky * riskyToStablePrice;
+    preVaultValue = preVaultStable + preVaultRisky * riskyToStablePrice;
+    postVaultValue = postVaultStable + postVaultRisky * riskyToStablePrice;
   }
 
   let vaultSuccess = postVaultValue > preVaultValue;
@@ -64,8 +64,8 @@ export function getVaultFees(
 
   // Fees are only non-zero if vault succeeds
   if (vaultSuccess) {
-    let managementRisky = vaultRisky  * managementPercPerWeek;
-    let managementStable = vaultStable * managementPercPerWeek;
+    let managementRisky = postVaultRisky  * managementPercPerWeek;
+    let managementStable = postVaultStable * managementPercPerWeek;
     
     let performanceRisky: number = 0;
     let performanceStable: number = 0;

@@ -21,7 +21,7 @@ import {console} from "hardhat/console.sol";
 
 /**
  * @notice Based on RibbonVault.sol
- *  See https://docs.ribbon.finance/developers/ribbon-v2
+ *         See https://docs.ribbon.finance/developers/ribbon-v2
  */
 contract ParetoVault is
     IParetoVault,
@@ -89,14 +89,16 @@ contract ParetoVault is
 
     /**
      * @notice Number of weeks per year = 52.142857 weeks * 10**FEE_DECIMALS = 52142857
-     *  Dividing by weeks per year via num.mul(10**FEE_DECIMALS).div(WEEKS_PER_YEAR)
+     *         Dividing by weeks per year via num.mul(10**FEE_DECIMALS).div(WEEKS_PER_YEAR)
      */
     uint256 private constant WEEKS_PER_YEAR = 52142857;
 
     /**
      * @notice Always keep a few units of both assets, used to create pools
+     *         The owner is responsible for providing this initial deposit 
+     *         In fee computation, guarantee at least this amount is left in vault
      */
-    uint256 public constant MIN_LIQUIDITY = 10000;
+    uint256 public constant MIN_LIQUIDITY = 100000;
 
     /**
      * @notice Name of the Pareto receipt token
@@ -329,18 +331,6 @@ contract ParetoVault is
             _primitiveManager,
             type(uint256).max
         );
-        // Account for pre-existing funds
-        uint256 riskyBalance = IERC20(tokenParams.risky).balanceOf(
-            address(this)
-        );
-        uint256 stableBalance = IERC20(tokenParams.stable).balanceOf(
-            address(this)
-        );
-        VaultMath.assertUint104(riskyBalance);
-        VaultMath.assertUint104(stableBalance);
-        vaultState.lastLockedRisky = uint104(riskyBalance);
-        vaultState.lastLockedStable = uint104(stableBalance);
-
         // Initialize round
         vaultState.round = 1;
     }
@@ -355,6 +345,26 @@ contract ParetoVault is
     modifier onlyKeeper() {
         require(msg.sender == keeper, "!keeper");
         _;
+    }
+
+    /**
+     * @notice Seeds vault with minimum funding 
+     * @dev Requires approval by owner to contract of at least MIN_LIQUIDITY
+     *      This is used to satisfy the minimum liquidity to start RMM-01 pools
+     *      At least this liquidity will always remain in the vault 
+     *      regardless of withdrawals or fee transfers
+     */
+    function seedVault() external onlyOwner {
+        IERC20(tokenParams.risky).safeTransferFrom(
+          msg.sender, address(this), MIN_LIQUIDITY);
+        IERC20(tokenParams.stable).safeTransferFrom(
+          msg.sender, address(this), MIN_LIQUIDITY);
+
+        // Update state so we don't count seed as profit
+        /// @dev This has the effect that first round will not take any fees
+        VaultMath.assertUint104(MIN_LIQUIDITY);
+        vaultState.lastLockedRisky = uint104(MIN_LIQUIDITY);
+        vaultState.lastLockedStable = uint104(MIN_LIQUIDITY);
     }
 
     /**
@@ -467,8 +477,8 @@ contract ParetoVault is
      ***********************************************/
 
     /**
-     * @notice Save gas for writing values into the roundSharePriceIn* map
-     *  Writing `1 makes subsequent writes warm, reducing the gas from 20k to 5k
+     * @notice Save gas for writing values into the roundSharePriceIn(Risky/Stable) map
+     * @dev Writing 1 makes subsequent writes warm, reducing the gas from 20k to 5k
      * @param numRounds is the number of rounds to initialize in the map
      */
     function initRounds(uint256 numRounds) external nonReentrant {
@@ -562,11 +572,9 @@ contract ParetoVault is
 
         {
             // Save last round's locked assets
-            uint104 lockedRisky = vaultState.lockedRisky;
-            uint104 lockedStable = vaultState.lockedStable;
             if (currPoolId != "") {
-                vaultState.lastLockedRisky = lockedRisky;
-                vaultState.lastLockedStable = lockedStable;
+                vaultState.lastLockedRisky = vaultState.lockedRisky;
+                vaultState.lastLockedStable = vaultState.lockedStable;
             }
         }
 
@@ -598,6 +606,9 @@ contract ParetoVault is
 
     /**
      * @notice Rolls the vault's funds into the next vault
+     *         Performs rebalancing of vault asseets
+     *         Deposits tokens into new Primitive pool
+     *         Pending assets get counted into locked here
      */
     function rollover() external onlyKeeper nonReentrant {
         (
@@ -672,7 +683,7 @@ contract ParetoVault is
 
     /**
      * @notice Updates receipts and internal variables
-     *  Users only deposit risky assets
+     *         Users only deposit risky assets
      * @dev No minting nor token transfers are done within this function
      * @dev Users can call `deposit` (and hence `_processDeposit`) multiple times
      * @param riskyAmount is the amount of risky asset to be deposited
@@ -704,13 +715,13 @@ contract ParetoVault is
 
         /**
          * @notice New receipt has total deposited amount from current round and
-         *  the number of owned shares from previous rounds
+         *         the number of owned shares from previous rounds
          * @dev This overwrites the old receipt
-         * `ownedShares` represents the amount of shares owned by msg.sender up to this point
-         * `riskyToDeposit` is the total amount of risky deposited by user that will be put into
-         * vault at the next rollover.
-         * Critically, `riskyToDeposit` is not accounted for in `ownedShares`.
-         * This is the only place in the code where we update receipts.
+         *      `ownedShares` represents the amount of shares owned by msg.sender up to this point
+         *      `riskyToDeposit` is the total amount of risky deposited by user that will be put into 
+         *      vault at the next rollover.
+         *      Critically, `riskyToDeposit` is not accounted for in `ownedShares`.
+         *      This is the only place in the code where we update receipts.
          */
         depositReceipts[creditor] = Vault.DepositReceipt({
             round: currRound,
@@ -721,8 +732,8 @@ contract ParetoVault is
         /**
          * @notice Pending is amount of asset waiting to be converted to shares.
          * @dev Use `riskyAmount` not `depositAmount` since a portion of `depositAmount` has
-         * already been accounted for in a previous call to `_processDeposit`. If not then
-         * `riskyAmount = depositAmount`.
+         *      already been accounted for in a previous call to `_processDeposit`. If not then 
+         *     `riskyAmount = depositAmount`.
          * @dev This must be in risky asset. Users cannot deposit stable
          */
         uint256 newPendingRisky = uint256(vaultState.pendingRisky).add(
@@ -918,15 +929,16 @@ contract ParetoVault is
 
     /**
      * @notice Logistic operations for rolling to the next option, such as
-     *  minting new shares and transferring vault fees. The actual calls to
-     *  Primitive are not made in this function but require the outputs of this
+     *         minting new shares and transferring vault fees. Calls to
+     *         Primitive are not made in this function but require its outputs
+     * @dev The round is officially updated at the end of this function
      * @return newPoolId is the bytes32 id of the next Primitive pool
      * @return lockedRisky is the amount of risky asset locked for next round
      * @return lockedStable is the amount of stable asset locked for next round
      * @return queuedWithdrawRisky is the new queued withdraw amount of risky
-     *  asset for this round
+     *                             asset for this round
      * @return queuedWithdrawStable is the new queued withdraw amount of stable
-     *  asset for this round
+     *                              asset for this round
      */
     function _prepareRollover()
         internal
@@ -1111,7 +1123,7 @@ contract ParetoVault is
 
         // Compute best swap values from `initialRisky` and `initialStable`
         // TODO: replace `spotAtCreation` with current Uniswap price? Doing so
-        //       may reduce any loss we must take in the loss
+        //       may reduce any loss we must take in price drifts
         (uint256 optimalRisky, uint256 optimalStable) = _getBestSwap(
             initialRisky,
             initialStable,
@@ -1188,18 +1200,18 @@ contract ParetoVault is
 
     /**
      * @notice Check if the vault was successful in making money. This function also
-     * decides if the performance fee should be token through risky or stable
-     * token depending on the vault balances.
-     *
-     * @dev This function does not transfer tokens.
-     *
+     *         decides if the performance fee should be token through risky or stable
+     *         token depending on the vault balances
+     * @dev `preVaultRisky` includes pending deposits from last round and `postVaultRisky`
+     *      does not include pending deposits from this round
+     * @dev This function does not transfer tokens
      * @param inputs is contains the pre- and post- week vault stats
      * @return success is true if current value is higher than before the vault
-     *  at the same oracle price; otherwise false
+     *                 at the same oracle price; otherwise false
      * @return riskyForPerformanceFee is if we charge the performance fee in
-     *  terms of the risky asset or the stable asset
-     * @return valueForPerformanceFee is the amount of value to charge a
-     *  performance fee (it is the difference between pre- and post-)
+     *                                terms of the risky asset or the stable asset
+     * @return valueForPerformanceFee is the amount of value to charge a performance fee 
+     *                                (it is the difference between pre- and post-)
      */
     function _checkVaultSuccess(Vault.VaultSuccessInput memory inputs)
         internal
@@ -1246,6 +1258,7 @@ contract ParetoVault is
                 inputs.postVaultRisky.mul(oraclePrice).div(10**oracleDecimals)
             );
         }
+
         success = postVaultValue > preVaultValue;
         if (success) {
             valueForPerformanceFee = postVaultValue.sub(preVaultValue);
@@ -1266,11 +1279,12 @@ contract ParetoVault is
         view
         returns (uint256 feeInRisky, uint256 feeInStable)
     {
-        // Locked amount should not include pending amount
+        // Locked amount should not include new pending amount as deposits should 
+        // not be counted towards profits
         uint256 currLockedRisky = feeParams.currRisky > feeParams.pendingRisky
             ? feeParams.currRisky.sub(feeParams.pendingRisky)
             : 0;
-        // Users cannot deposit stable tokens
+        // Users cannot deposit stable i.e. `currLockedStable = feeParams.currStable`
         uint256 _performanceFeeInRisky;
         uint256 _performanceFeeInStable;
         uint256 _managementFeeInRisky;
@@ -1291,6 +1305,7 @@ contract ParetoVault is
                     postVaultStable: feeParams.currStable
                 })
             );
+
         if (vaultSuccess) {
             if (riskyForPerformanceFee) {
                 _performanceFeeInRisky = feeParams.performanceFeePercent > 0
@@ -1323,6 +1338,7 @@ contract ParetoVault is
             feeInRisky = _performanceFeeInRisky.add(_managementFeeInRisky);
             feeInStable = _performanceFeeInStable.add(_managementFeeInStable);
         }
+
         return (feeInRisky, feeInStable);
     }
 
@@ -1333,8 +1349,7 @@ contract ParetoVault is
     /**
      * @notice Use UniswapRouter to swap risky for stable tokens
      * @param riskyToSwap is the amount of risky token to trade
-     * @param stableMinExpected is the minimum amount of stable token expected
-     *                          from trade
+     * @param stableMinExpected is the minimum amount of stable token expected from trade
      * @return stableFromSwap is the amount of stable token obtained
      */
     function _swapRiskyForStable(uint256 riskyToSwap, uint256 stableMinExpected)
@@ -1355,8 +1370,7 @@ contract ParetoVault is
     /**
      * @notice Use UniswapRouter to swap risky for stable tokens
      * @param stableToSwap is the amount of risky token traded
-     * @param riskyMinExpected is the minimum amount of risky token expected
-     *                         from trade
+     * @param riskyMinExpected is the minimum amount of risky token expected from trade
      * @return riskyFromSwap is the amount of stable token obtained
      */
     function _swapStableForRisky(uint256 stableToSwap, uint256 riskyMinExpected)
@@ -1541,7 +1555,7 @@ contract ParetoVault is
 
     /**
      * @notice Return vault's total balance of risky assets, including
-     *  amounts locked into Primitive
+     *         amounts locked into Primitive
      */
     function totalRisky() public view returns (uint256) {
         return
@@ -1552,7 +1566,7 @@ contract ParetoVault is
 
     /**
      * @notice Return vault's total balance of stable assets, including
-     *  amounts locked into Primitive
+     *         amounts locked into Primitive
      */
     function totalStable() public view returns (uint256) {
         return
