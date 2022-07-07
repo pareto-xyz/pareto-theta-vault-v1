@@ -7,7 +7,7 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {IParetoManager} from "../interfaces/IParetoManager.sol";
 import {Vault} from "../libraries/Vault.sol";
 import {IERC20} from "../interfaces/IERC20.sol";
-import {ReplicationMath} from "../libraries/ReplicationMath.sol";
+import {MoreReplicationMath} from "../libraries/MoreReplicationMath.sol";
 import {console} from "hardhat/console.sol";
 
 /**
@@ -52,10 +52,10 @@ contract ParetoManager is IParetoManager, Ownable {
     uint256 private constant STRIKE_DECIMALS = 10**2;
 
     // Maximum riskyForLp of 1%
-    uint256 private constant MIN_R1 = 10000000000000000;
+    uint256 private constant MIN_PER_LP = 10000000000000000;
 
     // Maximum riskyForLp of 99%
-    uint256 private constant MAX_R1 = 990000000000000000;
+    uint256 private constant MAX_PER_LP = 990000000000000000;
 
     /************************************************
      * Constructor and initializers
@@ -212,10 +212,12 @@ contract ParetoManager is IParetoManager, Ownable {
 
     /**
      * @notice Computes the riskyForLp using oracle as spot price
+     *         Wrapper around MoreReplicationMath
+     * @param spot is the spot price in stable
      * @param strike is the strike price in stable
      * @param sigma is the implied volatility
      * @param tau is time to maturity in seconds
-     *  The conversion to years will happen within `ReplicationMath`
+     *  The conversion to years will happen within `MoreReplicationMath`
      * @param riskyDecimals is the decimals for the risky asset
      * @param stableDecimals is the decimals for the stable asset
      * @return riskyForLp is the R1 variable (in risky decimals)
@@ -223,30 +225,72 @@ contract ParetoManager is IParetoManager, Ownable {
      * @dev Thresholds the value to acceptable changes
      */
     function getRiskyPerLp(
+        uint256 spot,
         uint128 strike,
         uint32 sigma,
         uint256 tau,
         uint8 riskyDecimals,
         uint8 stableDecimals
-    ) external view override returns (uint256 riskyForLp) {
+    ) external pure override returns (uint256 riskyForLp) {
         uint256 scaleFactorRisky = 10**(18 - riskyDecimals);
         uint256 scaleFactorStable = 10**(18 - stableDecimals);
         /// @dev: for a new pool, tau = maturity - current time
-        riskyForLp = ReplicationMath.getRiskyPerLp(
-            uint256(_getOraclePrice(false)),
+        riskyForLp = MoreReplicationMath.getRiskyPerLp(
+            spot,
             uint256(strike),
             uint256(sigma),
             tau,
             scaleFactorRisky,
             scaleFactorStable
         );
-        // TODO: check this with Primitive team
-        if (riskyForLp < MIN_R1) {
-            riskyForLp = MIN_R1;
-        } else if (riskyForLp > MAX_R1) {
-            riskyForLp = MAX_R1;
+        // TODO: check this with Primitive team; outside of these
+        //       bounds, I get an error on `.create`
+        if (riskyForLp < MIN_PER_LP) {
+            riskyForLp = MIN_PER_LP;
+        } else if (riskyForLp > MAX_PER_LP) {
+            riskyForLp = MAX_PER_LP;
         }
         return riskyForLp;
+    }
+
+    /**
+     * @notice Computes the stablePerLp assuming riskyPerLp is known
+     *         Wrapper around MoreReplicationMath
+     * @param invariantX64 is the invariant currently for the pool
+     * @param riskyPerLp is amount of risky token to trade for 1 LP token
+     * @param strike is the strike price in stable
+     * @param sigma is the implied volatility
+     * @param tau is time to maturity in seconds
+     * @param riskyDecimals is the decimals for the risky asset
+     * @param stableDecimals is the decimals for the stable asset
+     * @return stableForLp is amount of stable token to trade for 1 LP token
+     */
+    function getStablePerLp(
+        int128 invariantX64,
+        uint256 riskyPerLp,
+        uint128 strike,
+        uint32 sigma,
+        uint256 tau,
+        uint8 riskyDecimals,
+        uint8 stableDecimals
+    ) external pure override returns (uint256 stableForLp) {
+        uint256 scaleFactorRisky = 10**(18 - riskyDecimals);
+        uint256 scaleFactorStable = 10**(18 - stableDecimals);
+        stableForLp = MoreReplicationMath.getStablePerLp(
+            invariantX64,
+            riskyPerLp,
+            uint256(strike),
+            uint256(sigma),
+            tau,
+            scaleFactorRisky,
+            scaleFactorStable
+        );
+        if (stableForLp < MIN_PER_LP) {
+            stableForLp = MIN_PER_LP;
+        } else if (stableForLp > MAX_PER_LP) {
+            stableForLp = MAX_PER_LP;
+        }
+        return stableForLp;
     }
 
     /**

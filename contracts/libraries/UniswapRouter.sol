@@ -40,7 +40,7 @@ library UniswapRouter {
         address router
     ) internal returns (uint256 amountOut) {
         // Approve router to spend tokenIn
-        IERC20(tokenIn).safeApprove(router, amountIn);
+        IERC20(tokenIn).safeIncreaseAllowance(router, amountIn);
 
         // Swap assets using UniswapV3 router
         ISwapRouter.ExactInputSingleParams memory swapParams = ISwapRouter
