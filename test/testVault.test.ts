@@ -408,7 +408,79 @@ runTest("TestParetoVault", function () {
       }
     });
   });
-  describe("Test internal next pool preparation", function () {});
+  describe("Test internal next pool preparation", function () {
+    beforeEach(async function () {
+      await vault.connect(this.wallets.keeper).deployVault();
+      await vault.connect(this.wallets.keeper).rollover();
+    });
+    it("Correctly sets spot for next pool", async function () {
+      let poolState = await vault.poolState();
+      // Set the oracle price
+      await this.contracts.aggregatorV3.setLatestAnswer(
+        parseWei("0.95", await this.contracts.aggregatorV3.decimals()).raw
+      );
+      await vault.testPrepareNextPool(poolState.currPoolId);
+      poolState = await vault.poolState();
+      let spot = fromBnToFloat(
+        poolState.nextPoolParams.spotAtCreation,
+        stableDecimals
+      );
+      expect(spot).to.be.equal(1 / 0.95);
+    });
+    it("Correctly sets next strike price", async function () {
+      let poolState = await vault.poolState();
+      await vault.testPrepareNextPool(poolState.currPoolId);
+      poolState = await vault.poolState();
+      expect(poolState.nextPoolParams.strike).to.be.equal(
+        await this.contracts.vaultManager.getNextStrikePrice()
+      );
+    });
+    it("Correctly sets next sigma", async function () {
+      let poolState = await vault.poolState();
+      await vault.testPrepareNextPool(poolState.currPoolId);
+      poolState = await vault.poolState();
+      expect(poolState.nextPoolParams.sigma).to.be.equal(
+        await this.contracts.vaultManager.getNextVolatility()
+      );
+    });
+    it("Correctly sets next maturity", async function () {
+      let poolState = await vault.poolState();
+      let maturity = await vault.testGetNextMaturity(poolState.currPoolId);
+      await vault.testPrepareNextPool(poolState.currPoolId);
+      poolState = await vault.poolState();
+      expect(poolState.nextPoolParams.maturity).to.be.equal(maturity);
+    });
+    it("Correctly sets next gamma", async function () {
+      let poolState = await vault.poolState();
+      await vault.testPrepareNextPool(poolState.currPoolId);
+      poolState = await vault.poolState();
+      expect(poolState.nextPoolParams.gamma).to.be.equal(
+        await this.contracts.vaultManager.getNextGamma()
+      );
+    });
+    it("Correctly sets next riskyPerLp", async function () {
+      let poolState = await vault.poolState();
+      await vault.testPrepareNextPool(poolState.currPoolId);
+      poolState = await vault.poolState();
+      expect(
+        fromBnToFloat(poolState.nextPoolParams.riskyPerLp, riskyDecimals)
+      ).to.be.greaterThan(0);
+      expect(
+        fromBnToFloat(poolState.nextPoolParams.riskyPerLp, riskyDecimals)
+      ).to.be.lessThan(1);
+    });
+    it("Correctly sets next stablePerLp", async function () {
+      let poolState = await vault.poolState();
+      await vault.testPrepareNextPool(poolState.currPoolId);
+      poolState = await vault.poolState();
+      expect(
+        fromBnToFloat(poolState.nextPoolParams.stablePerLp, stableDecimals)
+      ).to.be.greaterThan(0);
+      expect(
+        fromBnToFloat(poolState.nextPoolParams.stablePerLp, stableDecimals)
+      ).to.be.lessThan(1);
+    });
+  });
   describe("Test internal rollover preparation", function () {});
   describe("Test internal rebalancing", function () {});
   describe("Test internal optimal swap computation", function () {});
