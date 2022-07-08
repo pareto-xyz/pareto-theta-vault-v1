@@ -98,7 +98,17 @@ runTest("TestParetoVault", function () {
       // In this next round, we no longer expect Alice to own zero shares
       expect(receipt.round).to.be.equal(2);
       expect(fromBn(receipt.riskyToDeposit, riskyDecimals)).to.be.equal("2");
-      expect(fromBnToFloat(receipt.ownedShares, shareDecimals)).to.be.greaterThan(0);
+      expect(
+        fromBnToFloat(receipt.ownedShares, shareDecimals)
+      ).to.be.greaterThan(0);
+    });
+    it("Check contract has minted new shares", async function () {
+      // User depositing should translate to new shares
+      await vault.connect(this.wallets.keeper).deployVault();
+      await vault.connect(this.wallets.keeper).rollover();
+      expect(
+        fromBn(await vault.balanceOf(vault.address), shareDecimals)
+      ).to.be.equal("1.2");
     });
   });
 
@@ -133,7 +143,7 @@ runTest("TestParetoVault", function () {
       await vault.testDepositLiquidity(
         poolState.currPoolId,
         parseWei("0.1", riskyDecimals).raw,
-        parseWei("0.1", stableDecimals).raw,
+        parseWei("0.1", stableDecimals).raw
       );
 
       let riskyPostBalance = fromBnToFloat(
@@ -152,19 +162,64 @@ runTest("TestParetoVault", function () {
       await vault.testDepositLiquidity(
         poolState.currPoolId,
         parseWei("0.1", riskyDecimals).raw,
-        parseWei("0.1", stableDecimals).raw,
+        parseWei("0.1", stableDecimals).raw
       );
-      let engine = (await vault.primitiveParams()).engine
+      let engine = (await vault.primitiveParams()).engine;
       expect(
-        fromBnToFloat(await this.contracts.risky.balanceOf(engine), riskyDecimals)
+        fromBnToFloat(
+          await this.contracts.risky.balanceOf(engine),
+          riskyDecimals
+        )
       ).to.be.closeTo(0.1, 1e-6);
       expect(
-        fromBnToFloat(await this.contracts.stable.balanceOf(engine), stableDecimals)
+        fromBnToFloat(
+          await this.contracts.stable.balanceOf(engine),
+          stableDecimals
+        )
       ).to.be.closeTo(0.1, 1e-6);
     });
   });
-  describe("Test internal withdrawal request", function () {});
-  describe("Test internal withdrawal completion", function () {});
+
+  describe("Test internal withdrawal request", function () {
+    beforeEach(async function () {
+      let riskyAmount = parseWei("1", riskyDecimals).raw;
+      await vault.testProcessDeposit(riskyAmount, this.wallets.alice.address);
+      await vault.connect(this.wallets.keeper).deployVault();
+      await vault.connect(this.wallets.keeper).rollover();
+    });
+    it("Check default shares in pending withdraws is zero", async function () {
+      let withdraw = await vault.pendingWithdraw(this.wallets.alice.address);
+      expect(withdraw.round).to.be.equal(0);
+      expect(fromBn(withdraw.shares, shareDecimals)).to.be.equal("0");
+    });
+    it("Check pending withdrawal shares is updated", async function () {
+      await vault
+        .connect(this.wallets.alice)
+        .testRequestWithdraw(toBn("1", shareDecimals));
+      let withdraw = await vault.pendingWithdraw(this.wallets.alice.address);
+      expect(withdraw.round).to.be.equal(2);
+      expect(fromBn(withdraw.shares, shareDecimals)).to.be.equal("1");
+    });
+  });
+
+  describe("Test internal withdrawal completion", function () {
+    beforeEach(async function () {
+      let riskyAmount = parseWei("1", riskyDecimals).raw;
+      await vault.testProcessDeposit(riskyAmount, this.wallets.alice.address);
+      await vault.connect(this.wallets.keeper).deployVault();
+      await vault.connect(this.wallets.keeper).rollover();
+      await vault
+        .connect(this.wallets.alice)
+        .testRequestWithdraw(toBn("1", shareDecimals));
+    });
+    it("Error if completing withdrawal before round rollover", async function () {
+      try {
+        await vault.connect(this.wallets.alice).testCompleteWithdraw();
+      } catch (err) {
+        expect(err.message).to.include("Too early to withdraw");
+      }
+    });
+  });
   describe("Test internal withdrawal of liquidity from RMM pool", function () {});
   describe("Test internal next pool preparation", function () {});
   describe("Test internal rollover preparation", function () {});
