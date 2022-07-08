@@ -208,9 +208,20 @@ runTest("TestParetoVault", function () {
       await vault.testProcessDeposit(riskyAmount, this.wallets.alice.address);
       await vault.connect(this.wallets.keeper).deployVault();
       await vault.connect(this.wallets.keeper).rollover();
+      /// @dev Call `requestWithdraw` instead of `testRequestWithdraw` to update 
+      ///      `vaultState.currQueuedWithdrawShares`
       await vault
         .connect(this.wallets.alice)
-        .testRequestWithdraw(toBn("1", shareDecimals));
+        .requestWithdraw(toBn("1", shareDecimals));
+    });
+    it("Check total queued shares to withdraw is non-zero", async function () {
+      await vault.connect(this.wallets.keeper).deployVault();
+      await vault.connect(this.wallets.keeper).rollover();
+
+      let vaultState = await vault.vaultState();
+      expect(
+        fromBnToFloat(vaultState.totalQueuedWithdrawShares, shareDecimals)
+      ).to.be.greaterThan(0);
     });
     it("Error if completing withdrawal before round rollover", async function () {
       try {
@@ -219,6 +230,29 @@ runTest("TestParetoVault", function () {
         expect(err.message).to.include("Too early to withdraw");
       }
     });
+    it("Success if completing withdrawal after round rollover", async function () {
+      await vault.connect(this.wallets.keeper).deployVault();
+      await vault.connect(this.wallets.keeper).rollover();
+      await vault.connect(this.wallets.alice).testCompleteWithdraw();
+    });
+    it("Check total queued withdraw shares is reset", async function () {
+      await vault.connect(this.wallets.keeper).deployVault();
+      await vault.connect(this.wallets.keeper).rollover();
+      await vault.connect(this.wallets.alice).testCompleteWithdraw();
+
+      let vaultState = await vault.vaultState();
+      expect(
+        fromBn(vaultState.totalQueuedWithdrawShares, shareDecimals)
+      ).to.be.equal("0");
+    })
+    it("Check pending shares withdraw is set to zero", async function () {
+      await vault.connect(this.wallets.keeper).deployVault();
+      await vault.connect(this.wallets.keeper).rollover();
+      await vault.connect(this.wallets.alice).testCompleteWithdraw();
+
+      let withdraw = await vault.pendingWithdraw(this.wallets.alice.address)
+      expect(fromBn(withdraw.shares, shareDecimals)).to.be.equal("0");
+    })
   });
   describe("Test internal withdrawal of liquidity from RMM pool", function () {});
   describe("Test internal next pool preparation", function () {});
