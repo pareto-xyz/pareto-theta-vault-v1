@@ -12,6 +12,7 @@ import {
   getVaultBalance,
   getBestSwap,
 } from "../scripts/utils/testUtils";
+import { parse } from "path";
 
 let vault: Contract;
 let riskyDecimals: number;
@@ -68,6 +69,22 @@ runTest("TestParetoVault", function () {
       .increaseAllowance(vault.address, constants.MaxUint256);
   });
   describe('Test internal deposit processing', function () {
+    beforeEach(async function () {
+      let riskyAmount = parseWei("1.2", riskyDecimals).raw;
+      let creditor = this.wallets.alice.address;
+      await vault.testProcessDeposit(riskyAmount, creditor);
+    });
+    it("check deposit receipt updated", async function () {
+      let receipt = await vault.depositReceipts(this.wallets.alice.address);
+      expect(receipt.round).to.be.equal(1);
+      expect(fromBn(receipt.riskyToDeposit, riskyDecimals)).to.be.equal("1.2");
+      // User should have no owned shares from previous rounds
+      expect(fromBn(receipt.ownedShares, shareDecimals)).to.be.equal("0");
+    });
+    it("check pending risky updated", async function () {
+      let vaultState = await vault.vaultState();
+      expect(fromBn(vaultState.pendingRisky, riskyDecimals)).to.be.equal("1.2");
+    });
   });
   describe('Test internal deposit of liquidity into RMM pool', function () {
   });
