@@ -176,10 +176,12 @@ library Vault {
      * @param manager is the address for the Primitive manager contract
      * @param engine is the address for the Primitive engine contract
      * @param factory is the address for the Primitive factory contract
+     * @param decimals is the decimals for Primitive liquidity
      */
     struct PrimitiveParams {
         address manager;
         address engine;
         address factory;
+        uint8 decimals;
     }
 }

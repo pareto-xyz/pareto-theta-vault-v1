@@ -309,6 +309,7 @@ contract ParetoVault is
         primitiveParams.manager = _primitiveManager;
         primitiveParams.engine = _primitiveEngine;
         primitiveParams.factory = _primitiveFactory;
+        primitiveParams.decimals = 18;
         uniswapParams.router = _uniswapRouter;
         /// @dev we may not want this to be a constant
         uniswapParams.poolFee = 3000;
@@ -1485,8 +1486,9 @@ contract ParetoVault is
         internal
         returns (uint256, uint256)
     {
-        if (liquidity == 0) return (0, 0);
-
+        if (liquidity == 0) {
+            return (0, 0);
+        }
         // Moves into margin account in Primitive
         (uint256 riskyAmount, uint256 stableAmount) = IPrimitiveManager(
             primitiveParams.manager

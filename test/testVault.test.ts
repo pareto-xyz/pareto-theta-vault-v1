@@ -18,6 +18,7 @@ let vault: Contract;
 let riskyDecimals: number;
 let stableDecimals: number;
 let shareDecimals: number;
+let primitiveDecimals: number;
 
 /**
  * @notice Similar to `vault.test.ts` except we use the test contract
@@ -60,6 +61,7 @@ runTest("TestParetoVault", function () {
     riskyDecimals = await this.contracts.risky.decimals();
     stableDecimals = await this.contracts.stable.decimals();
     shareDecimals = await vault.decimals();
+    primitiveDecimals = (await vault.primitiveParams()).decimals;
 
     // Grant vault permission from Alice
     await this.contracts.risky
@@ -342,7 +344,70 @@ runTest("TestParetoVault", function () {
       expect(stableVaultPost).to.be.equal(0);
     });
   });
-  describe("Test internal withdrawal of liquidity from RMM pool", function () {});
+  describe("Test internal withdrawal of liquidity from RMM pool", function () {
+    beforeEach(async function () {
+      // Deploy a Vault
+      await vault.connect(this.wallets.keeper).deployVault();
+      await vault.connect(this.wallets.keeper).rollover();
+
+      // Mint 1 token of each asset
+      await this.contracts.risky.mint(
+        vault.address,
+        parseWei("1", riskyDecimals).raw
+      );
+      await this.contracts.stable.mint(
+        vault.address,
+        parseWei("1", stableDecimals).raw
+      );
+    });
+    it("Try removing liquidity without depositing", async function () {
+      let poolState = await vault.poolState();
+      try {
+        await vault.testRemoveLiquidity(
+          poolState.currPoolId,
+          toBn("1", primitiveDecimals)
+        );
+        expect(false);
+      } catch {
+        expect(true);
+      }
+    });
+    it("Check removing liquidity returns correct amount", async function () {
+      await vault
+        .connect(this.wallets.alice)
+        .deposit(parseWei("1", riskyDecimals).raw);
+      await vault.connect(this.wallets.keeper).deployVault();
+      await vault.connect(this.wallets.keeper).rollover();
+
+      let poolState = await vault.poolState();
+      let liquidity = fromBnToFloat(poolState.currLiquidity, primitiveDecimals);
+
+      await vault.testRemoveLiquidity(
+        poolState.currPoolId,
+        toBn(liquidity.toString(), primitiveDecimals)
+      );
+    });
+    it("Check removing too much liquidity errors", async function () {
+      await vault
+        .connect(this.wallets.alice)
+        .deposit(parseWei("1", riskyDecimals).raw);
+      await vault.connect(this.wallets.keeper).deployVault();
+      await vault.connect(this.wallets.keeper).rollover();
+
+      let poolState = await vault.poolState();
+      let liquidity = fromBnToFloat(poolState.currLiquidity, primitiveDecimals);
+
+      try {
+        await vault.testRemoveLiquidity(
+          poolState.currPoolId,
+          toBn((liquidity + 1).toString(), primitiveDecimals)
+        );
+        expect(false);
+      } catch {
+        expect(true);
+      }
+    });
+  });
   describe("Test internal next pool preparation", function () {});
   describe("Test internal rollover preparation", function () {});
   describe("Test internal rebalancing", function () {});
