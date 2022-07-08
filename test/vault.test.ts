@@ -435,7 +435,7 @@ runTest("ParetoVault", function () {
         expect(true);
       }
     });
-    it("check can deposit before deployment", async function () {
+    it("Check can deposit before deployment", async function () {
       // This is expected so we don't want on deployment to allow deposits
       await vault
         .connect(this.wallets.alice)

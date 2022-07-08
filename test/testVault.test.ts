@@ -75,18 +75,18 @@ runTest("TestParetoVault", function () {
       let creditor = this.wallets.alice.address;
       await vault.testProcessDeposit(riskyAmount, creditor);
     });
-    it("check deposit receipt updated", async function () {
+    it("Check deposit receipt updated", async function () {
       let receipt = await vault.depositReceipts(this.wallets.alice.address);
       expect(receipt.round).to.be.equal(1);
       expect(fromBn(receipt.riskyToDeposit, riskyDecimals)).to.be.equal("1.2");
       // User should have no owned shares from previous rounds
       expect(fromBn(receipt.ownedShares, shareDecimals)).to.be.equal("0");
     });
-    it("check pending risky updated", async function () {
+    it("Check pending risky updated", async function () {
       let vaultState = await vault.vaultState();
       expect(fromBn(vaultState.pendingRisky, riskyDecimals)).to.be.equal("1.2");
     });
-    it("check shares increase after rollover", async function () {
+    it("Check shares increase after rollover", async function () {
       await vault.connect(this.wallets.keeper).deployVault();
       await vault.connect(this.wallets.keeper).rollover();
 
@@ -101,7 +101,68 @@ runTest("TestParetoVault", function () {
       expect(fromBnToFloat(receipt.ownedShares, shareDecimals)).to.be.greaterThan(0);
     });
   });
-  describe("Test internal deposit of liquidity into RMM pool", function () {});
+
+  describe("Test internal deposit of liquidity into RMM pool", function () {
+    beforeEach(async function () {
+      // Deploy a Vault
+      await vault.connect(this.wallets.keeper).deployVault();
+      await vault.connect(this.wallets.keeper).rollover();
+
+      // Mint 1 token of each asset
+      await this.contracts.risky.mint(
+        vault.address,
+        parseWei("1", riskyDecimals).raw
+      );
+      await this.contracts.stable.mint(
+        vault.address,
+        parseWei("1", stableDecimals).raw
+      );
+    });
+    it("Check resources were placed in pool", async function () {
+      let poolState = await vault.poolState();
+
+      let riskyPreBalance = fromBnToFloat(
+        await this.contracts.risky.balanceOf(vault.address),
+        riskyDecimals
+      );
+      let stablePreBalance = fromBnToFloat(
+        await this.contracts.risky.balanceOf(vault.address),
+        stableDecimals
+      );
+
+      await vault.testDepositLiquidity(
+        poolState.currPoolId,
+        parseWei("0.1", riskyDecimals).raw,
+        parseWei("0.1", stableDecimals).raw,
+      );
+
+      let riskyPostBalance = fromBnToFloat(
+        await this.contracts.risky.balanceOf(vault.address),
+        riskyDecimals
+      );
+      let stablePostBalance = fromBnToFloat(
+        await this.contracts.risky.balanceOf(vault.address),
+        stableDecimals
+      );
+      expect(riskyPreBalance - riskyPostBalance).to.be.closeTo(0.1, 1e-6);
+      expect(stablePreBalance - stablePostBalance).to.be.closeTo(0.1, 1e-6);
+    });
+    it("Check pool owns deposited resoures", async function () {
+      let poolState = await vault.poolState();
+      await vault.testDepositLiquidity(
+        poolState.currPoolId,
+        parseWei("0.1", riskyDecimals).raw,
+        parseWei("0.1", stableDecimals).raw,
+      );
+      let engine = (await vault.primitiveParams()).engine
+      expect(
+        fromBnToFloat(await this.contracts.risky.balanceOf(engine), riskyDecimals)
+      ).to.be.closeTo(0.1, 1e-6);
+      expect(
+        fromBnToFloat(await this.contracts.stable.balanceOf(engine), stableDecimals)
+      ).to.be.closeTo(0.1, 1e-6);
+    });
+  });
   describe("Test internal withdrawal request", function () {});
   describe("Test internal withdrawal completion", function () {});
   describe("Test internal withdrawal of liquidity from RMM pool", function () {});
