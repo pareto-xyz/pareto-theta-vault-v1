@@ -20,14 +20,15 @@ let stableDecimals: number;
 let shareDecimals: number;
 
 /**
- * @notice Similar to `vault.test.ts` except we use the test contract 
+ * @notice Similar to `vault.test.ts` except we use the test contract
  *         `TestParetoVault` to access internal functions of `ParetoVault`.
  *         Allows for more granular tests
  */
 runTest("TestParetoVault", function () {
   beforeEach(async function () {
-    const TestParetoVault = 
-      await hre.ethers.getContractFactory("TestParetoVault");
+    const TestParetoVault = await hre.ethers.getContractFactory(
+      "TestParetoVault"
+    );
     vault = await TestParetoVault.connect(this.wallets.deployer).deploy(
       this.wallets.keeper.address,
       this.wallets.feeRecipient.address,
@@ -68,7 +69,7 @@ runTest("TestParetoVault", function () {
       .connect(this.wallets.alice)
       .increaseAllowance(vault.address, constants.MaxUint256);
   });
-  describe('Test internal deposit processing', function () {
+  describe("Test internal deposit processing", function () {
     beforeEach(async function () {
       let riskyAmount = parseWei("1.2", riskyDecimals).raw;
       let creditor = this.wallets.alice.address;
@@ -86,28 +87,16 @@ runTest("TestParetoVault", function () {
       expect(fromBn(vaultState.pendingRisky, riskyDecimals)).to.be.equal("1.2");
     });
   });
-  describe('Test internal deposit of liquidity into RMM pool', function () {
-  });
-  describe('Test internal withdrawal request', function () {
-  });
-  describe('Test internal withdrawal completion', function () {
-  });
-  describe('Test internal withdrawal of liquidity from RMM pool', function () {
-  });
-  describe('Test internal next pool preparation', function () {
-  });
-  describe('Test internal rollover preparation', function () {
-  });
-  describe('Test internal rebalancing', function () {
-  });
-  describe('Test internal optimal swap computation', function () {
-  });
-  describe('Test internal swapping', function () {
-  });
-  describe('Test internal vault success checking', function () {
-  });
-  describe('Test internal vault fees computation', function () {
-  });
-  describe('Test internal pool maturity computation', function () {
-  });
+  describe("Test internal deposit of liquidity into RMM pool", function () {});
+  describe("Test internal withdrawal request", function () {});
+  describe("Test internal withdrawal completion", function () {});
+  describe("Test internal withdrawal of liquidity from RMM pool", function () {});
+  describe("Test internal next pool preparation", function () {});
+  describe("Test internal rollover preparation", function () {});
+  describe("Test internal rebalancing", function () {});
+  describe("Test internal optimal swap computation", function () {});
+  describe("Test internal swapping", function () {});
+  describe("Test internal vault success checking", function () {});
+  describe("Test internal vault fees computation", function () {});
+  describe("Test internal pool maturity computation", function () {});
 });
