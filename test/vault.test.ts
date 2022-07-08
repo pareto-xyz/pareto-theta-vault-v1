@@ -808,8 +808,14 @@ runTest("ParetoVault", function () {
       );
       // Compute round vault fees
       let feeOutput = getVaultFees(
-        fromBnToFloat((await vault.vaultState()).lastLockedRisky, riskyDecimals),
-        fromBnToFloat((await vault.vaultState()).lastLockedStable, stableDecimals),
+        fromBnToFloat(
+          (await vault.vaultState()).lastLockedRisky,
+          riskyDecimals
+        ),
+        fromBnToFloat(
+          (await vault.vaultState()).lastLockedStable,
+          stableDecimals
+        ),
         vaultRisky,
         vaultStable,
         1.0,
@@ -823,11 +829,11 @@ runTest("ParetoVault", function () {
       let poolState = await vault.poolState();
 
       let [optimalRisky, optimalStable] = getBestSwap(
-        vaultRisky - feeOutput.feeRisky, 
-        vaultStable - feeOutput.feeStable, 
+        vaultRisky - feeOutput.feeRisky,
+        vaultStable - feeOutput.feeStable,
         fromBnToFloat(poolState.currPoolParams.riskyPerLp, riskyDecimals),
         fromBnToFloat(poolState.currPoolParams.stablePerLp, stableDecimals),
-        1.0,
+        1.0
       );
 
       expect(
@@ -858,8 +864,14 @@ runTest("ParetoVault", function () {
       );
       // Compute round vault fees
       let feeOutput = getVaultFees(
-        fromBnToFloat((await vault.vaultState()).lastLockedRisky, riskyDecimals),
-        fromBnToFloat((await vault.vaultState()).lastLockedStable, stableDecimals),
+        fromBnToFloat(
+          (await vault.vaultState()).lastLockedRisky,
+          riskyDecimals
+        ),
+        fromBnToFloat(
+          (await vault.vaultState()).lastLockedStable,
+          stableDecimals
+        ),
         vaultRisky,
         vaultStable,
         1.0,
@@ -873,11 +885,11 @@ runTest("ParetoVault", function () {
       let poolState = await vault.poolState();
 
       let [optimalRisky, optimalStable] = getBestSwap(
-        vaultRisky - feeOutput.feeRisky, 
-        vaultStable - feeOutput.feeStable, 
+        vaultRisky - feeOutput.feeRisky,
+        vaultStable - feeOutput.feeStable,
         fromBnToFloat(poolState.currPoolParams.riskyPerLp, riskyDecimals),
         fromBnToFloat(poolState.currPoolParams.stablePerLp, stableDecimals),
-        1.0,
+        1.0
       );
 
       expect(

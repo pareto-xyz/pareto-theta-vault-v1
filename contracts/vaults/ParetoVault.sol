@@ -695,7 +695,7 @@ contract ParetoVault is
      * @param riskyAmount is the amount of risky asset to be deposited
      * @param creditor is the address to receive the deposit
      */
-    function _processDeposit(uint256 riskyAmount, address creditor) private {
+    function _processDeposit(uint256 riskyAmount, address creditor) internal {
         uint16 currRound = vaultState.round;
 
         // Find cached receipt for user if already deposited in a previous round
