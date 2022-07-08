@@ -705,7 +705,94 @@ runTest("TestParetoVault", function () {
     });
   });
 
-  describe("Test internal vault fees computation", function () {});
+  describe("Test internal vault fees computation", function () {
+    beforeEach(async function () {
+      await vault.connect(this.wallets.keeper).deployVault();
+      await vault.connect(this.wallets.keeper).rollover();
+    });
+    it("First round should have no vault fees", async function () {
+      let vaultState = await vault.vaultState();
+      let currRisky = await this.contracts.risky.balanceOf(vault.address);
+      let currStable = await this.contracts.stable.balanceOf(vault.address);
+      let [feeInRisky, feeInStable] =
+        await vault.testGetVaultFees({
+          currRisky: currRisky,
+          currStable: currStable,
+          lastLockedRisky: vaultState.lastLockedRisky,
+          lastLockedStable: vaultState.lastLockedStable,
+          pendingRisky: vaultState.pendingRisky,
+          managementFeePercent: 2000000,
+          performanceFeePercent: 383561
+        });
+      expect(fromBn(feeInRisky, riskyDecimals)).to.be.equal("0");
+      expect(fromBn(feeInStable, stableDecimals)).to.be.equal("0");
+    });
+    it("No vault fees without premium", async function () {
+      await vault.connect(this.wallets.keeper).deployVault();
+      await vault.connect(this.wallets.keeper).rollover();
+
+      let vaultState = await vault.vaultState();
+      let currRisky = await this.contracts.risky.balanceOf(vault.address);
+      let currStable = await this.contracts.stable.balanceOf(vault.address);
+      let [feeInRisky, feeInStable] =
+        await vault.testGetVaultFees({
+          currRisky: currRisky,
+          currStable: currStable,
+          lastLockedRisky: vaultState.lastLockedRisky,
+          lastLockedStable: vaultState.lastLockedStable,
+          pendingRisky: vaultState.pendingRisky,
+          managementFeePercent: 2000000,
+          performanceFeePercent: 383561
+        });
+      expect(fromBn(feeInRisky, riskyDecimals)).to.be.equal("0");
+      expect(fromBn(feeInStable, stableDecimals)).to.be.equal("0");
+    });
+    it("No vault fees with deposit as pending", async function () {
+      await vault
+        .connect(this.wallets.alice)
+        .deposit(toBn("1000", riskyDecimals));
+
+      let vaultState = await vault.vaultState();
+      let [feeInRisky, feeInStable] =
+        await vault.testGetVaultFees({
+          currRisky: await this.contracts.risky.balanceOf(vault.address),
+          currStable: await this.contracts.stable.balanceOf(vault.address),
+          lastLockedRisky: vaultState.lastLockedRisky,
+          lastLockedStable: vaultState.lastLockedStable,
+          pendingRisky: vaultState.pendingRisky,
+          managementFeePercent: 2000000,
+          performanceFeePercent: 383561
+        });
+      expect(fromBn(feeInRisky, riskyDecimals)).to.be.equal("0");
+      expect(fromBn(feeInStable, stableDecimals)).to.be.equal("0");
+    });
+    it("Positive vault fees with premium", async function () {
+      await vault.connect(this.wallets.keeper).deployVault();
+
+      await this.contracts.risky.mint(
+        vault.address,
+        parseWei("10", riskyDecimals).raw
+      );
+      await this.contracts.stable.mint(
+        vault.address,
+        parseWei("10", stableDecimals).raw
+      );
+
+      let vaultState = await vault.vaultState();
+      let [feeInRisky, feeInStable] =
+        await vault.testGetVaultFees({
+          currRisky: await this.contracts.risky.balanceOf(vault.address),
+          currStable: await this.contracts.stable.balanceOf(vault.address),
+          lastLockedRisky: vaultState.lastLockedRisky,
+          lastLockedStable: vaultState.lastLockedStable,
+          pendingRisky: vaultState.pendingRisky,
+          managementFeePercent: 2000000,
+          performanceFeePercent: 383561
+        });
+      expect(fromBnToFloat(feeInRisky, riskyDecimals)).to.be.greaterThan(0.2);
+      expect(fromBnToFloat(feeInStable, stableDecimals)).to.be.greaterThan(0.2);
+    });
+  });
 
   describe("Test internal pool maturity computation", function () {
     it("Check computing next maturity", async function () {
