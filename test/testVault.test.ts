@@ -344,6 +344,7 @@ runTest("TestParetoVault", function () {
       expect(stableVaultPost).to.be.equal(0);
     });
   });
+
   describe("Test internal withdrawal of liquidity from RMM pool", function () {
     beforeEach(async function () {
       // Deploy a Vault
@@ -408,6 +409,7 @@ runTest("TestParetoVault", function () {
       }
     });
   });
+
   describe("Test internal next pool preparation", function () {
     beforeEach(async function () {
       await vault.connect(this.wallets.keeper).deployVault();
@@ -481,6 +483,7 @@ runTest("TestParetoVault", function () {
       ).to.be.lessThan(1);
     });
   });
+
   describe("Test internal rollover preparation", function () {
     beforeEach(async function () {
       await vault.connect(this.wallets.keeper).deployVault();
@@ -607,11 +610,103 @@ runTest("TestParetoVault", function () {
       ).to.be.greaterThan(keeperStable);
     });
   });
+
   describe("Test internal rebalancing", function () {});
+
   describe("Test internal optimal swap computation", function () {});
+
   describe("Test internal swapping", function () {});
-  describe("Test internal vault success checking", function () {});
+
+  describe("Test internal vault success checking", function () {
+    beforeEach(async function () {
+      await vault.connect(this.wallets.keeper).deployVault();
+      await vault.connect(this.wallets.keeper).rollover();
+    });
+    it("First round should not have vault success", async function () {
+      let vaultState = await vault.vaultState();
+      let currRisky = await this.contracts.risky.balanceOf(vault.address);
+      let currStable = await this.contracts.stable.balanceOf(vault.address);
+      let [success, , valueForPerformanceFee] =
+        await vault.testCheckVaultSuccess({
+          preVaultRisky: vaultState.lastLockedRisky,
+          preVaultStable: vaultState.lastLockedStable,
+          postVaultRisky: currRisky - vaultState.pendingRisky,
+          postVaultStable: currStable,
+        });
+      expect(success).to.be.equal(false);
+      expect(fromBn(valueForPerformanceFee, riskyDecimals)).to.be.equal("0");
+    });
+
+    it("No vault success without premium", async function () {
+      await vault.connect(this.wallets.keeper).deployVault();
+      await vault.connect(this.wallets.keeper).rollover();
+
+      let vaultState = await vault.vaultState();
+      let currRisky = await this.contracts.risky.balanceOf(vault.address);
+      let currStable = await this.contracts.stable.balanceOf(vault.address);
+      let [success, , valueForPerformanceFee] =
+        await vault.testCheckVaultSuccess({
+          preVaultRisky: vaultState.lastLockedRisky,
+          preVaultStable: vaultState.lastLockedStable,
+          postVaultRisky: currRisky - vaultState.pendingRisky,
+          postVaultStable: currStable,
+        });
+      expect(success).to.be.equal(false);
+      expect(fromBn(valueForPerformanceFee, riskyDecimals)).to.be.equal("0");
+    });
+
+    it("Check vault success with deposit", async function () {
+      await vault
+        .connect(this.wallets.alice)
+        .deposit(toBn("1000", riskyDecimals));
+
+      await vault.connect(this.wallets.keeper).deployVault();
+      await vault.connect(this.wallets.keeper).rollover();
+
+      let vaultState = await vault.vaultState();
+      let currRisky = await this.contracts.risky.balanceOf(vault.address);
+      let currStable = await this.contracts.stable.balanceOf(vault.address);
+      let [success, , valueForPerformanceFee] =
+        await vault.testCheckVaultSuccess({
+          preVaultRisky: vaultState.lastLockedRisky,
+          preVaultStable: vaultState.lastLockedStable,
+          postVaultRisky: currRisky - vaultState.pendingRisky,
+          postVaultStable: currStable,
+        });
+      expect(success).to.be.equal(true);
+      expect(fromBn(valueForPerformanceFee)).to.be.not.equal("0");
+    });
+    it("Check vault success with minting", async function () {
+      await vault.connect(this.wallets.keeper).deployVault();
+
+      await this.contracts.risky.mint(
+        vault.address,
+        parseWei("1", riskyDecimals).raw
+      );
+      await this.contracts.stable.mint(
+        vault.address,
+        parseWei("1", stableDecimals).raw
+      );
+
+      await vault.connect(this.wallets.keeper).rollover();
+
+      let vaultState = await vault.vaultState();
+      let currRisky = await this.contracts.risky.balanceOf(vault.address);
+      let currStable = await this.contracts.stable.balanceOf(vault.address);
+      let [success, , valueForPerformanceFee] =
+        await vault.testCheckVaultSuccess({
+          preVaultRisky: vaultState.lastLockedRisky,
+          preVaultStable: vaultState.lastLockedStable,
+          postVaultRisky: currRisky - vaultState.pendingRisky,
+          postVaultStable: currStable,
+        });
+      expect(success).to.be.equal(true);
+      expect(fromBn(valueForPerformanceFee)).to.be.not.equal("0");
+    });
+  });
+
   describe("Test internal vault fees computation", function () {});
+
   describe("Test internal pool maturity computation", function () {
     it("Check computing next maturity", async function () {
       await vault.connect(this.wallets.keeper).deployVault();
