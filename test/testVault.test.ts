@@ -481,7 +481,132 @@ runTest("TestParetoVault", function () {
       ).to.be.lessThan(1);
     });
   });
-  describe("Test internal rollover preparation", function () {});
+  describe("Test internal rollover preparation", function () {
+    beforeEach(async function () {
+      await vault.connect(this.wallets.keeper).deployVault();
+      await vault.connect(this.wallets.keeper).rollover();
+    });
+    it("Error if double rollover on same vault", async function () {
+      try {
+        await vault.connect(this.wallets.keeper).testPrepareRollover();
+      } catch (err) {
+        expect(err.message).to.include("!newPoolId");
+      }
+    });
+    it("Check that pending risky is reset to zero", async function () {
+      await vault.connect(this.wallets.keeper).deployVault();
+      await vault.connect(this.wallets.keeper).testPrepareRollover();
+      let vaultState = await vault.vaultState();
+      expect(fromBn(vaultState.pendingRisky, riskyDecimals)).to.be.equal("0");
+    });
+    it("Check that round is increased", async function () {
+      let round = (await vault.vaultState()).round;
+      await vault.connect(this.wallets.keeper).deployVault();
+      await vault.connect(this.wallets.keeper).testPrepareRollover();
+      expect((await vault.vaultState()).round).to.be.equal(round + 1);
+    });
+    it("Check that round share prices are updated", async function () {
+      await vault
+        .connect(this.wallets.alice)
+        .deposit(toBn("1000", riskyDecimals));
+      await vault.connect(this.wallets.keeper).deployVault();
+      await vault.connect(this.wallets.keeper).rollover();
+
+      // For this round, totalSupply() > 0
+      await vault.connect(this.wallets.keeper).deployVault();
+      await vault.connect(this.wallets.keeper).testPrepareRollover();
+      let round = (await vault.vaultState()).round;
+
+      // @dev -1 from round because round gets incremented end of rollover
+      expect(
+        fromBnToFloat(
+          await vault.roundSharePriceInRisky(round - 1),
+          riskyDecimals
+        )
+      ).to.be.greaterThan(0.1);
+
+      expect(
+        fromBnToFloat(
+          await vault.roundSharePriceInStable(round - 1),
+          stableDecimals
+        )
+      ).to.be.greaterThan(0.1);
+    });
+    it("Check that current pool identifier is not empty", async function () {
+      await vault.connect(this.wallets.keeper).deployVault();
+      await vault.connect(this.wallets.keeper).testPrepareRollover();
+      let poolState = await vault.poolState();
+      expect(poolState.currPoolId).to.be.not.equal(
+        "0x0000000000000000000000000000000000000000000000000000000000000000"
+      );
+    });
+    it("Check that next pool identifier is empty", async function () {
+      await vault.connect(this.wallets.keeper).deployVault();
+      await vault.connect(this.wallets.keeper).testPrepareRollover();
+      let poolState = await vault.poolState();
+      expect(poolState.nextPoolId).to.be.equal(
+        "0x0000000000000000000000000000000000000000000000000000000000000000"
+      );
+    });
+    it("Check that new shares were correctly minted", async function () {
+      await vault
+        .connect(this.wallets.alice)
+        .deposit(toBn("1000", riskyDecimals));
+      await vault.connect(this.wallets.keeper).deployVault();
+      await vault.connect(this.wallets.keeper).testPrepareRollover();
+      expect(
+        fromBnToFloat(await vault.balanceOf(vault.address), shareDecimals)
+      ).to.be.greaterThan(0);
+    });
+    it("Check that fees were correctly transferred to fee receipient", async function () {
+      await vault
+        .connect(this.wallets.alice)
+        .deposit(toBn("1000", riskyDecimals));
+
+      let keeperRisky = fromBnToFloat(
+        await this.contracts.risky.balanceOf(this.wallets.feeRecipient.address),
+        riskyDecimals
+      );
+      let keeperStable = fromBnToFloat(
+        await this.contracts.stable.balanceOf(
+          this.wallets.feeRecipient.address
+        ),
+        stableDecimals
+      );
+
+      await vault.connect(this.wallets.keeper).deployVault();
+
+      // Simulate premiums from minting
+      await this.contracts.risky.mint(
+        vault.address,
+        parseWei("1", riskyDecimals).raw
+      );
+      await this.contracts.stable.mint(
+        vault.address,
+        parseWei("1", stableDecimals).raw
+      );
+
+      await vault.connect(this.wallets.keeper).testPrepareRollover();
+
+      // Check that keeper has more assets now
+      expect(
+        fromBnToFloat(
+          await this.contracts.risky.balanceOf(
+            this.wallets.feeRecipient.address
+          ),
+          riskyDecimals
+        )
+      ).to.be.greaterThan(keeperRisky);
+      expect(
+        fromBnToFloat(
+          await this.contracts.stable.balanceOf(
+            this.wallets.feeRecipient.address
+          ),
+          stableDecimals
+        )
+      ).to.be.greaterThan(keeperStable);
+    });
+  });
   describe("Test internal rebalancing", function () {});
   describe("Test internal optimal swap computation", function () {});
   describe("Test internal swapping", function () {});

@@ -1242,15 +1242,15 @@ contract ParetoVault is
         // stable was earned throughout vault
         bool moreStable = inputs.postVaultStable > inputs.preVaultStable;
 
-        uint8 oracleDecimals = IParetoManager(vaultManager).getOracleDecimals();
-        uint256 oraclePrice;
-        uint256 preVaultValue;
-        uint256 postVaultValue;
-
         if (!moreRisky && !moreStable) {
             /// @dev Clearly lost money
             return (false, false, 0);
         }
+
+        uint8 oracleDecimals = IParetoManager(vaultManager).getOracleDecimals();
+        uint256 oraclePrice;
+        uint256 preVaultValue;
+        uint256 postVaultValue;
 
         if (moreRisky) {
             /// @dev This covers two cases: either more risky and less stable, or
