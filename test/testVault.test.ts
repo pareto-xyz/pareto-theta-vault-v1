@@ -200,15 +200,47 @@ runTest("TestParetoVault", function () {
       expect(withdraw.round).to.be.equal(2);
       expect(fromBn(withdraw.shares, shareDecimals)).to.be.equal("1");
     });
+    it("Check two withdrawal requests in the same round", async function () {
+      await vault
+        .connect(this.wallets.alice)
+        .testRequestWithdraw(toBn("1", shareDecimals));
+      await vault
+        .connect(this.wallets.alice)
+        .testRequestWithdraw(toBn("0.5", shareDecimals));
+      let withdraw = await vault.pendingWithdraw(this.wallets.alice.address);
+      expect(withdraw.round).to.be.equal(2);
+      expect(fromBn(withdraw.shares, shareDecimals)).to.be.equal("1.5");
+    });
+    it("Try withdrawing more than the user owns", async function () {
+      try {
+        await vault
+          .connect(this.wallets.alice)
+          .requestWithdraw(toBn("100", shareDecimals));
+      } catch (err) {
+        expect(err.message).to.include("!shares");
+      }
+    });
+    it("Try withdrawing more than the user owns in many segments", async function () {
+      await vault
+        .connect(this.wallets.alice)
+        .requestWithdraw(toBn("1", shareDecimals));
+      try {
+        await vault
+          .connect(this.wallets.alice)
+          .requestWithdraw(toBn("1", shareDecimals));
+      } catch (err) {
+        expect(err.message).to.include("!shares");
+      }
+    });
   });
 
   describe("Test internal withdrawal completion", function () {
     beforeEach(async function () {
       let riskyAmount = parseWei("1", riskyDecimals).raw;
-      await vault.testProcessDeposit(riskyAmount, this.wallets.alice.address);
+      await vault.connect(this.wallets.alice).deposit(riskyAmount);
       await vault.connect(this.wallets.keeper).deployVault();
       await vault.connect(this.wallets.keeper).rollover();
-      /// @dev Call `requestWithdraw` instead of `testRequestWithdraw` to update 
+      /// @dev Call `requestWithdraw` instead of `testRequestWithdraw` to update
       ///      `vaultState.currQueuedWithdrawShares`
       await vault
         .connect(this.wallets.alice)
@@ -244,15 +276,71 @@ runTest("TestParetoVault", function () {
       expect(
         fromBn(vaultState.totalQueuedWithdrawShares, shareDecimals)
       ).to.be.equal("0");
-    })
+    });
     it("Check pending shares withdraw is set to zero", async function () {
       await vault.connect(this.wallets.keeper).deployVault();
       await vault.connect(this.wallets.keeper).rollover();
       await vault.connect(this.wallets.alice).testCompleteWithdraw();
 
-      let withdraw = await vault.pendingWithdraw(this.wallets.alice.address)
+      let withdraw = await vault.pendingWithdraw(this.wallets.alice.address);
       expect(fromBn(withdraw.shares, shareDecimals)).to.be.equal("0");
-    })
+    });
+    it("Check shares are burned post withdrawal", async function () {
+      await vault.connect(this.wallets.keeper).deployVault();
+      await vault.connect(this.wallets.keeper).rollover();
+      expect(
+        fromBnToFloat(await vault.balanceOf(vault.address), shareDecimals)
+      ).to.be.greaterThan(0);
+      await vault.connect(this.wallets.alice).testCompleteWithdraw();
+      expect(
+        fromBnToFloat(await vault.balanceOf(vault.address), shareDecimals)
+      ).to.be.equal(0);
+    });
+    it("Check user receives tokens upon withdrawal", async function () {
+      await vault.connect(this.wallets.keeper).deployVault();
+      await vault.connect(this.wallets.keeper).rollover();
+
+      let riskyAlicePre = fromBnToFloat(
+        await this.contracts.risky.balanceOf(this.wallets.alice.address),
+        riskyDecimals
+      );
+      let stableAlicePre = fromBnToFloat(
+        await this.contracts.stable.balanceOf(this.wallets.alice.address),
+        stableDecimals
+      );
+      let riskyVaultPre = fromBnToFloat(
+        await this.contracts.risky.balanceOf(vault.address),
+        riskyDecimals
+      );
+      let stableVaultPre = fromBnToFloat(
+        await this.contracts.stable.balanceOf(vault.address),
+        stableDecimals
+      );
+
+      await vault.connect(this.wallets.alice).testCompleteWithdraw();
+
+      let riskyAlicePost = fromBnToFloat(
+        await this.contracts.risky.balanceOf(this.wallets.alice.address),
+        riskyDecimals
+      );
+      let stableAlicePost = fromBnToFloat(
+        await this.contracts.stable.balanceOf(this.wallets.alice.address),
+        stableDecimals
+      );
+      let riskyVaultPost = fromBnToFloat(
+        await this.contracts.risky.balanceOf(vault.address),
+        riskyDecimals
+      );
+      let stableVaultPost = fromBnToFloat(
+        await this.contracts.stable.balanceOf(vault.address),
+        stableDecimals
+      );
+
+      expect(riskyAlicePre + riskyVaultPre).to.be.equal(riskyAlicePost);
+      expect(stableAlicePre + stableVaultPre).to.be.equal(stableAlicePost);
+      expect(riskyVaultPost).to.be.equal(0);
+      expect(stableVaultPost).to.be.equal(0);
+    });
   });
   describe("Test internal withdrawal of liquidity from RMM pool", function () {});
   describe("Test internal next pool preparation", function () {});

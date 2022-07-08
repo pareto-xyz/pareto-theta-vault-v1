@@ -757,6 +757,10 @@ contract ParetoVault is
      */
     function _requestWithdraw(uint256 shares) internal {
         require(shares > 0, "!shares");
+        uint256 accountShares = getAccountShares(msg.sender);
+        // Cannot request to withdraw more than owned
+        require(shares <= accountShares, "!shares");
+
         uint16 currRound = vaultState.round;
 
         // Stores the round and amount of shares to be withdrawn
@@ -768,6 +772,7 @@ contract ParetoVault is
         if (withdrawal.round == currRound) {
             // If the user has a pending withdrawal from same round, merge
             sharesToWithdraw = uint256(withdrawal.shares).add(shares);
+            require(sharesToWithdraw <= accountShares, "!shares");
         } else {
             // If we find unfilled withdrawal request from old round, error
             require(uint256(withdrawal.shares) == 0, "Abandoned withdraw");
