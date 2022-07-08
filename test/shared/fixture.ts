@@ -1,7 +1,6 @@
 import hre, { ethers } from "hardhat";
-import { constants, Wallet } from "ethers";
+import { Wallet } from "ethers";
 import { parseWei } from "web3-units";
-import { fromBn, toBn } from "evm-bn";
 import { createFixtureLoader, MockProvider } from "ethereum-waffle";
 
 import PrimitiveFactoryArtifact from "@primitivefi/rmm-core/artifacts/contracts/PrimitiveFactory.sol/PrimitiveFactory.json";
