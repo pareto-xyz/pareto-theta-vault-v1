@@ -86,6 +86,20 @@ runTest("TestParetoVault", function () {
       let vaultState = await vault.vaultState();
       expect(fromBn(vaultState.pendingRisky, riskyDecimals)).to.be.equal("1.2");
     });
+    it("check shares increase after rollover", async function () {
+      await vault.connect(this.wallets.keeper).deployVault();
+      await vault.connect(this.wallets.keeper).rollover();
+
+      let riskyAmount = parseWei("2", riskyDecimals).raw;
+      let creditor = this.wallets.alice.address;
+      await vault.testProcessDeposit(riskyAmount, creditor);
+      let receipt = await vault.depositReceipts(this.wallets.alice.address);
+
+      // In this next round, we no longer expect Alice to own zero shares
+      expect(receipt.round).to.be.equal(2);
+      expect(fromBn(receipt.riskyToDeposit, riskyDecimals)).to.be.equal("2");
+      expect(fromBnToFloat(receipt.ownedShares, shareDecimals)).to.be.greaterThan(0);
+    });
   });
   describe("Test internal deposit of liquidity into RMM pool", function () {});
   describe("Test internal withdrawal request", function () {});
