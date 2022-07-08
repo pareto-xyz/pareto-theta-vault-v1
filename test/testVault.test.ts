@@ -415,5 +415,37 @@ runTest("TestParetoVault", function () {
   describe("Test internal swapping", function () {});
   describe("Test internal vault success checking", function () {});
   describe("Test internal vault fees computation", function () {});
-  describe("Test internal pool maturity computation", function () {});
+  describe("Test internal pool maturity computation", function () {
+    it("Check computing next maturity", async function () {
+      await vault.connect(this.wallets.keeper).deployVault();
+      await vault.connect(this.wallets.keeper).rollover();
+
+      let poolState = await vault.poolState();
+      let maturity = await vault.testGetNextMaturity(poolState.currPoolId);
+
+      await vault.connect(this.wallets.keeper).deployVault();
+      await vault.connect(this.wallets.keeper).rollover();
+
+      poolState = await vault.poolState();
+      expect(await vault.testGetPoolMaturity(poolState.currPoolId)).to.be.equal(
+        maturity
+      );
+    });
+    it("Check computing next friday", async function () {
+      await vault.connect(this.wallets.keeper).deployVault();
+      await vault.connect(this.wallets.keeper).rollover();
+
+      let poolState = await vault.poolState();
+      let currMaturity = await vault.testGetPoolMaturity(poolState.currPoolId);
+      let maturity = await vault.testGetNextFriday(currMaturity);
+
+      await vault.connect(this.wallets.keeper).deployVault();
+      await vault.connect(this.wallets.keeper).rollover();
+
+      poolState = await vault.poolState();
+      expect(await vault.testGetPoolMaturity(poolState.currPoolId)).to.be.equal(
+        maturity
+      );
+    });
+  });
 });
