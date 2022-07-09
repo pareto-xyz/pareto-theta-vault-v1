@@ -27,7 +27,7 @@ module.exports = {
     runOnCompile: false,
     templatePath: './docusaurus.sqrl',
     outputDir: 'docs',
-    exclude: ['libraries', 'test', 'console'],
+    exclude: ['efi', 'elin', 'k', 'libraries', 'test', 'console'],
   },
   namedAccounts: {
     deployer: 0,
