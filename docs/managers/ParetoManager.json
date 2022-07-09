@@ -1,0 +1,291 @@
+{
+  "methods": {
+    "chainlinkOracle()": {
+      "stateMutability": "view",
+      "code": "function chainlinkOracle() external view returns (address)",
+      "inputs": {},
+      "outputs": {
+        "_0": {
+          "type": "address"
+        }
+      },
+      "notice": "Address for the ChainLink oracle Network: Kovan USDC-ETH: 0x64EaC61A2DFda2c3Fa04eED49AA33D021AeC8838 Network: Rinkeby USDC-ETH: 0xdCA36F27cbC4E38aE16C4E9f99D39b42337F6dcf Network: MainNet USDC-ETH: 0x986b5E1e1755e3C2440e960477f25201B0a8bbD4"
+    },
+    "getNextGamma()": {
+      "stateMutability": "pure",
+      "code": "function getNextGamma() external pure returns (uint32 gamma)",
+      "inputs": {},
+      "outputs": {
+        "gamma": {
+          "type": "uint32",
+          "description": "is the Gamma for the next pool"
+        }
+      },
+      "notice": "Computes the gamma (or 1 - fee) for the next pool"
+    },
+    "getNextStrikePrice()": {
+      "stateMutability": "view",
+      "code": "function getNextStrikePrice() external view returns (uint128 strikePrice)",
+      "inputs": {},
+      "outputs": {
+        "strikePrice": {
+          "type": "uint128",
+          "description": "is the relative price of risky in stable"
+        }
+      },
+      "notice": "Computes the strike price for the next pool by multiplying  the current price - requires an oracle",
+      "details": "Uses the same decimals as the stable token"
+    },
+    "getNextVolatility()": {
+      "stateMutability": "pure",
+      "code": "function getNextVolatility() external pure returns (uint32 sigma)",
+      "inputs": {},
+      "outputs": {
+        "sigma": {
+          "type": "uint32",
+          "description": "is the implied volatility estimate"
+        }
+      },
+      "notice": "Computes the volatility for the next pool"
+    },
+    "getOracleDecimals()": {
+      "stateMutability": "view",
+      "code": "function getOracleDecimals() external view returns (uint8)",
+      "inputs": {},
+      "outputs": {
+        "_0": {
+          "type": "uint8"
+        }
+      },
+      "notice": "Query oracle for its decimals"
+    },
+    "getPrice()": {
+      "stateMutability": "view",
+      "code": "function getPrice() external view returns (uint256 stableToRiskyPrice, uint256 riskyToStablePrice)",
+      "inputs": {},
+      "outputs": {
+        "stableToRiskyPrice": {
+          "type": "uint256"
+        },
+        "riskyToStablePrice": {
+          "type": "uint256"
+        }
+      },
+      "notice": "Helper function to return both stable-to-risky and risky-to-stable prices"
+    },
+    "getRiskyPerLp(uint256,uint128,uint32,uint256,uint8,uint8)": {
+      "stateMutability": "pure",
+      "code": "function getRiskyPerLp(uint256 spot, uint128 strike, uint32 sigma, uint256 tau, uint8 riskyDecimals, uint8 stableDecimals) external pure returns (uint256 riskyForLp)",
+      "inputs": {
+        "spot": {
+          "type": "uint256",
+          "description": "is the spot price in stable"
+        },
+        "strike": {
+          "type": "uint128",
+          "description": "is the strike price in stable"
+        },
+        "sigma": {
+          "type": "uint32",
+          "description": "is the implied volatility"
+        },
+        "tau": {
+          "type": "uint256",
+          "description": "is time to maturity in seconds  The conversion to years will happen within `MoreReplicationMath`"
+        },
+        "riskyDecimals": {
+          "type": "uint8",
+          "description": "is the decimals for the risky asset"
+        },
+        "stableDecimals": {
+          "type": "uint8",
+          "description": "is the decimals for the stable asset"
+        }
+      },
+      "outputs": {
+        "riskyForLp": {
+          "type": "uint256",
+          "description": "is the R1 variable (in risky decimals)"
+        }
+      },
+      "notice": "Computes the riskyForLp using oracle as spot price         Wrapper around MoreReplicationMath",
+      "details": "See page 14 of https://primitive.xyz/whitepaper-rmm-01.pdfThresholds the value to acceptable changes"
+    },
+    "getRiskyToStablePrice()": {
+      "stateMutability": "view",
+      "code": "function getRiskyToStablePrice() external view returns (uint256 price)",
+      "inputs": {},
+      "outputs": {
+        "price": {
+          "type": "uint256"
+        }
+      },
+      "notice": "Query oracle for price of risky to stable asset"
+    },
+    "getStablePerLp(int128,uint256,uint128,uint32,uint256,uint8,uint8)": {
+      "stateMutability": "pure",
+      "code": "function getStablePerLp(int128 invariantX64, uint256 riskyPerLp, uint128 strike, uint32 sigma, uint256 tau, uint8 riskyDecimals, uint8 stableDecimals) external pure returns (uint256 stableForLp)",
+      "inputs": {
+        "invariantX64": {
+          "type": "int128",
+          "description": "is the invariant currently for the pool"
+        },
+        "riskyPerLp": {
+          "type": "uint256",
+          "description": "is amount of risky token to trade for 1 LP token"
+        },
+        "strike": {
+          "type": "uint128",
+          "description": "is the strike price in stable"
+        },
+        "sigma": {
+          "type": "uint32",
+          "description": "is the implied volatility"
+        },
+        "tau": {
+          "type": "uint256",
+          "description": "is time to maturity in seconds"
+        },
+        "riskyDecimals": {
+          "type": "uint8",
+          "description": "is the decimals for the risky asset"
+        },
+        "stableDecimals": {
+          "type": "uint8",
+          "description": "is the decimals for the stable asset"
+        }
+      },
+      "outputs": {
+        "stableForLp": {
+          "type": "uint256",
+          "description": "is amount of stable token to trade for 1 LP token"
+        }
+      },
+      "notice": "Computes the stablePerLp assuming riskyPerLp is known         Wrapper around MoreReplicationMath"
+    },
+    "getStableToRiskyPrice()": {
+      "stateMutability": "view",
+      "code": "function getStableToRiskyPrice() external view returns (uint256 price)",
+      "inputs": {},
+      "outputs": {
+        "price": {
+          "type": "uint256"
+        }
+      },
+      "notice": "Query oracle for price of stable to risky asset"
+    },
+    "owner()": {
+      "stateMutability": "view",
+      "code": "function owner() external view returns (address)",
+      "inputs": {},
+      "outputs": {
+        "_0": {
+          "type": "address"
+        }
+      },
+      "details": "Returns the address of the current owner."
+    },
+    "renounceOwnership()": {
+      "stateMutability": "nonpayable",
+      "code": "function renounceOwnership() external nonpayable",
+      "inputs": {},
+      "outputs": {},
+      "details": "Leaves the contract without owner. It will not be possible to call `onlyOwner` functions anymore. Can only be called by the current owner. NOTE: Renouncing ownership will leave the contract without an owner, thereby removing any functionality that is only available to the owner."
+    },
+    "risky()": {
+      "stateMutability": "view",
+      "code": "function risky() external view returns (address)",
+      "inputs": {},
+      "outputs": {
+        "_0": {
+          "type": "address"
+        }
+      },
+      "notice": "Risky token of the risky / stable pair"
+    },
+    "riskyFirst()": {
+      "stateMutability": "view",
+      "code": "function riskyFirst() external view returns (bool)",
+      "inputs": {},
+      "outputs": {
+        "_0": {
+          "type": "bool"
+        }
+      }
+    },
+    "setStrikeMultiplier(uint256)": {
+      "stateMutability": "nonpayable",
+      "code": "function setStrikeMultiplier(uint256 _strikeMultiplier) external nonpayable",
+      "inputs": {
+        "_strikeMultiplier": {
+          "type": "uint256",
+          "description": "is the strike multiplier (decimals = 2)"
+        }
+      },
+      "outputs": {},
+      "notice": "Set the multiplier for setting the strike price"
+    },
+    "stable()": {
+      "stateMutability": "view",
+      "code": "function stable() external view returns (address)",
+      "inputs": {},
+      "outputs": {
+        "_0": {
+          "type": "address"
+        }
+      },
+      "notice": "Stable token of the risky / stable pair"
+    },
+    "strikeMultiplier()": {
+      "stateMutability": "view",
+      "code": "function strikeMultiplier() external view returns (uint256)",
+      "inputs": {},
+      "outputs": {
+        "_0": {
+          "type": "uint256"
+        }
+      },
+      "notice": "Multiplier for strike price (2 decimal places)"
+    },
+    "transferOwnership(address)": {
+      "stateMutability": "nonpayable",
+      "code": "function transferOwnership(address newOwner) external nonpayable",
+      "inputs": {
+        "newOwner": {
+          "type": "address"
+        }
+      },
+      "outputs": {},
+      "details": "Transfers ownership of the contract to a new account (`newOwner`). Can only be called by the current owner."
+    }
+  },
+  "events": {
+    "OwnershipTransferred": {
+      "code": "event OwnershipTransferred(address indexed previousOwner, address indexed newOwner)",
+      "inputs": {
+        "previousOwner": {
+          "type": "address",
+          "indexed": true
+        },
+        "newOwner": {
+          "type": "address",
+          "indexed": true
+        }
+      }
+    }
+  },
+  "errors": {
+    "InverseOutOfBounds": {
+      "code": "error InverseOutOfBounds(int128 value)",
+      "inputs": {
+        "value": {
+          "type": "int128"
+        }
+      },
+      "notice": "Thrown on passing an arg that is out of the input range for these math functions"
+    }
+  },
+  "path": "/managers",
+  "notice": "Automated management of Pareto Theta VaultsDecides strike prices by percentages",
+  "name": "ParetoManager"
+}

@@ -1,0 +1,77 @@
+{
+  "methods": {
+    "onERC1155BatchReceived(address,address,uint256[],uint256[],bytes)": {
+      "stateMutability": "nonpayable",
+      "code": "function onERC1155BatchReceived(address, address, uint256[], uint256[], bytes) external nonpayable returns (bytes4)",
+      "inputs": {
+        "_0": {
+          "type": "address"
+        },
+        "_1": {
+          "type": "address"
+        },
+        "_2": {
+          "type": "uint256[]"
+        },
+        "_3": {
+          "type": "uint256[]"
+        },
+        "_4": {
+          "type": "bytes"
+        }
+      },
+      "outputs": {
+        "_0": {
+          "type": "bytes4"
+        }
+      }
+    },
+    "onERC1155Received(address,address,uint256,uint256,bytes)": {
+      "stateMutability": "nonpayable",
+      "code": "function onERC1155Received(address, address, uint256, uint256, bytes) external nonpayable returns (bytes4)",
+      "inputs": {
+        "_0": {
+          "type": "address"
+        },
+        "_1": {
+          "type": "address"
+        },
+        "_2": {
+          "type": "uint256"
+        },
+        "_3": {
+          "type": "uint256"
+        },
+        "_4": {
+          "type": "bytes"
+        }
+      },
+      "outputs": {
+        "_0": {
+          "type": "bytes4"
+        }
+      }
+    },
+    "supportsInterface(bytes4)": {
+      "stateMutability": "view",
+      "code": "function supportsInterface(bytes4 interfaceId) external view returns (bool)",
+      "inputs": {
+        "interfaceId": {
+          "type": "bytes4"
+        }
+      },
+      "outputs": {
+        "_0": {
+          "type": "bool"
+        }
+      },
+      "details": "See {IERC165-supportsInterface}."
+    }
+  },
+  "events": {},
+  "errors": {},
+  "path": "elin/contracts/token/ERC1155/utils",
+  "notice": "Simple implementation of `ERC1155Receiver` that will allow a contract to hold ERC1155 tokens. IMPORTANT: When inheriting this contract, you must include a way to use the received tokens, otherwise they will be stuck.",
+  "details": "_Available since v3.1._",
+  "name": "ERC1155Holder"
+}

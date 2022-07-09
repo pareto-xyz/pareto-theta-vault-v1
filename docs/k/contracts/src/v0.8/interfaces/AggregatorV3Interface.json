@@ -1,0 +1,86 @@
+{
+  "methods": {
+    "decimals()": {
+      "stateMutability": "view",
+      "code": "function decimals() external view returns (uint8)",
+      "inputs": {},
+      "outputs": {
+        "_0": {
+          "type": "uint8"
+        }
+      }
+    },
+    "description()": {
+      "stateMutability": "view",
+      "code": "function description() external view returns (string)",
+      "inputs": {},
+      "outputs": {
+        "_0": {
+          "type": "string"
+        }
+      }
+    },
+    "getRoundData(uint80)": {
+      "stateMutability": "view",
+      "code": "function getRoundData(uint80 _roundId) external view returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound)",
+      "inputs": {
+        "_roundId": {
+          "type": "uint80"
+        }
+      },
+      "outputs": {
+        "roundId": {
+          "type": "uint80"
+        },
+        "answer": {
+          "type": "int256"
+        },
+        "startedAt": {
+          "type": "uint256"
+        },
+        "updatedAt": {
+          "type": "uint256"
+        },
+        "answeredInRound": {
+          "type": "uint80"
+        }
+      }
+    },
+    "latestRoundData()": {
+      "stateMutability": "view",
+      "code": "function latestRoundData() external view returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound)",
+      "inputs": {},
+      "outputs": {
+        "roundId": {
+          "type": "uint80"
+        },
+        "answer": {
+          "type": "int256"
+        },
+        "startedAt": {
+          "type": "uint256"
+        },
+        "updatedAt": {
+          "type": "uint256"
+        },
+        "answeredInRound": {
+          "type": "uint80"
+        }
+      }
+    },
+    "version()": {
+      "stateMutability": "view",
+      "code": "function version() external view returns (uint256)",
+      "inputs": {},
+      "outputs": {
+        "_0": {
+          "type": "uint256"
+        }
+      }
+    }
+  },
+  "events": {},
+  "errors": {},
+  "path": "k/contracts/src/v0.8/interfaces",
+  "name": "AggregatorV3Interface"
+}

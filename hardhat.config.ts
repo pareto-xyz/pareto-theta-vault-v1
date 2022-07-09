@@ -23,6 +23,7 @@ module.exports = {
     },
   },
   dodoc: {
+    debugMode: false,
     runOnCompile: false,
     templatePath: './docusaurus.sqrl',
     outputDir: 'docs',

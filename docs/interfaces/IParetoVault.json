@@ -1,0 +1,120 @@
+{
+  "methods": {
+    "completeWithdraw()": {
+      "stateMutability": "nonpayable",
+      "code": "function completeWithdraw() external nonpayable",
+      "inputs": {},
+      "outputs": {},
+      "notice": "Completes a requested withdraw from past round."
+    },
+    "deposit(uint256)": {
+      "stateMutability": "nonpayable",
+      "code": "function deposit(uint256 riskyAmount) external nonpayable",
+      "inputs": {
+        "riskyAmount": {
+          "type": "uint256",
+          "description": "is the amount of risky asset to deposit"
+        }
+      },
+      "outputs": {},
+      "notice": "Deposits risky asset from msg.sender."
+    },
+    "feeRecipient()": {
+      "stateMutability": "view",
+      "code": "function feeRecipient() external view returns (address)",
+      "inputs": {},
+      "outputs": {
+        "_0": {
+          "type": "address",
+          "description": "Address of the fee recipient"
+        }
+      },
+      "notice": "Recipient of the fees charged each rollover"
+    },
+    "getAccountBalance(address)": {
+      "stateMutability": "view",
+      "code": "function getAccountBalance(address account) external view returns (uint256 riskyAmount, uint256 stableAmount)",
+      "inputs": {
+        "account": {
+          "type": "address",
+          "description": "is the address to lookup balance for"
+        }
+      },
+      "outputs": {
+        "riskyAmount": {
+          "type": "uint256",
+          "description": "is the risky asset owned by the vault for the user"
+        },
+        "stableAmount": {
+          "type": "uint256",
+          "description": "is the stable asset owned by the vault for the user"
+        }
+      },
+      "notice": "Returns the asset balance held in the vault for one account"
+    },
+    "keeper()": {
+      "stateMutability": "view",
+      "code": "function keeper() external view returns (address)",
+      "inputs": {},
+      "outputs": {
+        "_0": {
+          "type": "address",
+          "description": "Address of the keeper"
+        }
+      },
+      "notice": "Keeper who manually managers contract"
+    },
+    "requestWithdraw(uint256)": {
+      "stateMutability": "nonpayable",
+      "code": "function requestWithdraw(uint256 shares) external nonpayable",
+      "inputs": {
+        "shares": {
+          "type": "uint256",
+          "description": "is the number of shares to withdraw"
+        }
+      },
+      "outputs": {},
+      "notice": "Requests a withdraw that is processed after the current round"
+    },
+    "risky()": {
+      "stateMutability": "view",
+      "code": "function risky() external view returns (address)",
+      "inputs": {},
+      "outputs": {
+        "_0": {
+          "type": "address",
+          "description": "Address of the risky token contract"
+        }
+      },
+      "notice": "Risky token of the risky / stable pair"
+    },
+    "stable()": {
+      "stateMutability": "view",
+      "code": "function stable() external view returns (address)",
+      "inputs": {},
+      "outputs": {
+        "_0": {
+          "type": "address",
+          "description": "Address of the stable token contract"
+        }
+      },
+      "notice": "Stable token of the risky / stable pair"
+    },
+    "vaultManager()": {
+      "stateMutability": "view",
+      "code": "function vaultManager() external view returns (address)",
+      "inputs": {},
+      "outputs": {
+        "_0": {
+          "type": "address",
+          "description": "Address of the ParetoManager contract"
+        }
+      },
+      "notice": "ParetoManager contract used to specify options"
+    }
+  },
+  "events": {},
+  "errors": {},
+  "path": "/interfaces",
+  "name": "IParetoVault"
+}
