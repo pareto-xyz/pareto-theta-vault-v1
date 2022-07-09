@@ -204,13 +204,13 @@ runTest("TestParetoVault", function () {
     it("Check two withdrawal requests in the same round", async function () {
       await vault
         .connect(this.wallets.alice)
-        .testRequestWithdraw(toBn("1", shareDecimals));
+        .testRequestWithdraw(toBn("0.5", shareDecimals));
       await vault
         .connect(this.wallets.alice)
         .testRequestWithdraw(toBn("0.5", shareDecimals));
       let withdraw = await vault.pendingWithdraw(this.wallets.alice.address);
       expect(withdraw.round).to.be.equal(2);
-      expect(fromBn(withdraw.shares, shareDecimals)).to.be.equal("1.5");
+      expect(fromBn(withdraw.shares, shareDecimals)).to.be.equal("1");
     });
     it("Try withdrawing more than the user owns", async function () {
       try {
@@ -619,7 +619,7 @@ runTest("TestParetoVault", function () {
         toBn("1", stableDecimals),
         toBn("1", stableDecimals),
         toBn("0.8", riskyDecimals),
-        toBn("0.2", stableDecimals),
+        toBn("0.2", stableDecimals)
       );
       riskyBest = fromBn(riskyBest, riskyDecimals);
       stableBest = fromBn(stableBest, stableDecimals);
@@ -632,7 +632,7 @@ runTest("TestParetoVault", function () {
         toBn("0.8", stableDecimals),
         toBn("1.2", stableDecimals),
         toBn("0.4", riskyDecimals),
-        toBn("0.6", stableDecimals),
+        toBn("0.6", stableDecimals)
       );
       riskyBest = fromBn(riskyBest, riskyDecimals);
       stableBest = fromBn(stableBest, stableDecimals);
@@ -645,7 +645,7 @@ runTest("TestParetoVault", function () {
         toBn("4.1", stableDecimals),
         toBn("0.7", stableDecimals),
         toBn("0.4", riskyDecimals),
-        toBn("0.9", stableDecimals),
+        toBn("0.9", stableDecimals)
       );
       riskyBest = fromBn(riskyBest, riskyDecimals);
       stableBest = fromBn(stableBest, stableDecimals);
@@ -751,16 +751,15 @@ runTest("TestParetoVault", function () {
       let vaultState = await vault.vaultState();
       let currRisky = await this.contracts.risky.balanceOf(vault.address);
       let currStable = await this.contracts.stable.balanceOf(vault.address);
-      let [feeInRisky, feeInStable] =
-        await vault.testGetVaultFees({
-          currRisky: currRisky,
-          currStable: currStable,
-          lastLockedRisky: vaultState.lastLockedRisky,
-          lastLockedStable: vaultState.lastLockedStable,
-          pendingRisky: vaultState.pendingRisky,
-          managementFeePercent: 2000000,
-          performanceFeePercent: 383561
-        });
+      let [feeInRisky, feeInStable] = await vault.testGetVaultFees({
+        currRisky: currRisky,
+        currStable: currStable,
+        lastLockedRisky: vaultState.lastLockedRisky,
+        lastLockedStable: vaultState.lastLockedStable,
+        pendingRisky: vaultState.pendingRisky,
+        managementFeePercent: 2000000,
+        performanceFeePercent: 383561,
+      });
       expect(fromBn(feeInRisky, riskyDecimals)).to.be.equal("0");
       expect(fromBn(feeInStable, stableDecimals)).to.be.equal("0");
     });
@@ -771,16 +770,15 @@ runTest("TestParetoVault", function () {
       let vaultState = await vault.vaultState();
       let currRisky = await this.contracts.risky.balanceOf(vault.address);
       let currStable = await this.contracts.stable.balanceOf(vault.address);
-      let [feeInRisky, feeInStable] =
-        await vault.testGetVaultFees({
-          currRisky: currRisky,
-          currStable: currStable,
-          lastLockedRisky: vaultState.lastLockedRisky,
-          lastLockedStable: vaultState.lastLockedStable,
-          pendingRisky: vaultState.pendingRisky,
-          managementFeePercent: 2000000,
-          performanceFeePercent: 383561
-        });
+      let [feeInRisky, feeInStable] = await vault.testGetVaultFees({
+        currRisky: currRisky,
+        currStable: currStable,
+        lastLockedRisky: vaultState.lastLockedRisky,
+        lastLockedStable: vaultState.lastLockedStable,
+        pendingRisky: vaultState.pendingRisky,
+        managementFeePercent: 2000000,
+        performanceFeePercent: 383561,
+      });
       expect(fromBn(feeInRisky, riskyDecimals)).to.be.equal("0");
       expect(fromBn(feeInStable, stableDecimals)).to.be.equal("0");
     });
@@ -790,16 +788,15 @@ runTest("TestParetoVault", function () {
         .deposit(toBn("1000", riskyDecimals));
 
       let vaultState = await vault.vaultState();
-      let [feeInRisky, feeInStable] =
-        await vault.testGetVaultFees({
-          currRisky: await this.contracts.risky.balanceOf(vault.address),
-          currStable: await this.contracts.stable.balanceOf(vault.address),
-          lastLockedRisky: vaultState.lastLockedRisky,
-          lastLockedStable: vaultState.lastLockedStable,
-          pendingRisky: vaultState.pendingRisky,
-          managementFeePercent: 2000000,
-          performanceFeePercent: 383561
-        });
+      let [feeInRisky, feeInStable] = await vault.testGetVaultFees({
+        currRisky: await this.contracts.risky.balanceOf(vault.address),
+        currStable: await this.contracts.stable.balanceOf(vault.address),
+        lastLockedRisky: vaultState.lastLockedRisky,
+        lastLockedStable: vaultState.lastLockedStable,
+        pendingRisky: vaultState.pendingRisky,
+        managementFeePercent: 2000000,
+        performanceFeePercent: 383561,
+      });
       expect(fromBn(feeInRisky, riskyDecimals)).to.be.equal("0");
       expect(fromBn(feeInStable, stableDecimals)).to.be.equal("0");
     });
@@ -816,16 +813,15 @@ runTest("TestParetoVault", function () {
       );
 
       let vaultState = await vault.vaultState();
-      let [feeInRisky, feeInStable] =
-        await vault.testGetVaultFees({
-          currRisky: await this.contracts.risky.balanceOf(vault.address),
-          currStable: await this.contracts.stable.balanceOf(vault.address),
-          lastLockedRisky: vaultState.lastLockedRisky,
-          lastLockedStable: vaultState.lastLockedStable,
-          pendingRisky: vaultState.pendingRisky,
-          managementFeePercent: 2000000,
-          performanceFeePercent: 383561
-        });
+      let [feeInRisky, feeInStable] = await vault.testGetVaultFees({
+        currRisky: await this.contracts.risky.balanceOf(vault.address),
+        currStable: await this.contracts.stable.balanceOf(vault.address),
+        lastLockedRisky: vaultState.lastLockedRisky,
+        lastLockedStable: vaultState.lastLockedStable,
+        pendingRisky: vaultState.pendingRisky,
+        managementFeePercent: 2000000,
+        performanceFeePercent: 383561,
+      });
       expect(fromBnToFloat(feeInRisky, riskyDecimals)).to.be.greaterThan(0.2);
       expect(fromBnToFloat(feeInStable, stableDecimals)).to.be.greaterThan(0.2);
     });
