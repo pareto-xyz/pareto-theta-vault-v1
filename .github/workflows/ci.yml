@@ -20,9 +20,9 @@ jobs:
       - name: Set Up Node
         uses: actions/setup-node@v2-beta
         with:
-          node-version: '14.x'
+          node-version: '16.x'
 
       - run: yarn install --ignore-scripts
 
       - name: Test
-        run: yarn test:fast
+        run: yarn test
