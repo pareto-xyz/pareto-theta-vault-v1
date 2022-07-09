@@ -8,6 +8,7 @@
     "trace": "npx hardhat test --trace",
     "compile": "npx hardhat compile",
     "clean": "npx hardhat clean",
+    "docs": "npx hardhat dodoc",
     "lint:sol": "./node_modules/.bin/solhint -f table contracts/**/*.sol",
     "lint:prettier": "./node_modules/.bin/prettier --write contracts/**/*.sol test/**/*.ts test/*.ts",
     "prepare": "husky install"
@@ -73,6 +74,7 @@
     "@chainlink/contracts": "^0.4.1",
     "@openzeppelin/contracts": "^4.6.0",
     "@openzeppelin/contracts-upgradeable": "^4.6.0",
+    "@primitivefi/hardhat-dodoc": "^0.2.3",
     "@primitivefi/rmm-core": "^1.0.0",
     "@primitivefi/rmm-ethers": "^1.2.0-rc.1",
     "@primitivefi/rmm-manager": "^1.1.0",

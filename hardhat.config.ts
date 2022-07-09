@@ -4,7 +4,7 @@ import "hardhat-deploy";
 import "hardhat-deploy-ethers";
 import "hardhat-tracer";
 import "hardhat-dependency-compiler";
-import "solidity-docgen";
+import "@primitivefi/hardhat-dodoc";
 
 module.exports = {
   paths: {
@@ -22,10 +22,12 @@ module.exports = {
       },
     },
   },
-  docgen: {
-    output: 'docs',
-    pages: () => 'api.md',
-  }
+  dodoc: {
+    runOnCompile: false,
+    templatePath: './docusaurus.sqrl',
+    outputDir: 'docs',
+    exclude: ['libraries', 'test', 'console'],
+  },
   namedAccounts: {
     deployer: 0,
   },
