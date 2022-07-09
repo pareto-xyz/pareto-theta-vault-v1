@@ -4,6 +4,7 @@ import "hardhat-deploy";
 import "hardhat-deploy-ethers";
 import "hardhat-tracer";
 import "hardhat-dependency-compiler";
+import "solidity-docgen";
 
 module.exports = {
   paths: {
@@ -21,6 +22,10 @@ module.exports = {
       },
     },
   },
+  docgen: {
+    output: 'docs',
+    pages: () => 'api.md',
+  }
   namedAccounts: {
     deployer: 0,
   },

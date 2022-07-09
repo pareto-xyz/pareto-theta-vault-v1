@@ -78,7 +78,8 @@
     "@primitivefi/rmm-manager": "^1.1.0",
     "axios": "^0.27.2",
     "evm-bn": "^1.1.1",
-    "mathjs": "^10.6.3"
+    "mathjs": "^10.6.3",
+    "solidity-docgen": "^0.6.0-beta.20"
   },
   "mocha": {
     "timeout": 20000
