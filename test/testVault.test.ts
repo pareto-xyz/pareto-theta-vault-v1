@@ -610,8 +610,6 @@ runTest("TestParetoVault", function () {
     });
   });
 
-  describe("Test internal rebalancing", function () {});
-
   describe("Test internal optimal swap computation", function () {
     it("Check best swap computation: test 1/3", async function () {
       let [riskyBest, stableBest] = await vault.testGetBestSwap(
