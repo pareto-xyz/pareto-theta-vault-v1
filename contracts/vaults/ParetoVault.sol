@@ -309,6 +309,7 @@ contract ParetoVault is
         primitiveParams.manager = _primitiveManager;
         primitiveParams.engine = _primitiveEngine;
         primitiveParams.factory = _primitiveFactory;
+        primitiveParams.decimals = 18;
         uniswapParams.router = _uniswapRouter;
         /// @dev we may not want this to be a constant
         uniswapParams.poolFee = 3000;
@@ -695,7 +696,7 @@ contract ParetoVault is
      * @param riskyAmount is the amount of risky asset to be deposited
      * @param creditor is the address to receive the deposit
      */
-    function _processDeposit(uint256 riskyAmount, address creditor) private {
+    function _processDeposit(uint256 riskyAmount, address creditor) internal {
         uint16 currRound = vaultState.round;
 
         // Find cached receipt for user if already deposited in a previous round
@@ -757,6 +758,10 @@ contract ParetoVault is
      */
     function _requestWithdraw(uint256 shares) internal {
         require(shares > 0, "!shares");
+        uint256 accountShares = getAccountShares(msg.sender);
+        // Cannot request to withdraw more than owned
+        require(shares <= accountShares, "!shares");
+
         uint16 currRound = vaultState.round;
 
         // Stores the round and amount of shares to be withdrawn
@@ -768,6 +773,7 @@ contract ParetoVault is
         if (withdrawal.round == currRound) {
             // If the user has a pending withdrawal from same round, merge
             sharesToWithdraw = uint256(withdrawal.shares).add(shares);
+            require(sharesToWithdraw <= accountShares, "!shares");
         } else {
             // If we find unfilled withdrawal request from old round, error
             require(uint256(withdrawal.shares) == 0, "Abandoned withdraw");
@@ -1236,15 +1242,15 @@ contract ParetoVault is
         // stable was earned throughout vault
         bool moreStable = inputs.postVaultStable > inputs.preVaultStable;
 
-        uint8 oracleDecimals = IParetoManager(vaultManager).getOracleDecimals();
-        uint256 oraclePrice;
-        uint256 preVaultValue;
-        uint256 postVaultValue;
-
         if (!moreRisky && !moreStable) {
             /// @dev Clearly lost money
             return (false, false, 0);
         }
+
+        uint8 oracleDecimals = IParetoManager(vaultManager).getOracleDecimals();
+        uint256 oraclePrice;
+        uint256 preVaultValue;
+        uint256 postVaultValue;
 
         if (moreRisky) {
             /// @dev This covers two cases: either more risky and less stable, or
@@ -1480,8 +1486,9 @@ contract ParetoVault is
         internal
         returns (uint256, uint256)
     {
-        if (liquidity == 0) return (0, 0);
-
+        if (liquidity == 0) {
+            return (0, 0);
+        }
         // Moves into margin account in Primitive
         (uint256 riskyAmount, uint256 stableAmount) = IPrimitiveManager(
             primitiveParams.manager
