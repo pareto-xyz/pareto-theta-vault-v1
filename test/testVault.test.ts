@@ -12,7 +12,6 @@ import {
   getVaultBalance,
   getBestSwap,
 } from "../scripts/utils/testUtils";
-import { parse } from "path";
 
 let vault: Contract;
 let riskyDecimals: number;
@@ -613,9 +612,47 @@ runTest("TestParetoVault", function () {
 
   describe("Test internal rebalancing", function () {});
 
-  describe("Test internal optimal swap computation", function () {});
-
-  describe("Test internal swapping", function () {});
+  describe("Test internal optimal swap computation", function () {
+    it("Check best swap computation: test 1/3", async function () {
+      let [riskyBest, stableBest] = await vault.testGetBestSwap(
+        toBn("1", riskyDecimals),
+        toBn("1", stableDecimals),
+        toBn("1", stableDecimals),
+        toBn("0.8", riskyDecimals),
+        toBn("0.2", stableDecimals),
+      );
+      riskyBest = fromBn(riskyBest, riskyDecimals);
+      stableBest = fromBn(stableBest, stableDecimals);
+      expect(riskyBest).to.be.equal("1.6");
+      expect(stableBest).to.be.equal("0.4");
+    });
+    it("Check best swap computation: test 2/3", async function () {
+      let [riskyBest, stableBest] = await vault.testGetBestSwap(
+        toBn("2.5", riskyDecimals),
+        toBn("0.8", stableDecimals),
+        toBn("1.2", stableDecimals),
+        toBn("0.4", riskyDecimals),
+        toBn("0.6", stableDecimals),
+      );
+      riskyBest = fromBn(riskyBest, riskyDecimals);
+      stableBest = fromBn(stableBest, stableDecimals);
+      expect(riskyBest).to.be.equal("1.407407407407407407");
+      expect(stableBest).to.be.equal("2.111111111111111111");
+    });
+    it("Check best swap computation: test 3/3", async function () {
+      let [riskyBest, stableBest] = await vault.testGetBestSwap(
+        toBn("0.4", riskyDecimals),
+        toBn("4.1", stableDecimals),
+        toBn("0.7", stableDecimals),
+        toBn("0.4", riskyDecimals),
+        toBn("0.9", stableDecimals),
+      );
+      riskyBest = fromBn(riskyBest, riskyDecimals);
+      stableBest = fromBn(stableBest, stableDecimals);
+      expect(riskyBest).to.be.equal("1.484745762711864406");
+      expect(stableBest).to.be.equal("3.340677966101694915");
+    });
+  });
 
   describe("Test internal vault success checking", function () {
     beforeEach(async function () {
