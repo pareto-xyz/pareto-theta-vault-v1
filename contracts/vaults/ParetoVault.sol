@@ -75,7 +75,7 @@ contract ParetoVault is
     Vault.PoolState public poolState;
 
     /**
-     * @notice The keeper can manually specify strike price, volatility, gamma.
+     * @notice The keeper can manually specify strike price, volatility, gamma
      * @dev The manageState saves these choices for use in `_prepareNextPool`
      */
     Vault.ManagerState public managerState;
@@ -84,7 +84,7 @@ contract ParetoVault is
     address public override feeRecipient;
 
     /**
-     * @notice Keeper who manually managers contract via deployment and rollover.
+     * @notice Keeper who manually managers contract via deployment and rollover
      * @dev No access to critical vault changes
      */
     address public override keeper;
@@ -103,14 +103,14 @@ contract ParetoVault is
 
     /**
      * @notice Fee to take yearly, set to 2 percent of owned asset value.
-     *         Fees are transferred in fractions weekly, only taken if the vault makes profit.
+     *         Fees are transferred in fractions weekly, only taken if the vault makes profit
      * @dev Specified in decimals of 6.
      */
     uint256 public managementFee;
 
     /**
      * @notice Fee to take weekly, set to 20 percent of vault profits.
-     *         Only taken if the vault makes profit that week.
+     *         Only taken if the vault makes profit that week
      * @dev Specified in decimals of 6.
      */
     uint256 public performanceFee;

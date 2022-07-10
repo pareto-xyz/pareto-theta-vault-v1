@@ -145,7 +145,7 @@ contract ParetoManager is IParetoManager, Ownable {
      * @notice Calls Chainlink to get relative price between risky and stable asset.
      *         Returns the price of the stable asset in terms of the risky
      * @dev For example, USDC in terms of ETH
-     * @param stableToRisky If True return oracle price for stable to risky asset. 
+     * @param stableToRisky If True return oracle price for stable to risky asset.
      *                      If false, return oracle price for risky to stable asset
      * @return price Current exchange rate between the two tokens
      */
@@ -200,7 +200,7 @@ contract ParetoManager is IParetoManager, Ownable {
 
     /**
      * @notice Computes the volatility for the next pool
-     * @dev Currently hardcoded to 80%. 
+     * @dev Currently hardcoded to 80%.
      *      Optimal choice is to match realized volatility in market
      * @return sigma Estimate of implied volatility
      */
@@ -211,7 +211,7 @@ contract ParetoManager is IParetoManager, Ownable {
 
     /**
      * @notice Computes the gamma (or 1 - fee) for the next pool
-     * @dev Currently hardcoded to 0.95. 
+     * @dev Currently hardcoded to 0.95.
      *      Choosing gamma effects the quality of replication
      * @return gamma Gamma for the next pool
      */

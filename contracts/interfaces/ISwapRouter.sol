@@ -2,11 +2,22 @@
 pragma solidity >=0.8.6;
 
 /**
- * Source: https://github.com/Uniswap/v3-periphery
- * @title Router token swapping functionality
- * @notice Functions for swapping tokens via Uniswap V3
+ * @notice Interface for Uniswap Router to swap tokens
+ * @dev Taken from https://github.com/Uniswap/v3-periphery
  */
 interface ISwapRouter {
+
+    /**
+     * @notice Input struct for `exactInputSingle`
+     * @param tokenIn Address of the token to provide
+     * @param tokenOut Address of the token to receive
+     * @param fee Desired pool fee when routing
+     * @param recipient Address of the recipient of token
+     * @param deadline Timestamp in seconds when routing must occur by
+     * @param amountIn Amount of `tokenIn` to provide for swapping
+     * @param amountOutMinimum Minimum amount of `tokenOut` to receive from swap
+     * @param sqrtPriceLimitX96 Optional limit on acceptable price (in 64.64)
+     */
     struct ExactInputSingleParams {
         address tokenIn;
         address tokenOut;
