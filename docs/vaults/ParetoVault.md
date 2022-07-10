@@ -6,17 +6,25 @@ description: ParetoVault
 
 > [Read code on GitHub](https://github.com/pareto-xyz/pareto-theta-vault-v1/blob/main/contracts/vaults/ParetoVault.sol)
 
-Based on RibbonVault.sol See https://docs.ribbon.finance/developers/ribbon-v2
+Based on Ribbon&#39;s implementation of Theta Vaults.
+
+:::note Details
+Many of the functions are written to preserve the design of RibbonVault.sol. See https://docs.ribbon.finance/developers/ribbon-v2.
+:::
 
 ## Methods
 
 ### MIN_LIQUIDITY
 
-Always keep a few units of both assets, used to create pools The owner is responsible for providing this initial deposit In fee computation, guarantee at least this amount is left in vault
+This constant specifies the minimum amount of liquidity that the Pareto RTV must hold. This amount is used to create Primitive RMM-01 pools.
 
 ```solidity title="Solidity"
 function MIN_LIQUIDITY() external view returns (uint256)
 ```
+
+:::note Details
+In extracting fees and withdrawal, the contract must maintain this minimum
+:::
 
 #### Returns
 
@@ -26,11 +34,15 @@ function MIN_LIQUIDITY() external view returns (uint256)
 
 ### TOKEN_NAME
 
-Name of the Pareto receipt token
+Name of the Pareto token that acts as a receipt for users who deposit.
 
 ```solidity title="Solidity"
 function TOKEN_NAME() external view returns (string)
 ```
+
+:::note Details
+Currently, this token is not transferred to users
+:::
 
 #### Returns
 
@@ -40,7 +52,7 @@ function TOKEN_NAME() external view returns (string)
 
 ### TOKEN_SYMBOL
 
-Symbol of the Pareto receipt token
+Symbol of the Pareto token that acts as a receipt for users who deposit
 
 ```solidity title="Solidity"
 function TOKEN_SYMBOL() external view returns (string)
@@ -122,11 +134,15 @@ See {IERC20-balanceOf}.
 
 ### completeWithdraw
 
-Completes a requested withdraw from past round.
+Users call this function to complete a requested withdraw from a past round. A withdrawal request must have been made via requestWithdraw. This function must be called after the round
 
 ```solidity title="Solidity"
 function completeWithdraw() external nonpayable
 ```
+
+:::note Details
+Emits `WithdrawCompleteEvent`. Burns receipts, and transfers tokens to `msg.sender`
+:::
 
 ### decimals
 
@@ -169,27 +185,37 @@ Atomically decreases the allowance granted to `spender` by the caller. This is a
 
 ### deployVault
 
-Sets up the vault condition on the current vault
+Deploys a new vault, which creates a new Primitive RMM-01 pool. Calls the `ParetoManager` to choose the parameters of the next vault
 
 ```solidity title="Solidity"
 function deployVault() external nonpayable
 ```
 
+:::note Details
+Emits `DeployVaultEvent`. This is the first function to be called when starting a new vault round
+:::
+
 ### deposit
 
-Deposits risky asset from msg.sender.
+Deposits risky asset from `msg.sender` to the vault address. Updates the deposit receipt associated with `msg.sender` in rollover
 
 ```solidity title="Solidity"
 function deposit(uint256 riskyAmount) external nonpayable
 ```
 
+:::note Details
+Emits `DepositEvent`
+:::
+
 #### Parameters
 
-| Name        | Type    | Description                             |
-| ----------- | ------- | --------------------------------------- |
-| riskyAmount | uint256 | is the amount of risky asset to deposit |
+| Name        | Type    | Description                      |
+| ----------- | ------- | -------------------------------- |
+| riskyAmount | uint256 | Amount of risky asset to deposit |
 
 ### depositReceipts
+
+A map from address to a Vault.DepositReceipt, which tracks the round, the amount of risky to deposit, and the amount of shares owned by the user
 
 ```solidity title="Solidity"
 function depositReceipts(address) external view returns (uint16 round, uint104 riskyToDeposit, uint128 ownedShares)
@@ -219,13 +245,13 @@ function feeRecipient() external view returns (address)
 
 #### Returns
 
-| Name | Type    | Description                  |
-| ---- | ------- | ---------------------------- |
-| \_0  | address | Address of the fee recipient |
+| Name | Type    | Description |
+| ---- | ------- | ----------- |
+| \_0  | address | undefined   |
 
 ### getAccountBalance
 
-Returns the asset balance held in the vault for one account
+Returns the balance held in the vault for one account in risky and stable tokens
 
 ```solidity title="Solidity"
 function getAccountBalance(address account) external view returns (uint256 riskyAmount, uint256 stableAmount)
@@ -233,20 +259,20 @@ function getAccountBalance(address account) external view returns (uint256 risky
 
 #### Parameters
 
-| Name    | Type    | Description                          |
-| ------- | ------- | ------------------------------------ |
-| account | address | is the address to lookup balance for |
+| Name    | Type    | Description                   |
+| ------- | ------- | ----------------------------- |
+| account | address | Address to lookup balance for |
 
 #### Returns
 
-| Name         | Type    | Description                                         |
-| ------------ | ------- | --------------------------------------------------- |
-| riskyAmount  | uint256 | is the risky asset owned by the vault for the user  |
-| stableAmount | uint256 | is the stable asset owned by the vault for the user |
+| Name         | Type    | Description                                  |
+| ------------ | ------- | -------------------------------------------- |
+| riskyAmount  | uint256 | Risky asset owned by the vault for the user  |
+| stableAmount | uint256 | Stable asset owned by the vault for the user |
 
 ### getAccountShares
 
-Returns the number of shares (+unredeemed shares) for one account
+Returns the number of shares owned by one account
 
 ```solidity title="Solidity"
 function getAccountShares(address account) external view returns (uint256 shares)
@@ -254,15 +280,15 @@ function getAccountShares(address account) external view returns (uint256 shares
 
 #### Parameters
 
-| Name    | Type    | Description                          |
-| ------- | ------- | ------------------------------------ |
-| account | address | is the address to lookup balance for |
+| Name    | Type    | Description                   |
+| ------- | ------- | ----------------------------- |
+| account | address | Address to lookup balance for |
 
 #### Returns
 
-| Name   | Type    | Description                          |
-| ------ | ------- | ------------------------------------ |
-| shares | uint256 | is the share balance for the account |
+| Name   | Type    | Description                               |
+| ------ | ------- | ----------------------------------------- |
+| shares | uint256 | Balance for the account in share decimals |
 
 ### increaseAllowance
 
@@ -289,7 +315,7 @@ Atomically increases the allowance granted to `spender` by the caller. This is a
 
 ### initRounds
 
-Save gas for writing values into the roundSharePriceIn(Risky/Stable) map
+Save gas by writing default values into the `roundSharePriceInRisky/Stable`. Future writes will be no longer be cold writes
 
 ```solidity title="Solidity"
 function initRounds(uint256 numRounds) external nonpayable
@@ -301,29 +327,39 @@ Writing 1 makes subsequent writes warm, reducing the gas from 20k to 5k
 
 #### Parameters
 
-| Name      | Type    | Description                                      |
-| --------- | ------- | ------------------------------------------------ |
-| numRounds | uint256 | is the number of rounds to initialize in the map |
+| Name      | Type    | Description                               |
+| --------- | ------- | ----------------------------------------- |
+| numRounds | uint256 | Number of rounds to initialize in the map |
 
 ### keeper
 
-Keeper who manually managers contract
+Keeper who manually managers contract via deployment and rollover.
 
 ```solidity title="Solidity"
 function keeper() external view returns (address)
 ```
 
+:::note Details
+No access to critical vault changes
+:::
+
 #### Returns
 
-| Name | Type    | Description           |
-| ---- | ------- | --------------------- |
-| \_0  | address | Address of the keeper |
+| Name | Type    | Description |
+| ---- | ------- | ----------- |
+| \_0  | address | undefined   |
 
 ### managementFee
+
+Fee to take yearly, set to 2 percent of owned asset value. Fees are transferred in fractions weekly, only taken if the vault makes profit.
 
 ```solidity title="Solidity"
 function managementFee() external view returns (uint256)
 ```
+
+:::note Details
+Specified in decimals of 6.
+:::
 
 #### Returns
 
@@ -333,9 +369,15 @@ function managementFee() external view returns (uint256)
 
 ### managerState
 
+The keeper can manually specify strike price, volatility, gamma.
+
 ```solidity title="Solidity"
 function managerState() external view returns (uint128 manualStrike, uint16 manualStrikeRound, uint32 manualVolatility, uint16 manualVolatilityRound, uint32 manualGamma, uint16 manualGammaRound)
 ```
+
+:::note Details
+The manageState saves these choices for use in `_prepareNextPool`
+:::
 
 #### Returns
 
@@ -426,6 +468,8 @@ Returns the address of the current owner.
 
 ### pendingWithdraw
 
+Map from user address to a `Vault.PendingWithdraw` object, which stores the round of withdrawal and the amount of shares to withdraw
+
 ```solidity title="Solidity"
 function pendingWithdraw(address) external view returns (uint16 round, uint128 shares)
 ```
@@ -445,9 +489,15 @@ function pendingWithdraw(address) external view returns (uint16 round, uint128 s
 
 ### performanceFee
 
+Fee to take weekly, set to 20 percent of vault profits. Only taken if the vault makes profit that week.
+
 ```solidity title="Solidity"
 function performanceFee() external view returns (uint256)
 ```
+
+:::note Details
+Specified in decimals of 6.
+:::
 
 #### Returns
 
@@ -456,6 +506,8 @@ function performanceFee() external view returns (uint256)
 | \_0  | uint256 | undefined   |
 
 ### poolState
+
+Tracks the state of RMM-01 pool, including pool identifiers and parameters
 
 ```solidity title="Solidity"
 function poolState() external view returns (bytes32 nextPoolId, bytes32 currPoolId, uint256 currLiquidity, struct Vault.PoolParams currPoolParams, struct Vault.PoolParams nextPoolParams, uint32 nextPoolReadyAt)
@@ -473,6 +525,8 @@ function poolState() external view returns (bytes32 nextPoolId, bytes32 currPool
 | nextPoolReadyAt | uint32           | undefined   |
 
 ### primitiveParams
+
+Stores information on the Primitive contracts
 
 ```solidity title="Solidity"
 function primitiveParams() external view returns (address manager, address engine, address factory, uint8 decimals)
@@ -499,17 +553,21 @@ Leaves the contract without owner. It will not be possible to call `onlyOwner` f
 
 ### requestWithdraw
 
-Requests a withdraw that is processed after the current round
+User requests a withdrawal that can be completed after the current round. Cannot request more shares than than the user obtained through deposits. Multiple requests can be made for the same round
 
 ```solidity title="Solidity"
 function requestWithdraw(uint256 shares) external nonpayable
 ```
 
+:::note Details
+Emits `WithdrawRequestEvent`
+:::
+
 #### Parameters
 
-| Name   | Type    | Description                         |
-| ------ | ------- | ----------------------------------- |
-| shares | uint256 | is the number of shares to withdraw |
+| Name   | Type    | Description                  |
+| ------ | ------- | ---------------------------- |
+| shares | uint256 | Number of shares to withdraw |
 
 ### risky
 
@@ -521,23 +579,33 @@ function risky() external view returns (address)
 
 #### Returns
 
-| Name | Type    | Description                         |
-| ---- | ------- | ----------------------------------- |
-| \_0  | address | Address of the risky token contract |
+| Name | Type    | Description |
+| ---- | ------- | ----------- |
+| \_0  | address | undefined   |
 
 ### rollover
 
-Rolls the vault&#39;s funds into the next vault Performs rebalancing of vault asseets Deposits tokens into new Primitive pool Pending assets get counted into locked here
+Rolls the vault&#39;s funds into the next vault, pays royalties to the keeper, performs rebalancing, and deposits tokens into a new Primitive pool
 
 ```solidity title="Solidity"
 function rollover() external nonpayable
 ```
 
+:::note Details
+Pending assets get converted into locked assets. The round is complete after this call, at which the round is incremented
+:::
+
 ### roundSharePriceInRisky
+
+Maps user address to a price in risky decimals
 
 ```solidity title="Solidity"
 function roundSharePriceInRisky(uint256) external view returns (uint256)
 ```
+
+:::note Details
+Since users may withdraw shares deposited from an arbitrarily early round, share prices in risky token across all rounds are saved.
+:::
 
 #### Parameters
 
@@ -552,6 +620,8 @@ function roundSharePriceInRisky(uint256) external view returns (uint256)
 | \_0  | uint256 | undefined   |
 
 ### roundSharePriceInStable
+
+Maps user address to a price in stable decimals
 
 ```solidity title="Solidity"
 function roundSharePriceInStable(uint256) external view returns (uint256)
@@ -571,71 +641,87 @@ function roundSharePriceInStable(uint256) external view returns (uint256)
 
 ### seedVault
 
-Seeds vault with minimum funding
+Seeds vault with minimum funding for RMM-01 pool deployment. Called only by owner
 
 ```solidity title="Solidity"
 function seedVault() external nonpayable
 ```
 
 :::note Details
-Requires approval by owner to contract of at least MIN_LIQUIDITY This is used to satisfy the minimum liquidity to start RMM-01 pools At least this liquidity will always remain in the vault regardless of withdrawals or fee transfers
+Requires approval by owner to contract of at least MIN_LIQUIDITY. This is used to satisfy the minimum liquidity to start RMM-01 pools
 :::
 
 ### setFeeRecipient
 
-Sets the fee recipient
+Sets the address of the fee recipient
 
 ```solidity title="Solidity"
 function setFeeRecipient(address newFeeRecipient) external nonpayable
 ```
 
+:::note Details
+Must be a number between 0 and 1 in decimals of 4. Set only by the owner
+:::
+
 #### Parameters
 
-| Name            | Type    | Description                             |
-| --------------- | ------- | --------------------------------------- |
-| newFeeRecipient | address | is the address of the new fee recipient |
+| Name            | Type    | Description                      |
+| --------------- | ------- | -------------------------------- |
+| newFeeRecipient | address | Address of the new fee recipient |
 
 ### setGamma
 
-Optionality to manually set gamma
+Sets the gamma for the next vault
 
 ```solidity title="Solidity"
 function setGamma(uint32 gamma) external nonpayable
 ```
 
+:::note Details
+Set only by the owner
+:::
+
 #### Parameters
 
-| Name  | Type   | Description                                         |
-| ----- | ------ | --------------------------------------------------- |
-| gamma | uint32 | is 1-fee of the new pool. Important for replication |
+| Name  | Type   | Description                            |
+| ----- | ------ | -------------------------------------- |
+| gamma | uint32 | One minus fee for the next RMM-01 pool |
 
 ### setKeeper
 
-Sets the keeper
+Sets the address of the keeper
 
 ```solidity title="Solidity"
 function setKeeper(address newKeeper) external nonpayable
 ```
 
+:::note Details
+Set only by the owner
+:::
+
 #### Parameters
 
-| Name      | Type    | Description                      |
-| --------- | ------- | -------------------------------- |
-| newKeeper | address | is the address of the new keeper |
+| Name      | Type    | Description               |
+| --------- | ------- | ------------------------- |
+| newKeeper | address | Address of the new keeper |
 
 ### setManagementFee
 
-Sets the management fee for the vault
+Sets the address for a ParetoManager contract
 
 ```solidity title="Solidity"
 function setManagementFee(uint256 newManagementFee) external nonpayable
 ```
 
+:::note Details
+Set only by the owner
+:::
+
 #### Parameters
 
-| Name             | Type    | Description           |
-| ---------------- | ------- | --------------------- |
-| newManagementFee | uint256 | is the management fee |
+| Name             | Type    | Description                         |
+| ---------------- | ------- | ----------------------------------- |
+| newManagementFee | uint256 | Address of the new manager contract |
 
 ### setPerformanceFee
 
@@ -647,37 +733,45 @@ function setPerformanceFee(uint256 newPerformanceFee) external nonpayable
 
 #### Parameters
 
-| Name              | Type    | Description            |
-| ----------------- | ------- | ---------------------- |
-| newPerformanceFee | uint256 | is the performance fee |
+| Name              | Type    | Description             |
+| ----------------- | ------- | ----------------------- |
+| newPerformanceFee | uint256 | The new performance fee |
 
 ### setStrikePrice
 
-Optionality to manually set strike price
+Sets the strike price for the next vault
 
 ```solidity title="Solidity"
 function setStrikePrice(uint128 strikePrice) external nonpayable
 ```
 
+:::note Details
+Set only by the owner
+:::
+
 #### Parameters
 
-| Name        | Type    | Description                         |
-| ----------- | ------- | ----------------------------------- |
-| strikePrice | uint128 | is the strike price of the new pool |
+| Name        | Type    | Description                          |
+| ----------- | ------- | ------------------------------------ |
+| strikePrice | uint128 | Strike price of the next RMM-01 pool |
 
 ### setUniswapPoolFee
 
-Sets the fee to search for when routing
+Sets the fee to search for when routing a Uniswap trade
 
 ```solidity title="Solidity"
 function setUniswapPoolFee(uint24 newPoolFee) external nonpayable
 ```
 
+:::note Details
+Set only by the owner
+:::
+
 #### Parameters
 
-| Name       | Type   | Description         |
-| ---------- | ------ | ------------------- |
-| newPoolFee | uint24 | is the new pool fee |
+| Name       | Type   | Description                                                                |
+| ---------- | ------ | -------------------------------------------------------------------------- |
+| newPoolFee | uint24 | Pool fee of the Uniswap AMM used to route swaps of risky and stable tokens |
 
 ### setVaultManager
 
@@ -689,23 +783,27 @@ function setVaultManager(address newVaultManager) external nonpayable
 
 #### Parameters
 
-| Name            | Type    | Description                                |
-| --------------- | ------- | ------------------------------------------ |
-| newVaultManager | address | is the address of the new manager contract |
+| Name            | Type    | Description                         |
+| --------------- | ------- | ----------------------------------- |
+| newVaultManager | address | Address of the new manager contract |
 
 ### setVolatility
 
-Optionality to manually set implied volatility
+Sets the implied volatility for the next vault
 
 ```solidity title="Solidity"
 function setVolatility(uint32 volatility) external nonpayable
 ```
 
+:::note Details
+Must be a number between 0 and 1 in decimals of 4. Set only by the owner
+:::
+
 #### Parameters
 
-| Name       | Type   | Description                  |
-| ---------- | ------ | ---------------------------- |
-| volatility | uint32 | is the sigma of the new pool |
+| Name       | Type   | Description                                |
+| ---------- | ------ | ------------------------------------------ |
+| volatility | uint32 | Implied volatility of the next RMM-01 pool |
 
 ### stable
 
@@ -717,9 +815,9 @@ function stable() external view returns (address)
 
 #### Returns
 
-| Name | Type    | Description                          |
-| ---- | ------- | ------------------------------------ |
-| \_0  | address | Address of the stable token contract |
+| Name | Type    | Description |
+| ---- | ------- | ----------- |
+| \_0  | address | undefined   |
 
 ### supportsInterface
 
@@ -761,6 +859,8 @@ Returns the symbol of the token, usually a shorter version of the name.
 
 ### tokenParams
 
+Stores the addresses and decimals for risky and stable tokens
+
 ```solidity title="Solidity"
 function tokenParams() external view returns (address risky, address stable, uint8 riskyDecimals, uint8 stableDecimals)
 ```
@@ -776,7 +876,7 @@ function tokenParams() external view returns (address risky, address stable, uin
 
 ### totalRisky
 
-Return vault&#39;s total balance of risky assets, including amounts locked into Primitive
+Returns vault&#39;s balance of risky assets, including amounts locked in pools
 
 ```solidity title="Solidity"
 function totalRisky() external view returns (uint256)
@@ -784,13 +884,13 @@ function totalRisky() external view returns (uint256)
 
 #### Returns
 
-| Name | Type    | Description |
-| ---- | ------- | ----------- |
-| \_0  | uint256 | undefined   |
+| Name | Type    | Description                                                     |
+| ---- | ------- | --------------------------------------------------------------- |
+| \_0  | uint256 | riskyAmount Amount of risky asset used or owned by the contract |
 
 ### totalStable
 
-Return vault&#39;s total balance of stable assets, including amounts locked into Primitive
+Returns vault&#39;s balance of stable assets, including amounts locked in pools
 
 ```solidity title="Solidity"
 function totalStable() external view returns (uint256)
@@ -798,9 +898,9 @@ function totalStable() external view returns (uint256)
 
 #### Returns
 
-| Name | Type    | Description |
-| ---- | ------- | ----------- |
-| \_0  | uint256 | undefined   |
+| Name | Type    | Description                                                       |
+| ---- | ------- | ----------------------------------------------------------------- |
+| \_0  | uint256 | stableAmount Amount of stable asset used or owned by the contract |
 
 ### totalSupply
 
@@ -883,6 +983,8 @@ Transfers ownership of the contract to a new account (`newOwner`). Can only be c
 
 ### uniswapParams
 
+Stores the Uniswap router, including the contract address and pool fee
+
 ```solidity title="Solidity"
 function uniswapParams() external view returns (address router, uint24 poolFee)
 ```
@@ -896,7 +998,7 @@ function uniswapParams() external view returns (address router, uint24 poolFee)
 
 ### vaultManager
 
-ParetoManager contract used to specify options
+Address of the `ParetoManager` contract to choose the next vault
 
 ```solidity title="Solidity"
 function vaultManager() external view returns (address)
@@ -904,15 +1006,21 @@ function vaultManager() external view returns (address)
 
 #### Returns
 
-| Name | Type    | Description                           |
-| ---- | ------- | ------------------------------------- |
-| \_0  | address | Address of the ParetoManager contract |
+| Name | Type    | Description |
+| ---- | ------- | ----------- |
+| \_0  | address | undefined   |
 
 ### vaultState
+
+Stores information on the risky and stable assets that enter and exit the vault&#39;s lifecycle
 
 ```solidity title="Solidity"
 function vaultState() external view returns (uint16 round, uint104 lockedRisky, uint104 lockedStable, uint104 lastLockedRisky, uint104 lastLockedStable, uint128 pendingRisky, uint256 lastQueuedWithdrawRisky, uint256 lastQueuedWithdrawStable, uint256 currQueuedWithdrawShares, uint256 totalQueuedWithdrawShares)
 ```
+
+:::note Details
+Includes the amount of tokens locked in a RMM-01 pool, the amount of tokens pending from recent deposits, and the amount of tokens queued for withdrawal
+:::
 
 #### Returns
 
@@ -947,7 +1055,7 @@ event Approval(address indexed owner, address indexed spender, uint256 value)
 
 ### ClosePositionEvent
 
-Emitted when keeper burns RMM-01 LP tokens for assets
+Emitted when keeper removes liquidity from the previous vault
 
 ```solidity title="Solidity"
 event ClosePositionEvent(bytes32 poolId, uint256 burnLiquidity, uint256 riskyAmount, uint256 stableAmount, address indexed keeper)
@@ -955,17 +1063,17 @@ event ClosePositionEvent(bytes32 poolId, uint256 burnLiquidity, uint256 riskyAmo
 
 #### Parameters
 
-| Name             | Type    | Description |
-| ---------------- | ------- | ----------- |
-| poolId           | bytes32 | undefined   |
-| burnLiquidity    | uint256 | undefined   |
-| riskyAmount      | uint256 | undefined   |
-| stableAmount     | uint256 | undefined   |
-| keeper `indexed` | address | undefined   |
+| Name             | Type    | Description                                 |
+| ---------------- | ------- | ------------------------------------------- |
+| poolId           | bytes32 | Identifier for the pool                     |
+| burnLiquidity    | uint256 | Amount of liquidity from RMM-01 to burn     |
+| riskyAmount      | uint256 | Amount of risky assets withdrawn from pool  |
+| stableAmount     | uint256 | Amount of stable assets withdrawn from pool |
+| keeper `indexed` | address | Address of the keeper                       |
 
 ### DeployVaultEvent
 
-Emitted when keeper creates a new RMM-01 pool
+Emitted when keeper deploys a new vault
 
 ```solidity title="Solidity"
 event DeployVaultEvent(bytes32 poolId, uint128 strikePrice, uint32 volatility, uint32 gamma, address indexed keeper)
@@ -973,17 +1081,17 @@ event DeployVaultEvent(bytes32 poolId, uint128 strikePrice, uint32 volatility, u
 
 #### Parameters
 
-| Name             | Type    | Description |
-| ---------------- | ------- | ----------- |
-| poolId           | bytes32 | undefined   |
-| strikePrice      | uint128 | undefined   |
-| volatility       | uint32  | undefined   |
-| gamma            | uint32  | undefined   |
-| keeper `indexed` | address | undefined   |
+| Name             | Type    | Description                            |
+| ---------------- | ------- | -------------------------------------- |
+| poolId           | bytes32 | Identifier for the pool                |
+| strikePrice      | uint128 | Strike price in stable asset           |
+| volatility       | uint32  | Implied volatility in decimals of four |
+| gamma            | uint32  | One minus fees in decimals of four     |
+| keeper `indexed` | address | Address of the keeper                  |
 
 ### DepositEvent
 
-Emitted when user deposits risky asset into vault
+Emitted when any user deposits risky asset into vault. Users cannot deposit stable assets
 
 ```solidity title="Solidity"
 event DepositEvent(address indexed account, uint256 riskyAmount, uint16 round)
@@ -991,11 +1099,11 @@ event DepositEvent(address indexed account, uint256 riskyAmount, uint16 round)
 
 #### Parameters
 
-| Name              | Type    | Description |
-| ----------------- | ------- | ----------- |
-| account `indexed` | address | undefined   |
-| riskyAmount       | uint256 | undefined   |
-| round             | uint16  | undefined   |
+| Name              | Type    | Description                           |
+| ----------------- | ------- | ------------------------------------- |
+| account `indexed` | address | Address of the depositor              |
+| riskyAmount       | uint256 | Amount of risky token to be deposited |
+| round             | uint16  | Current round                         |
 
 ### FeeRecipientSetEvent
 
@@ -1007,9 +1115,9 @@ event FeeRecipientSetEvent(address indexed keeper)
 
 #### Parameters
 
-| Name             | Type    | Description |
-| ---------------- | ------- | ----------- |
-| keeper `indexed` | address | undefined   |
+| Name             | Type    | Description           |
+| ---------------- | ------- | --------------------- |
+| keeper `indexed` | address | Address of the keeper |
 
 ### GammaSetEvent
 
@@ -1021,10 +1129,10 @@ event GammaSetEvent(uint32 gamma, uint16 round)
 
 #### Parameters
 
-| Name  | Type   | Description |
-| ----- | ------ | ----------- |
-| gamma | uint32 | undefined   |
-| round | uint16 | undefined   |
+| Name  | Type   | Description               |
+| ----- | ------ | ------------------------- |
+| gamma | uint32 | 1-fee in decimals of four |
+| round | uint16 | Current round             |
 
 ### KeeperSetEvent
 
@@ -1036,13 +1144,13 @@ event KeeperSetEvent(address indexed keeper)
 
 #### Parameters
 
-| Name             | Type    | Description |
-| ---------------- | ------- | ----------- |
-| keeper `indexed` | address | undefined   |
+| Name             | Type    | Description           |
+| ---------------- | ------- | --------------------- |
+| keeper `indexed` | address | Address of the keeper |
 
 ### ManagementFeeSetEvent
 
-Emitted when owner sets new management fee
+Emitted when owner sets new yearly management fee in 6 decimals
 
 ```solidity title="Solidity"
 event ManagementFeeSetEvent(uint256 managementFee, uint256 newManagementFee)
@@ -1050,14 +1158,14 @@ event ManagementFeeSetEvent(uint256 managementFee, uint256 newManagementFee)
 
 #### Parameters
 
-| Name             | Type    | Description |
-| ---------------- | ------- | ----------- |
-| managementFee    | uint256 | undefined   |
-| newManagementFee | uint256 | undefined   |
+| Name             | Type    | Description                             |
+| ---------------- | ------- | --------------------------------------- |
+| managementFee    | uint256 | Current management fee in decimals of 4 |
+| newManagementFee | uint256 | New management fee in decimals of 4     |
 
 ### OpenPositionEvent
 
-Emitted when keeper deposits vault assets into RMM-01 pool
+Emitted when keeper deposits vault assets into RMM-01 pool during rollover
 
 ```solidity title="Solidity"
 event OpenPositionEvent(bytes32 poolId, uint256 riskyAmount, uint256 stableAmount, uint256 returnLiquidity, address indexed keeper)
@@ -1065,13 +1173,13 @@ event OpenPositionEvent(bytes32 poolId, uint256 riskyAmount, uint256 stableAmoun
 
 #### Parameters
 
-| Name             | Type    | Description |
-| ---------------- | ------- | ----------- |
-| poolId           | bytes32 | undefined   |
-| riskyAmount      | uint256 | undefined   |
-| stableAmount     | uint256 | undefined   |
-| returnLiquidity  | uint256 | undefined   |
-| keeper `indexed` | address | undefined   |
+| Name             | Type    | Description                                                           |
+| ---------------- | ------- | --------------------------------------------------------------------- |
+| poolId           | bytes32 | Identifier for the pool                                               |
+| riskyAmount      | uint256 | Amount of risky token deposited into RMM-01 pool                      |
+| stableAmount     | uint256 | Amount of stable token deposited into RMM-01 pool                     |
+| returnLiquidity  | uint256 | Amount of liquidity returned from RMM-01 pool in exchange for deposit |
+| keeper `indexed` | address | Address of the keeper                                                 |
 
 ### OwnershipTransferred
 
@@ -1088,7 +1196,7 @@ event OwnershipTransferred(address indexed previousOwner, address indexed newOwn
 
 ### PerformanceFeeSetEvent
 
-Emitted when owner sets new performance fee
+Emitted when owner sets new weekly performance fee in 6 decimals
 
 ```solidity title="Solidity"
 event PerformanceFeeSetEvent(uint256 performanceFee, uint256 newPerformanceFee)
@@ -1096,14 +1204,14 @@ event PerformanceFeeSetEvent(uint256 performanceFee, uint256 newPerformanceFee)
 
 #### Parameters
 
-| Name              | Type    | Description |
-| ----------------- | ------- | ----------- |
-| performanceFee    | uint256 | undefined   |
-| newPerformanceFee | uint256 | undefined   |
+| Name              | Type    | Description                              |
+| ----------------- | ------- | ---------------------------------------- |
+| performanceFee    | uint256 | Current performance fee in decimals of 4 |
+| newPerformanceFee | uint256 | New performance fee in decimals of 4     |
 
 ### RebalanceVaultEvent
 
-Emitted as an internal step in rollover
+Emitted in rollover when assets are rebalanced before being deposited in pool
 
 ```solidity title="Solidity"
 event RebalanceVaultEvent(uint256 initialRisky, uint256 initialStable, uint256 optimalRisky, uint256 optimalStable, address indexed keeper)
@@ -1111,17 +1219,17 @@ event RebalanceVaultEvent(uint256 initialRisky, uint256 initialStable, uint256 o
 
 #### Parameters
 
-| Name             | Type    | Description                                            |
-| ---------------- | ------- | ------------------------------------------------------ |
-| initialRisky     | uint256 | /Stable are the amounts of each token pre-rebalancing  |
-| initialStable    | uint256 | undefined                                              |
-| optimalRisky     | uint256 | /Stable are the amounts of each token post-rebalancing |
-| optimalStable    | uint256 | undefined                                              |
-| keeper `indexed` | address | undefined                                              |
+| Name             | Type    | Description                                      |
+| ---------------- | ------- | ------------------------------------------------ |
+| initialRisky     | uint256 | Initial amounts of risky token pre-rebalancing   |
+| initialStable    | uint256 | Initial amounts of stable token pre-rebalancing  |
+| optimalRisky     | uint256 | Optimal amounts of risky token post-rebalancing  |
+| optimalStable    | uint256 | Optimal amounts of stable token post-rebalancing |
+| keeper `indexed` | address | Address of the keeper                            |
 
 ### StrikePriceSetEvent
 
-Emitted when keeper manually sets next round&#39;s strike price
+Emitted when keeper manually sets next round&#39;s strike price in stable decimals
 
 ```solidity title="Solidity"
 event StrikePriceSetEvent(uint128 strikePrice, uint16 round)
@@ -1129,10 +1237,10 @@ event StrikePriceSetEvent(uint128 strikePrice, uint16 round)
 
 #### Parameters
 
-| Name        | Type    | Description |
-| ----------- | ------- | ----------- |
-| strikePrice | uint128 | undefined   |
-| round       | uint16  | undefined   |
+| Name        | Type    | Description                                 |
+| ----------- | ------- | ------------------------------------------- |
+| strikePrice | uint128 | Next strike price in terms of stable assets |
+| round       | uint16  | Current round                               |
 
 ### Transfer
 
@@ -1150,7 +1258,7 @@ event Transfer(address indexed from, address indexed to, uint256 value)
 
 ### VaultFeesCollectionEvent
 
-Emitted when fees are transfered to feeRecipient
+Emitted when fees are transferred to fee recipient
 
 ```solidity title="Solidity"
 event VaultFeesCollectionEvent(uint256 feeInRisky, uint256 feeInStable, uint16 round, address indexed feeRecipient)
@@ -1158,12 +1266,12 @@ event VaultFeesCollectionEvent(uint256 feeInRisky, uint256 feeInStable, uint16 r
 
 #### Parameters
 
-| Name                   | Type    | Description |
-| ---------------------- | ------- | ----------- |
-| feeInRisky             | uint256 | undefined   |
-| feeInStable            | uint256 | undefined   |
-| round                  | uint16  | undefined   |
-| feeRecipient `indexed` | address | undefined   |
+| Name                   | Type    | Description                      |
+| ---------------------- | ------- | -------------------------------- |
+| feeInRisky             | uint256 | Vault fee in risky asset         |
+| feeInStable            | uint256 | Vault fee in stable asset        |
+| round                  | uint16  | Current round                    |
+| feeRecipient `indexed` | address | The address of the fee recipient |
 
 ### VaultManagerSetEvent
 
@@ -1175,13 +1283,13 @@ event VaultManagerSetEvent(address indexed vaultManager)
 
 #### Parameters
 
-| Name                   | Type    | Description |
-| ---------------------- | ------- | ----------- |
-| vaultManager `indexed` | address | undefined   |
+| Name                   | Type    | Description                                        |
+| ---------------------- | ------- | -------------------------------------------------- |
+| vaultManager `indexed` | address | Emitted when owner sets new vault manager contract |
 
 ### VolatilitySetEvent
 
-Emitted when keeper manually sets next round&#39;s implied volality
+Emitted when keeper manually sets next round&#39;s implied volatility
 
 ```solidity title="Solidity"
 event VolatilitySetEvent(uint32 volatility, uint16 round)
@@ -1189,14 +1297,14 @@ event VolatilitySetEvent(uint32 volatility, uint16 round)
 
 #### Parameters
 
-| Name       | Type   | Description |
-| ---------- | ------ | ----------- |
-| volatility | uint32 | undefined   |
-| round      | uint16 | undefined   |
+| Name       | Type   | Description                            |
+| ---------- | ------ | -------------------------------------- |
+| volatility | uint32 | Implied volatility in decimals of four |
+| round      | uint16 | Current round                          |
 
 ### WithdrawCompleteEvent
 
-Emitted when user&#39;s queued withdrawal is complete
+Emitted when user&#39;s requested withdrawal is complete
 
 ```solidity title="Solidity"
 event WithdrawCompleteEvent(address indexed account, uint256 shares, uint256 riskyAmount, uint256 stableAmount)
@@ -1204,12 +1312,12 @@ event WithdrawCompleteEvent(address indexed account, uint256 shares, uint256 ris
 
 #### Parameters
 
-| Name              | Type    | Description |
-| ----------------- | ------- | ----------- |
-| account `indexed` | address | undefined   |
-| shares            | uint256 | undefined   |
-| riskyAmount       | uint256 | undefined   |
-| stableAmount      | uint256 | undefined   |
+| Name              | Type    | Description                                 |
+| ----------------- | ------- | ------------------------------------------- |
+| account `indexed` | address | Address of the `msg.sender`                 |
+| shares            | uint256 | Number of shares to withdraw from vault     |
+| riskyAmount       | uint256 | Amount of risky tokens to transfer to user  |
+| stableAmount      | uint256 | Amount of stable tokens to transfer to user |
 
 ### WithdrawRequestEvent
 
@@ -1221,8 +1329,8 @@ event WithdrawRequestEvent(address indexed account, uint256 shares, uint16 round
 
 #### Parameters
 
-| Name              | Type    | Description |
-| ----------------- | ------- | ----------- |
-| account `indexed` | address | undefined   |
-| shares            | uint256 | undefined   |
-| round             | uint16  | undefined   |
+| Name              | Type    | Description                  |
+| ----------------- | ------- | ---------------------------- |
+| account `indexed` | address | Address of the `msg.sender`  |
+| shares            | uint256 | Number of shares to withdraw |
+| round             | uint16  | Current round                |
