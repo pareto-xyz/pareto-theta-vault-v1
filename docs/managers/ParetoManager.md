@@ -109,7 +109,7 @@ function getPrice() external view returns (uint256 stableToRiskyPrice, uint256 r
 
 ### getRiskyPerLp
 
-Computes the riskyForLp using oracle as spot price Wrapper around MoreReplicationMath
+Computes the riskyForLp using oracle as spot price
 
 ```solidity title="Solidity"
 function getRiskyPerLp(uint256 spot, uint128 strike, uint32 sigma, uint256 tau, uint8 riskyDecimals, uint8 stableDecimals) external pure returns (uint256 riskyForLp)
@@ -156,7 +156,7 @@ Wrapper function around `_getOraclePrice`
 
 ### getStablePerLp
 
-Computes the exchange rate between stable asset and RMM-01 LP token. Assumes knowledge of `riskyPerLp`
+Computes the exchange rate between stable asset and RMM-01 LP token. Assumes that `riskyPerLp` has been precomputed
 
 ```solidity title="Solidity"
 function getStablePerLp(int128 invariantX64, uint256 riskyPerLp, uint128 strike, uint32 sigma, uint256 tau, uint8 riskyDecimals, uint8 stableDecimals) external pure returns (uint256 stableForLp)

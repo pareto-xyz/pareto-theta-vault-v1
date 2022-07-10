@@ -333,7 +333,7 @@ Writing 1 makes subsequent writes warm, reducing the gas from 20k to 5k
 
 ### keeper
 
-Keeper who manually managers contract via deployment and rollover.
+Keeper who manually managers contract via deployment and rollover
 
 ```solidity title="Solidity"
 function keeper() external view returns (address)
@@ -351,7 +351,7 @@ No access to critical vault changes
 
 ### managementFee
 
-Fee to take yearly, set to 2 percent of owned asset value. Fees are transferred in fractions weekly, only taken if the vault makes profit.
+Fee to take yearly, set to 2 percent of owned asset value. Fees are transferred in fractions weekly, only taken if the vault makes profit
 
 ```solidity title="Solidity"
 function managementFee() external view returns (uint256)
@@ -369,7 +369,7 @@ Specified in decimals of 6.
 
 ### managerState
 
-The keeper can manually specify strike price, volatility, gamma.
+The keeper can manually specify strike price, volatility, gamma
 
 ```solidity title="Solidity"
 function managerState() external view returns (uint128 manualStrike, uint16 manualStrikeRound, uint32 manualVolatility, uint16 manualVolatilityRound, uint32 manualGamma, uint16 manualGammaRound)
@@ -489,7 +489,7 @@ function pendingWithdraw(address) external view returns (uint16 round, uint128 s
 
 ### performanceFee
 
-Fee to take weekly, set to 20 percent of vault profits. Only taken if the vault makes profit that week.
+Fee to take weekly, set to 20 percent of vault profits. Only taken if the vault makes profit that week
 
 ```solidity title="Solidity"
 function performanceFee() external view returns (uint256)

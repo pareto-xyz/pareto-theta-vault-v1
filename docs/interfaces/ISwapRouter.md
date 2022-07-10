@@ -1,12 +1,16 @@
 ---
-description: Router token swapping functionality
+description: ISwapRouter
 ---
 
 # ISwapRouter.sol
 
 > [Read code on GitHub](https://github.com/pareto-xyz/pareto-theta-vault-v1/blob/main/contracts/interfaces/ISwapRouter.sol)
 
-Source: https://github.com/Uniswap/v3-peripheryFunctions for swapping tokens via Uniswap V3
+Interface for Uniswap Router to swap tokens
+
+:::note Details
+Taken from https://github.com/Uniswap/v3-periphery
+:::
 
 ## Methods
 

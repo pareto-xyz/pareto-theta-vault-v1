@@ -10,25 +10,33 @@ description: IParetoVault
 
 ### completeWithdraw
 
-Completes a requested withdraw from past round.
+Users call this function to complete a requested withdraw from a past round. A withdrawal request must have been made via requestWithdraw. This function must be called after the round
 
 ```solidity title="Solidity"
 function completeWithdraw() external nonpayable
 ```
 
+:::note Details
+Emits `WithdrawCompleteEvent`. Burns receipts, and transfers tokens to `msg.sender`
+:::
+
 ### deposit
 
-Deposits risky asset from msg.sender.
+Deposits risky asset from `msg.sender` to the vault address. Updates the deposit receipt associated with `msg.sender` in rollover
 
 ```solidity title="Solidity"
 function deposit(uint256 riskyAmount) external nonpayable
 ```
 
+:::note Details
+Emits `DepositEvent`
+:::
+
 #### Parameters
 
-| Name        | Type    | Description                             |
-| ----------- | ------- | --------------------------------------- |
-| riskyAmount | uint256 | is the amount of risky asset to deposit |
+| Name        | Type    | Description                      |
+| ----------- | ------- | -------------------------------- |
+| riskyAmount | uint256 | Amount of risky asset to deposit |
 
 ### feeRecipient
 
@@ -46,7 +54,7 @@ function feeRecipient() external view returns (address)
 
 ### getAccountBalance
 
-Returns the asset balance held in the vault for one account
+Returns the balance held in the vault for one account in risky and stable tokens
 
 ```solidity title="Solidity"
 function getAccountBalance(address account) external view returns (uint256 riskyAmount, uint256 stableAmount)
@@ -54,24 +62,28 @@ function getAccountBalance(address account) external view returns (uint256 risky
 
 #### Parameters
 
-| Name    | Type    | Description                          |
-| ------- | ------- | ------------------------------------ |
-| account | address | is the address to lookup balance for |
+| Name    | Type    | Description                   |
+| ------- | ------- | ----------------------------- |
+| account | address | Address to lookup balance for |
 
 #### Returns
 
-| Name         | Type    | Description                                         |
-| ------------ | ------- | --------------------------------------------------- |
-| riskyAmount  | uint256 | is the risky asset owned by the vault for the user  |
-| stableAmount | uint256 | is the stable asset owned by the vault for the user |
+| Name         | Type    | Description                                  |
+| ------------ | ------- | -------------------------------------------- |
+| riskyAmount  | uint256 | Risky asset owned by the vault for the user  |
+| stableAmount | uint256 | Stable asset owned by the vault for the user |
 
 ### keeper
 
-Keeper who manually managers contract
+Keeper who manually managers contract via deployment and rollover
 
 ```solidity title="Solidity"
 function keeper() external view returns (address)
 ```
+
+:::note Details
+No access to critical vault changes
+:::
 
 #### Returns
 
@@ -81,17 +93,21 @@ function keeper() external view returns (address)
 
 ### requestWithdraw
 
-Requests a withdraw that is processed after the current round
+User requests a withdrawal that can be completed after the current round. Cannot request more shares than than the user obtained through deposits. Multiple requests can be made for the same round
 
 ```solidity title="Solidity"
 function requestWithdraw(uint256 shares) external nonpayable
 ```
 
+:::note Details
+Emits `WithdrawRequestEvent`
+:::
+
 #### Parameters
 
-| Name   | Type    | Description                         |
-| ------ | ------- | ----------------------------------- |
-| shares | uint256 | is the number of shares to withdraw |
+| Name   | Type    | Description                  |
+| ------ | ------- | ---------------------------- |
+| shares | uint256 | Number of shares to withdraw |
 
 ### risky
 
@@ -123,7 +139,7 @@ function stable() external view returns (address)
 
 ### vaultManager
 
-ParetoManager contract used to specify options
+Address of the `ParetoManager` contract to choose the next vault
 
 ```solidity title="Solidity"
 function vaultManager() external view returns (address)
