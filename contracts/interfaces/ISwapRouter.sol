@@ -6,7 +6,6 @@ pragma solidity >=0.8.6;
  * @dev Taken from https://github.com/Uniswap/v3-periphery
  */
 interface ISwapRouter {
-
     /**
      * @notice Input struct for `exactInputSingle`
      * @param tokenIn Address of the token to provide
