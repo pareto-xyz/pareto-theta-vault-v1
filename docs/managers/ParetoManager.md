@@ -6,13 +6,13 @@ description: ParetoManager
 
 > [Read code on GitHub](https://github.com/pareto-xyz/pareto-theta-vault-v1/blob/main/contracts/managers/ParetoManager.sol)
 
-Automated management of Pareto Theta VaultsDecides strike prices by percentages
+Automated management of Pareto Theta Vaults. Decides strike prices, volatility, and gamma through heuristics
 
 ## Methods
 
 ### chainlinkOracle
 
-Address for the ChainLink oracle Network: Kovan USDC-ETH: 0x64EaC61A2DFda2c3Fa04eED49AA33D021AeC8838 Network: Rinkeby USDC-ETH: 0xdCA36F27cbC4E38aE16C4E9f99D39b42337F6dcf Network: MainNet USDC-ETH: 0x986b5E1e1755e3C2440e960477f25201B0a8bbD4
+Address for the ChainLink oracle
 
 ```solidity title="Solidity"
 function chainlinkOracle() external view returns (address)
@@ -32,15 +32,19 @@ Computes the gamma (or 1 - fee) for the next pool
 function getNextGamma() external pure returns (uint32 gamma)
 ```
 
+:::note Details
+Currently hardcoded to 0.95. Choosing gamma effects the quality of replication
+:::
+
 #### Returns
 
-| Name  | Type   | Description                    |
-| ----- | ------ | ------------------------------ |
-| gamma | uint32 | is the Gamma for the next pool |
+| Name  | Type   | Description             |
+| ----- | ------ | ----------------------- |
+| gamma | uint32 | Gamma for the next pool |
 
 ### getNextStrikePrice
 
-Computes the strike price for the next pool by multiplying the current price - requires an oracle
+Computes the strike price for the next pool by a multiple of the current price. Requires an oracle for spot price
 
 ```solidity title="Solidity"
 function getNextStrikePrice() external view returns (uint128 strikePrice)
@@ -52,9 +56,9 @@ Uses the same decimals as the stable token
 
 #### Returns
 
-| Name        | Type    | Description                              |
-| ----------- | ------- | ---------------------------------------- |
-| strikePrice | uint128 | is the relative price of risky in stable |
+| Name        | Type    | Description                       |
+| ----------- | ------- | --------------------------------- |
+| strikePrice | uint128 | Relative price of risky in stable |
 
 ### getNextVolatility
 
@@ -64,15 +68,19 @@ Computes the volatility for the next pool
 function getNextVolatility() external pure returns (uint32 sigma)
 ```
 
+:::note Details
+Currently hardcoded to 80%. Optimal choice is to match realized volatility in market
+:::
+
 #### Returns
 
-| Name  | Type   | Description                        |
-| ----- | ------ | ---------------------------------- |
-| sigma | uint32 | is the implied volatility estimate |
+| Name  | Type   | Description                    |
+| ----- | ------ | ------------------------------ |
+| sigma | uint32 | Estimate of implied volatility |
 
 ### getOracleDecimals
 
-Query oracle for its decimals
+Return decimals used by the Chainlink Oracle
 
 ```solidity title="Solidity"
 function getOracleDecimals() external view returns (uint8)
@@ -80,13 +88,13 @@ function getOracleDecimals() external view returns (uint8)
 
 #### Returns
 
-| Name | Type  | Description |
-| ---- | ----- | ----------- |
-| \_0  | uint8 | undefined   |
+| Name | Type  | Description                                        |
+| ---- | ----- | -------------------------------------------------- |
+| \_0  | uint8 | decimals Oracle uses a precision of 10\*\*decimals |
 
 ### getPrice
 
-Helper function to return both stable-to-risky and risky-to-stable prices
+Return both stable-to-risky and risky-to-stable prices
 
 ```solidity title="Solidity"
 function getPrice() external view returns (uint256 stableToRiskyPrice, uint256 riskyToStablePrice)
@@ -94,10 +102,10 @@ function getPrice() external view returns (uint256 stableToRiskyPrice, uint256 r
 
 #### Returns
 
-| Name               | Type    | Description |
-| ------------------ | ------- | ----------- |
-| stableToRiskyPrice | uint256 | undefined   |
-| riskyToStablePrice | uint256 | undefined   |
+| Name               | Type    | Description                                         |
+| ------------------ | ------- | --------------------------------------------------- |
+| stableToRiskyPrice | uint256 | Amount of risky tokens for one unit of stable token |
+| riskyToStablePrice | uint256 | Amount of stable tokens for one unit of risky token |
 
 ### getRiskyPerLp
 
@@ -108,43 +116,47 @@ function getRiskyPerLp(uint256 spot, uint128 strike, uint32 sigma, uint256 tau, 
 ```
 
 :::note Details
-See page 14 of https://primitive.xyz/whitepaper-rmm-01.pdfThresholds the value to acceptable changes
+See page 14 of https://primitive.xyz/whitepaper-rmm-01.pdf. We cap the value within the range [0.1, 0.9]
 :::
 
 #### Parameters
 
-| Name           | Type    | Description                                                                                     |
-| -------------- | ------- | ----------------------------------------------------------------------------------------------- |
-| spot           | uint256 | is the spot price in stable                                                                     |
-| strike         | uint128 | is the strike price in stable                                                                   |
-| sigma          | uint32  | is the implied volatility                                                                       |
-| tau            | uint256 | is time to maturity in seconds The conversion to years will happen within `MoreReplicationMath` |
-| riskyDecimals  | uint8   | is the decimals for the risky asset                                                             |
-| stableDecimals | uint8   | is the decimals for the stable asset                                                            |
+| Name           | Type    | Description                                                                                   |
+| -------------- | ------- | --------------------------------------------------------------------------------------------- |
+| spot           | uint256 | Spot price in stable                                                                          |
+| strike         | uint128 | Strike price in stable                                                                        |
+| sigma          | uint32  | Implied volatility                                                                            |
+| tau            | uint256 | Time to maturity in seconds. The conversion to years will happen within `MoreReplicationMath` |
+| riskyDecimals  | uint8   | Decimals for the risky asset                                                                  |
+| stableDecimals | uint8   | Decimals for the stable asset                                                                 |
 
 #### Returns
 
-| Name       | Type    | Description                            |
-| ---------- | ------- | -------------------------------------- |
-| riskyForLp | uint256 | is the R1 variable (in risky decimals) |
+| Name       | Type    | Description                     |
+| ---------- | ------- | ------------------------------- |
+| riskyForLp | uint256 | R1 variable (in risky decimals) |
 
 ### getRiskyToStablePrice
 
-Query oracle for price of risky to stable asset
+Price of one unit of risky token in stable using stable decimals
 
 ```solidity title="Solidity"
 function getRiskyToStablePrice() external view returns (uint256 price)
 ```
 
+:::note Details
+Wrapper function around `_getOraclePrice`
+:::
+
 #### Returns
 
-| Name  | Type    | Description |
-| ----- | ------- | ----------- |
-| price | uint256 | undefined   |
+| Name  | Type    | Description                                         |
+| ----- | ------- | --------------------------------------------------- |
+| price | uint256 | Amount of stable tokens for one unit of risky token |
 
 ### getStablePerLp
 
-Computes the stablePerLp assuming riskyPerLp is known Wrapper around MoreReplicationMath
+Computes the exchange rate between stable asset and RMM-01 LP token. Assumes knowledge of `riskyPerLp`
 
 ```solidity title="Solidity"
 function getStablePerLp(int128 invariantX64, uint256 riskyPerLp, uint128 strike, uint32 sigma, uint256 tau, uint8 riskyDecimals, uint8 stableDecimals) external pure returns (uint256 stableForLp)
@@ -152,35 +164,39 @@ function getStablePerLp(int128 invariantX64, uint256 riskyPerLp, uint128 strike,
 
 #### Parameters
 
-| Name           | Type    | Description                                      |
-| -------------- | ------- | ------------------------------------------------ |
-| invariantX64   | int128  | is the invariant currently for the pool          |
-| riskyPerLp     | uint256 | is amount of risky token to trade for 1 LP token |
-| strike         | uint128 | is the strike price in stable                    |
-| sigma          | uint32  | is the implied volatility                        |
-| tau            | uint256 | is time to maturity in seconds                   |
-| riskyDecimals  | uint8   | is the decimals for the risky asset              |
-| stableDecimals | uint8   | is the decimals for the stable asset             |
+| Name           | Type    | Description                                   |
+| -------------- | ------- | --------------------------------------------- |
+| invariantX64   | int128  | Invariant for the pool                        |
+| riskyPerLp     | uint256 | Amount of risky token to trade for 1 LP token |
+| strike         | uint128 | Strike price in stable                        |
+| sigma          | uint32  | Implied volatility                            |
+| tau            | uint256 | Time to maturity in seconds                   |
+| riskyDecimals  | uint8   | Decimals for the risky asset                  |
+| stableDecimals | uint8   | Decimals for the stable asset                 |
 
 #### Returns
 
-| Name        | Type    | Description                                       |
-| ----------- | ------- | ------------------------------------------------- |
-| stableForLp | uint256 | is amount of stable token to trade for 1 LP token |
+| Name        | Type    | Description                                    |
+| ----------- | ------- | ---------------------------------------------- |
+| stableForLp | uint256 | Amount of stable token to trade for 1 LP token |
 
 ### getStableToRiskyPrice
 
-Query oracle for price of stable to risky asset
+Price of one unit of stable token in risky using risky decimals
 
 ```solidity title="Solidity"
 function getStableToRiskyPrice() external view returns (uint256 price)
 ```
 
+:::note Details
+Wrapper function around `_getOraclePrice`
+:::
+
 #### Returns
 
-| Name  | Type    | Description |
-| ----- | ------- | ----------- |
-| price | uint256 | undefined   |
+| Name  | Type    | Description                                         |
+| ----- | ------- | --------------------------------------------------- |
+| price | uint256 | Amount of risky tokens for one unit of stable token |
 
 ### owner
 
@@ -210,7 +226,7 @@ Leaves the contract without owner. It will not be possible to call `onlyOwner` f
 
 ### risky
 
-Risky token of the risky / stable pair
+Address for the risky asset
 
 ```solidity title="Solidity"
 function risky() external view returns (address)
@@ -224,6 +240,8 @@ function risky() external view returns (address)
 
 ### riskyFirst
 
+True if the oracle returns risky in terms of stable. False if oracle returns stable in terms of risky
+
 ```solidity title="Solidity"
 function riskyFirst() external view returns (bool)
 ```
@@ -236,7 +254,7 @@ function riskyFirst() external view returns (bool)
 
 ### setStrikeMultiplier
 
-Set the multiplier for setting the strike price
+Set the multiplier for deciding strike price
 
 ```solidity title="Solidity"
 function setStrikeMultiplier(uint256 _strikeMultiplier) external nonpayable
@@ -244,13 +262,13 @@ function setStrikeMultiplier(uint256 _strikeMultiplier) external nonpayable
 
 #### Parameters
 
-| Name               | Type    | Description                             |
-| ------------------ | ------- | --------------------------------------- |
-| \_strikeMultiplier | uint256 | is the strike multiplier (decimals = 2) |
+| Name               | Type    | Description                      |
+| ------------------ | ------- | -------------------------------- |
+| \_strikeMultiplier | uint256 | Strike multiplier (decimals = 2) |
 
 ### stable
 
-Stable token of the risky / stable pair
+Address for the stable asset
 
 ```solidity title="Solidity"
 function stable() external view returns (address)
@@ -264,7 +282,7 @@ function stable() external view returns (address)
 
 ### strikeMultiplier
 
-Multiplier for strike price (2 decimal places)
+Multiplier for strike selection as a percentage
 
 ```solidity title="Solidity"
 function strikeMultiplier() external view returns (uint256)
