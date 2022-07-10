@@ -10,7 +10,7 @@ library Vault {
     uint256 internal constant FEE_DECIMALS = 6;
 
     /**
-     * @notice State of the current and next RMM-01 pool 
+     * @notice State of the current and next RMM-01 pool
      * @param nextPoolId Primitive pool that the vault is depositing into next cycle
      * @param currPoolId Primitive pool that the vault is currently depositing into
      * @param currLiquidity Amount of liquidity deposited into the current pool
