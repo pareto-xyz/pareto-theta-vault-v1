@@ -222,7 +222,6 @@ contract ParetoManager is IParetoManager, Ownable {
 
     /**
      * @notice Computes the riskyForLp using oracle as spot price
-     *         Wrapper around MoreReplicationMath
      * @param spot Spot price in stable
      * @param strike Strike price in stable
      * @param sigma Implied volatility
@@ -265,7 +264,7 @@ contract ParetoManager is IParetoManager, Ownable {
 
     /**
      * @notice Computes the exchange rate between stable asset and RMM-01 LP token.
-     *         Assumes knowledge of `riskyPerLp`
+     *         Assumes that `riskyPerLp` has been precomputed
      * @param invariantX64 Invariant for the pool
      * @param riskyPerLp Amount of risky token to trade for 1 LP token
      * @param strike Strike price in stable
