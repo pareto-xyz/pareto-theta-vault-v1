@@ -4,6 +4,7 @@ import "hardhat-deploy";
 import "hardhat-deploy-ethers";
 import "hardhat-tracer";
 import "hardhat-dependency-compiler";
+import "@primitivefi/hardhat-dodoc";
 
 module.exports = {
   paths: {
@@ -20,6 +21,13 @@ module.exports = {
         enabled: true
       },
     },
+  },
+  dodoc: {
+    debugMode: false,
+    runOnCompile: false,
+    templatePath: './docusaurus.sqrl',
+    outputDir: 'docs',
+    exclude: ['efi', 'elin', 'k', 'libraries', 'test', 'console'],
   },
   namedAccounts: {
     deployer: 0,

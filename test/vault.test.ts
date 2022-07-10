@@ -330,7 +330,6 @@ runTest("ParetoVault", function () {
         .connect(this.wallets.alice)
         .deposit(toBn("1000", riskyDecimals));
       // The vault should gain 1000
-      console.log(fromBn(await vault.totalRisky(), riskyDecimals));
       expect(fromBn(await vault.totalRisky(), riskyDecimals)).to.be.equal(
         // the 0.0000000000001 is from the owner's initial deposit
         "1000.0000000000001"

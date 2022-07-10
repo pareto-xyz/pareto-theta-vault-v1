@@ -9,11 +9,11 @@ library VaultMath {
     using SafeMath for uint256;
 
     /**
-     * @notice Convert assets to shares.
-     * @param amount is the amount of assets
-     * @param sharePrice is the price of one share in assets
-     * @param decimals is the decimals for asset
-     * @return shares is the amount of shares
+     * @notice Convert assets to shares via exchange rate
+     * @param amount Amount of assets
+     * @param sharePrice Price of one share in assets
+     * @param decimals Decimals for asset
+     * @return shares Amount of shares
      */
     function assetToShare(
         uint256 amount,
@@ -24,11 +24,11 @@ library VaultMath {
     }
 
     /**
-     * @notice Convert shares to risky assets
-     * @param shares is the amount of shares
-     * @param sharePrice is the price of one share in risky assets
-     * @param decimals is the decimals for risky asset
-     * @return amount is the amount of risky assets
+     * @notice Convert shares to risky assets via exchange rate
+     * @param shares Amount of shares
+     * @param sharePrice Price of one share in risky assets
+     * @param decimals Decimals for risky asset
+     * @return amount Amount of risky assets
      */
     function shareToAsset(
         uint256 shares,
@@ -39,12 +39,12 @@ library VaultMath {
     }
 
     /**
-     * @notice Returns the shares owned by the user
-     * @param depositReceipt is the user's deposit receipt
-     * @param currRound is the `round` stored on the vault
-     * @param sharePrice is the price of one share in assets
-     * @param decimals is the decimals for asset
-     * @return shares is the user's virtual balance of shares that are owed
+     * @notice Returns the shares owned by the user using a receipt
+     * @param depositReceipt User's deposit receipt
+     * @param currRound Current round
+     * @param sharePrice Price of one share in assets
+     * @param decimals Decimals for asset
+     * @return shares User's virtual balance of shares that are owed
      */
     function getSharesFromReceipt(
         Vault.DepositReceipt memory depositReceipt,
@@ -55,13 +55,13 @@ library VaultMath {
         if (depositReceipt.round > 0 && depositReceipt.round < currRound) {
             // If receipt is from earlier round, we need to add together shares
             // accumulated in the receipt and shares from current round
-            /// @dev Shares stored in the receipt are updated over rounds
+            // Shares stored in the receipt are updated over rounds
             uint256 newShares = assetToShare(
                 depositReceipt.riskyToDeposit,
                 sharePrice,
                 decimals
             );
-            // added with shares from current round
+            // Added with shares from current round
             return uint256(depositReceipt.ownedShares).add(newShares);
         } else {
             // If receipt is from current round, shares from the current round
@@ -72,13 +72,11 @@ library VaultMath {
 
     /**
      * @notice Returns the price of a single share in risky and stable asset
-     * --
-     * @param totalSupply is the total supply of Pareto tokens
-     * @param totalBalance is the total supply of assets
-     * @param pendingAmount is the amount of asset set for minting
-     * @param decimals is the decimals for asset
-     * --
-     * @return price is the price of shares in asset
+     * @param totalSupply Total supply of Pareto tokens
+     * @param totalBalance Total supply of assets
+     * @param pendingAmount Amount of asset set for minting
+     * @param decimals Decimals for asset
+     * @return price Price of shares in asset
      */
     function getSharePrice(
         uint256 totalSupply,
@@ -96,21 +94,24 @@ library VaultMath {
     }
 
     /**
-     * Helper function to assert number is uint32
+     * @notice Helper function to check number is uint32
+     * @param num Unsigned integer with 256 bits
      */
     function assertUint32(uint256 num) internal pure {
         require(num <= type(uint32).max, "Overflow uint32");
     }
 
     /**
-     * Helper function to assert number is uint104
+     * @notice Helper function to check number is uint104
+     * @param num Unsigned integer with 256 bits
      */
     function assertUint104(uint256 num) internal pure {
         require(num <= type(uint104).max, "Overflow uint104");
     }
 
     /**
-     * Helper function to assert number is uint128
+     * @notice Helper function to check number is uint128
+     * @param num Unsigned integer with 256 bits
      */
     function assertUint128(uint256 num) internal pure {
         require(num <= type(uint128).max, "Overflow uint128");

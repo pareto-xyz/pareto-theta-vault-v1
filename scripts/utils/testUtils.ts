@@ -32,8 +32,8 @@ export function getVaultFees(
   let performancePerc = performanceFee / 100;
 
   // Check if there more risky tokens this round than last
-  let moreRisky = postVaultRisky > preVaultRisky;
-  let moreStable = postVaultStable > preVaultStable;
+  let moreRisky = postVaultRisky > (preVaultRisky + 1e-6);
+  let moreStable = postVaultStable > (preVaultStable + 1e-6);
 
   let feeRisky: number = 0;
   let feeStable: number = 0;
@@ -75,7 +75,7 @@ export function getVaultFees(
     } else {
       performanceStable = valueForPerformanceFee * performancePerc;
     }
-    
+
     feeRisky = managementRisky + performanceRisky;
     feeStable = managementStable + performanceStable;
   }

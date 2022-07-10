@@ -7,28 +7,26 @@ import {SafeERC20} from "./SafeERC20.sol";
 import {ISwapRouter} from "../interfaces/ISwapRouter.sol";
 
 /**
- * @notice Used to make swaps between tokens
- * Edited from https://github.com/ribbon-finance/ribbon-v2
+ * @notice Functions to make swaps between tokens
+ * @dev Edited from https://github.com/ribbon-finance/ribbon-v2
  */
 library UniswapRouter {
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
 
-    /**
-     * @notice Maximum amount of time to wait for swap
-     */
+    /// @notice Maximum amount of time to wait for swap
     uint256 public constant SWAP_BUFFER_TIME = 10 minutes;
 
     /**
      * @notice Swaps assets by calling UniswapV3 router
-     * @param recipient is the address of recipient of the tokenOut
-     * @param tokenIn is the address of the token given to the router
-     * @param tokenOut is the address of the token received from the swap
-     * @param poolFee is the amount of fee associated with the pool
-     * @param amountIn is the amount of tokenIn given to the router
-     * @param minAmountOut is the minimum acceptable amount of tokenOut received from swap
-     * @param router is the contract address of UniswapV3 router
-     * @return amountOut is the amount of tokenOut received from the swap
+     * @param recipient Address of recipient of the `tokenOut`
+     * @param tokenIn Address of the token given to the router
+     * @param tokenOut Address of the token received from the swap
+     * @param poolFee Amount of fee associated with the pool
+     * @param amountIn Amount of `tokenIn` given to the router
+     * @param minAmountOut Minimum acceptable amount of `tokenOut` received from swap
+     * @param router Contract address of UniswapV3 router
+     * @return amountOut Amount of `tokenOut` received from the swap
      */
     function swap(
         address recipient,

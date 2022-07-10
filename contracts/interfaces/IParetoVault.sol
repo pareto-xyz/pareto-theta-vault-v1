@@ -7,27 +7,36 @@ interface IParetoVault {
      ***********************************************/
 
     /**
-     * @notice Deposits risky asset from msg.sender.
-     * @param riskyAmount is the amount of risky asset to deposit
+     * @notice Deposits risky asset from `msg.sender` to the vault address.
+     *         Updates the deposit receipt associated with `msg.sender` in rollover
+     * @dev Emits `DepositEvent`
+     * @param riskyAmount Amount of risky asset to deposit
      */
     function deposit(uint256 riskyAmount) external;
 
     /**
-     * @notice Requests a withdraw that is processed after the current round
-     * @param shares is the number of shares to withdraw
+     * @notice User requests a withdrawal that can be completed after the current round.
+     *         Cannot request more shares than than the user obtained through deposits.
+     *         Multiple requests can be made for the same round
+     * @dev Emits `WithdrawRequestEvent`
+     * @param shares Number of shares to withdraw
      */
     function requestWithdraw(uint256 shares) external;
 
     /**
-     * @notice Completes a requested withdraw from past round.
+     * @notice Users call this function to complete a requested withdraw from a past round.
+     *         A withdrawal request must have been made via requestWithdraw.
+     *         This function must be called after the round
+     * @dev Emits `WithdrawCompleteEvent`.
+     *      Burns receipts, and transfers tokens to `msg.sender`
      */
     function completeWithdraw() external;
 
     /**
-     * @notice Returns the asset balance held in the vault for one account
-     * @param account is the address to lookup balance for
-     * @return riskyAmount is the risky asset owned by the vault for the user
-     * @return stableAmount is the stable asset owned by the vault for the user
+     * @notice Returns the balance held in the vault for one account in risky and stable tokens
+     * @param account Address to lookup balance for
+     * @return riskyAmount Risky asset owned by the vault for the user
+     * @return stableAmount Stable asset owned by the vault for the user
      */
     function getAccountBalance(address account)
         external
@@ -39,13 +48,14 @@ interface IParetoVault {
      ***********************************************/
 
     /**
-     * @notice ParetoManager contract used to specify options
+     * @notice Address of the `ParetoManager` contract to choose the next vault
      * @return Address of the ParetoManager contract
      */
     function vaultManager() external view returns (address);
 
     /**
-     * @notice Keeper who manually managers contract
+     * @notice Keeper who manually managers contract via deployment and rollover
+     * @dev No access to critical vault changes
      * @return Address of the keeper
      */
     function keeper() external view returns (address);

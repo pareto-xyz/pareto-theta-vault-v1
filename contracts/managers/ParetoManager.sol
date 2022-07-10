@@ -11,8 +11,8 @@ import {MoreReplicationMath} from "../libraries/MoreReplicationMath.sol";
 import {console} from "hardhat/console.sol";
 
 /**
- * @notice Automated management of Pareto Theta Vaults
- * @notice Decides strike prices by percentages
+ * @notice Automated management of Pareto Theta Vaults.
+ *         Decides strike prices, volatility, and gamma through heuristics
  */
 contract ParetoManager is IParetoManager, Ownable {
     using SafeMath for uint256;
@@ -21,40 +21,32 @@ contract ParetoManager is IParetoManager, Ownable {
      * Immutables and Constants
      ***********************************************/
 
-    // Address for the risky asset
+    /// @notice Address for the risky asset
     address public override risky;
 
-    // Address for the stable asset
+    /// @notice Address for the stable asset
     address public override stable;
 
-    /**
-     * @notice Address for the ChainLink oracle
-     *
-     * Network: Kovan
-     * USDC-ETH: 0x64EaC61A2DFda2c3Fa04eED49AA33D021AeC8838
-     *
-     * Network: Rinkeby
-     * USDC-ETH: 0xdCA36F27cbC4E38aE16C4E9f99D39b42337F6dcf
-     *
-     * Network: MainNet
-     * USDC-ETH: 0x986b5E1e1755e3C2440e960477f25201B0a8bbD4
-     */
+    /// @notice Address for the ChainLink oracle
     address public immutable chainlinkOracle;
 
+    /// @notice Interface to interact with chainlink oracles
     AggregatorV3Interface internal chainlinkFeed;
 
+    /// @notice True if the oracle returns risky in terms of stable.
+    ///         False if oracle returns stable in terms of risky
     bool public immutable riskyFirst;
 
-    // Multiplier for strike selection
+    /// @notice Multiplier for strike selection as a percentage
     uint256 public override strikeMultiplier;
 
-    // Strike multiplier has 2 decimal places e.g. 150 = 1.5x spot price
+    /// @notice  Strike multiplier has 2 decimal places e.g. 150 = 1.5x spot price
     uint256 private constant STRIKE_DECIMALS = 10**2;
 
-    // Maximum riskyForLp of 1%
+    /// @notice Minimum `riskyPerLp` and `stablePerLp` is 1%
     uint256 private constant MIN_PER_LP = 10000000000000000;
 
-    // Maximum riskyForLp of 99%
+    /// @notice Maximum `riskyPerLp` and `stablePerLp` is 1%
     uint256 private constant MAX_PER_LP = 990000000000000000;
 
     /************************************************
@@ -62,12 +54,11 @@ contract ParetoManager is IParetoManager, Ownable {
      ***********************************************/
 
     /**
-     * @param _strikeMultiplier is the multiplier on spot to set strike
-     * @param _risky is the address for the risky token
-     * @param _stable is the address for the stable token
-     * @param _chainlinkOracle is the address for the risky-stable price oracle
-     * @param _riskyFirst is true if the oracle gives price risky-stable
-     *  and false if the oracle gives price stable-risky
+     * @param _strikeMultiplier Multiplier on spot to set strike
+     * @param _risky Address for the risky token
+     * @param _stable Address for the stable token
+     * @param _chainlinkOracle Address for the risky-stable price oracle
+     * @param _riskyFirst Reports if the oracle gives risky-stable or stable-risky price
      */
     constructor(
         uint256 _strikeMultiplier,
@@ -96,6 +87,11 @@ contract ParetoManager is IParetoManager, Ownable {
      * Manager Operations
      ***********************************************/
 
+    /**
+     * @notice Price of one unit of stable token in risky using risky decimals
+     * @dev Wrapper function around `_getOraclePrice`
+     * @return price Amount of risky tokens for one unit of stable token
+     */
     function getStableToRiskyPrice()
         external
         view
@@ -105,6 +101,11 @@ contract ParetoManager is IParetoManager, Ownable {
         return _getOraclePrice(true);
     }
 
+    /**
+     * @notice Price of one unit of risky token in stable using stable decimals
+     * @dev Wrapper function around `_getOraclePrice`
+     * @return price Amount of stable tokens for one unit of risky token
+     */
     function getRiskyToStablePrice()
         external
         view
@@ -115,8 +116,9 @@ contract ParetoManager is IParetoManager, Ownable {
     }
 
     /**
-     * @notice Helper function to return both stable-to-risky and
-     * risky-to-stable prices
+     * @notice Return both stable-to-risky and risky-to-stable prices
+     * @return stableToRiskyPrice Amount of risky tokens for one unit of stable token
+     * @return riskyToStablePrice Amount of stable tokens for one unit of risky token
      */
     function getPrice()
         external
@@ -131,17 +133,21 @@ contract ParetoManager is IParetoManager, Ownable {
         return (stableToRiskyPrice, riskyToStablePrice);
     }
 
+    /**
+     * @notice Return decimals used by the Chainlink Oracle
+     * @return decimals Oracle uses a precision of 10**decimals
+     */
     function getOracleDecimals() external view override returns (uint8) {
         return chainlinkFeed.decimals();
     }
 
     /**
-     * @notice Calls Chainlink to get relative price between risky and stable asset
-     *  Returns the price of the stable asset in terms of the risky
-     *  For example, USDC in terms of ETH
-     * @param stableToRisky if True return oracle price for stable to risky
-     *  asset. If false, return oracle price for risky to stable asset
-     * @return price is the current exchange rate between the two tokens
+     * @notice Calls Chainlink to get relative price between risky and stable asset.
+     *         Returns the price of the stable asset in terms of the risky
+     * @dev For example, USDC in terms of ETH
+     * @param stableToRisky If True return oracle price for stable to risky asset.
+     *                      If false, return oracle price for risky to stable asset
+     * @return price Current exchange rate between the two tokens
      */
     function _getOraclePrice(bool stableToRisky)
         internal
@@ -172,10 +178,10 @@ contract ParetoManager is IParetoManager, Ownable {
     }
 
     /**
-     * @notice Computes the strike price for the next pool by multiplying
-     *  the current price - requires an oracle
+     * @notice Computes the strike price for the next pool by a multiple of the current price.
+     *         Requires an oracle for spot price
      * @dev Uses the same decimals as the stable token
-     * @return strikePrice is the relative price of risky in stable
+     * @return strikePrice Relative price of risky in stable
      */
     function getNextStrikePrice()
         external
@@ -194,7 +200,9 @@ contract ParetoManager is IParetoManager, Ownable {
 
     /**
      * @notice Computes the volatility for the next pool
-     * @return sigma is the implied volatility estimate
+     * @dev Currently hardcoded to 80%.
+     *      Optimal choice is to match realized volatility in market
+     * @return sigma Estimate of implied volatility
      */
     function getNextVolatility() external pure override returns (uint32 sigma) {
         sigma = 8000; // TODO - placeholder 80% sigma
@@ -203,7 +211,9 @@ contract ParetoManager is IParetoManager, Ownable {
 
     /**
      * @notice Computes the gamma (or 1 - fee) for the next pool
-     * @return gamma is the Gamma for the next pool
+     * @dev Currently hardcoded to 0.95.
+     *      Choosing gamma effects the quality of replication
+     * @return gamma Gamma for the next pool
      */
     function getNextGamma() external pure override returns (uint32 gamma) {
         gamma = 9500; // TODO - placeholder 95% gamma = 5% fee
@@ -212,17 +222,16 @@ contract ParetoManager is IParetoManager, Ownable {
 
     /**
      * @notice Computes the riskyForLp using oracle as spot price
-     *         Wrapper around MoreReplicationMath
-     * @param spot is the spot price in stable
-     * @param strike is the strike price in stable
-     * @param sigma is the implied volatility
-     * @param tau is time to maturity in seconds
-     *  The conversion to years will happen within `MoreReplicationMath`
-     * @param riskyDecimals is the decimals for the risky asset
-     * @param stableDecimals is the decimals for the stable asset
-     * @return riskyForLp is the R1 variable (in risky decimals)
-     * @dev See page 14 of https://primitive.xyz/whitepaper-rmm-01.pdf
-     * @dev Thresholds the value to acceptable changes
+     * @param spot Spot price in stable
+     * @param strike Strike price in stable
+     * @param sigma Implied volatility
+     * @param tau Time to maturity in seconds.
+     *            The conversion to years will happen within `MoreReplicationMath`
+     * @param riskyDecimals Decimals for the risky asset
+     * @param stableDecimals Decimals for the stable asset
+     * @return riskyForLp R1 variable (in risky decimals)
+     * @dev See page 14 of https://primitive.xyz/whitepaper-rmm-01.pdf.
+     *      We cap the value within the range [0.1, 0.9]
      */
     function getRiskyPerLp(
         uint256 spot,
@@ -254,16 +263,16 @@ contract ParetoManager is IParetoManager, Ownable {
     }
 
     /**
-     * @notice Computes the stablePerLp assuming riskyPerLp is known
-     *         Wrapper around MoreReplicationMath
-     * @param invariantX64 is the invariant currently for the pool
-     * @param riskyPerLp is amount of risky token to trade for 1 LP token
-     * @param strike is the strike price in stable
-     * @param sigma is the implied volatility
-     * @param tau is time to maturity in seconds
-     * @param riskyDecimals is the decimals for the risky asset
-     * @param stableDecimals is the decimals for the stable asset
-     * @return stableForLp is amount of stable token to trade for 1 LP token
+     * @notice Computes the exchange rate between stable asset and RMM-01 LP token.
+     *         Assumes that `riskyPerLp` has been precomputed
+     * @param invariantX64 Invariant for the pool
+     * @param riskyPerLp Amount of risky token to trade for 1 LP token
+     * @param strike Strike price in stable
+     * @param sigma Implied volatility
+     * @param tau Time to maturity in seconds
+     * @param riskyDecimals Decimals for the risky asset
+     * @param stableDecimals Decimals for the stable asset
+     * @return stableForLp Amount of stable token to trade for 1 LP token
      */
     function getStablePerLp(
         int128 invariantX64,
@@ -294,8 +303,8 @@ contract ParetoManager is IParetoManager, Ownable {
     }
 
     /**
-     * @notice Set the multiplier for setting the strike price
-     * @param _strikeMultiplier is the strike multiplier (decimals = 2)
+     * @notice Set the multiplier for deciding strike price
+     * @param _strikeMultiplier Strike multiplier (decimals = 2)
      */
     function setStrikeMultiplier(uint256 _strikeMultiplier) external onlyOwner {
         require(_strikeMultiplier > STRIKE_DECIMALS, "_strikeMultiplier < 1");

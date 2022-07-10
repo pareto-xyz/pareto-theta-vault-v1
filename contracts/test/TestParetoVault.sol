@@ -137,11 +137,11 @@ contract TestParetoVault is ParetoVault {
     }
 
     function testGetNextMaturity(bytes32 poolId) public view returns (uint32) {
-        return getNextMaturity(poolId);
+        return _getNextMaturity(poolId);
     }
 
     function testGetNextFriday(uint256 timestamp) public pure returns (uint32) {
-        return getNextFriday(timestamp);
+        return _getNextFriday(timestamp);
     }
 
     function testGetPoolMaturity(bytes32 poolId) public view returns (uint32) {
