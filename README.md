@@ -8,7 +8,7 @@ Pareto Theta Vault v1 is a Replicating Theta Vault built on top of Primitive's R
 
 ## Documentation
 
-TODO!
+The contract documentation is hosted here: [Pareto Docs](https://pareto-labs.gitbook.io/technical/GNswlmo7LarKUIJ2E8ja).
 
 ## Testing
 
