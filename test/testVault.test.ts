@@ -39,7 +39,7 @@ runTest("TestParetoVault", function () {
     // Owner should provide a bit of liquidity
     // NOTE: do 10 times the min liquidity in case we need to deploy multiple pools
     //       as we are not simulating premium here
-    const deployFee = await vault.MIN_LIQUIDITY() * 10;
+    const deployFee = (await vault.MIN_LIQUIDITY()) * 10;
     await this.contracts.risky
       .connect(this.wallets.deployer)
       .increaseAllowance(vault.address, deployFee);
@@ -711,7 +711,9 @@ runTest("TestParetoVault", function () {
           postVaultStable: currStable,
         });
       expect(success).to.be.equal(true);
-      expect(fromBn(valueForPerformanceFee, riskyDecimals)).to.be.not.equal("0");
+      expect(fromBn(valueForPerformanceFee, riskyDecimals)).to.be.not.equal(
+        "0"
+      );
     });
   });
 
@@ -740,7 +742,7 @@ runTest("TestParetoVault", function () {
 
       // Second round!
       await vault.connect(this.wallets.keeper).deployVault();
-      
+
       // Compute vault fees
       let vaultState = await vault.vaultState();
       let currRisky = await this.contracts.risky.balanceOf(vault.address);
