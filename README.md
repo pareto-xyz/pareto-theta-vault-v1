@@ -18,6 +18,8 @@ The contract documentation is hosted here: [Pareto Docs](https://pareto-labs.git
 
 Compile contracts with `yarn compile`. Run Tests with `yarn test`.
 
+There is 100% test coverage, that is, all external and internal functions within Pareto have at least 1 test. However, we are sure our tests could be improved. If you have suggestions, please reach out to us via email (team@paretolabs.xyz), Twitter (@paretoxyz) or Discord.
+
 ## Citations
 
 This code is heavily based on Ribbon v2's [implementation](https://github.com/ribbon-finance/ribbon-v2). Additionally, we incorporate feedback from Ante Finance's [review](https://mirror.xyz/antefinance.eth/B7tmf4E20rzoy4ZIMd4n4Xls3vTOwjx0O4ZpYewO6l4).
