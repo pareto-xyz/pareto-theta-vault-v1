@@ -9,6 +9,7 @@
     "compile": "npx hardhat compile",
     "clean": "npx hardhat clean",
     "docs": "npx hardhat dodoc",
+    "coverage": "npx hardhat coverage",
     "lint:sol": "./node_modules/.bin/solhint -f table contracts/**/*.sol",
     "lint:prettier": "./node_modules/.bin/prettier --write contracts/**/*.sol test/**/*.ts test/*.ts",
     "prepare": "husky install"
@@ -67,6 +68,7 @@
     "solc": "^0.8.6",
     "solhint": "^3.3.7",
     "solhint-plugin-prettier": "^0.0.5",
+    "solidity-coverage": "^0.7.21",
     "ts-node": "^10.8.1",
     "typescript": "^4.7.4",
     "web3-units": "^1.4.0"
