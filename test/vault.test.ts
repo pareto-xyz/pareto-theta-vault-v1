@@ -41,7 +41,7 @@ runTest("ParetoVault", function () {
     );
 
     // Owner should provide a bit of liquidity
-    const deployFee = vault.MIN_LIQUIDITY();
+    const deployFee = await vault.MIN_LIQUIDITY();
     await this.contracts.risky
       .connect(this.wallets.deployer)
       .increaseAllowance(vault.address, deployFee);

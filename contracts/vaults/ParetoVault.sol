@@ -448,8 +448,8 @@ contract ParetoVault is
         // Update state so we don't count seed as profit
         // This has the effect that first round will not take any fees
         VaultMath.assertUint104(MIN_LIQUIDITY);
-        vaultState.lastLockedRisky = uint104(MIN_LIQUIDITY);
-        vaultState.lastLockedStable = uint104(MIN_LIQUIDITY);
+        vaultState.lastLockedRisky += uint104(MIN_LIQUIDITY);
+        vaultState.lastLockedStable += uint104(MIN_LIQUIDITY);
     }
 
     /**
