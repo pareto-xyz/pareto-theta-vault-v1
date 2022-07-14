@@ -6,7 +6,7 @@
 
 Pareto's Theta Vault v1 is a Replicating Theta Vault built on top of Primitive's RMM-01 pools. Pareto's vault generates yield for depositors by operating an automated weekly covered call selling strategy. This involves selling upside token volatility in return for a premium.
 
-The vault replicates the payoff of selling out-the-money Black-Scholes covered call options, which expire each Friday. It reinvest assets each week until users withdraw. 
+The vault replicates the payoff of selling out-the-money Black-Scholes covered call options, which expire each Friday. It reinvest assets each week until users withdraw.
 
 It generates premiums by depositing in a replicating market maker (RMM), a type of automated market maker (AMM), rather than selling options via auctions.
 
@@ -16,7 +16,7 @@ The contract documentation is hosted here: [Pareto Docs](https://pareto-labs.git
 
 ## Testing
 
-Compile contracts with `yarn compile`. Run Tests with `yarn test`.
+Compile contracts with `yarn compile`. Run Tests with `yarn test`. To measure coverage, run `yarn coverage`.
 
 There is 100% test coverage, that is, all external and internal functions within Pareto have at least 1 test. However, we are sure our tests could be improved. If you have suggestions, please reach out to us via email (team@paretolabs.xyz), Twitter (@paretoxyz) or Discord.
 
