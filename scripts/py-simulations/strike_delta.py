@@ -6,6 +6,7 @@
 import math
 import numpy as np
 from tqdm import tqdm
+from pprint import pprint
 from scipy.stats import norm  # for inverse cdf 
 
 
@@ -16,7 +17,7 @@ def closed_form_solution(delta, spot, sigma, tau):
     return strike, float(_delta)
 
 
-def iterative_solution(delta, spot, sigma, tau, step = 100):
+def iterative_solution(delta, spot, sigma, tau, step=10, max_steps=1e6):
     """
     Clone of Ribbon v2's `_getStrikePrice` function converted to python.
     """
@@ -24,7 +25,8 @@ def iterative_solution(delta, spot, sigma, tau, step = 100):
     target_delta = delta
     prev_delta = 1
 
-    while True: 
+    curr_step = 0
+    while curr_step < max_steps: 
         # use Black Scholes to derive beliefs on delta
         curr_delta = get_black_scholes_delta(strike, spot, sigma, tau)
 
@@ -32,11 +34,14 @@ def iterative_solution(delta, spot, sigma, tau, step = 100):
             final_delta = _get_best_delta(prev_delta, curr_delta, target_delta)
             final_strike = _get_best_strike(final_delta, prev_delta, strike, step)
 
-            return float(final_strike), float(final_delta)
+            return float(final_strike), float(final_delta), curr_step
 
         # prep for next iteration
         strike = strike + step
         prev_delta = curr_delta;
+        curr_step += 1
+
+    raise Exception("Did not converge.")
 
 
 def _get_best_delta(prev_delta, curr_delta, target_delta):
@@ -70,31 +75,47 @@ def make_simulation(rs=None, tol=1e-3):
     delta = rs.uniform(low=0, high=1)
     spot = rs.uniform(low=1000, high=10000)
     sigma = rs.uniform(low=0, high=1)
-    tau = rs.uniform(low=1000, high=10000)
+    tau = rs.uniform(low=0, high=1)  # years
 
+    step_size = 10
     our_strike, our_delta = closed_form_solution(delta, spot, sigma, tau)
-    iter_strike, iter_delta = iterative_solution(delta, spot, sigma, tau)
-
-    outcome = math.isclose(our_strike, iter_strike, abs_tol=1)
+    iter_strike, iter_delta, iter_step = iterative_solution(delta, spot, sigma, tau, step=step_size)
 
     return {
-        'success': outcome,
+        # Check that our strike price is close to the iterative strike price 
+        # Tolerance is step_size because iterative method will only find up to that
+        # Check that our delta is equal to the true delta 
+        'match': math.isclose(our_strike, iter_strike, abs_tol=step_size),
+        'success': math.isclose(our_delta, delta, abs_tol=1e-4),
         'data': {
-            'iter': {'strike': iter_strike, 'delta': iter_delta},
+            'iter': {'strike': iter_strike, 'delta': iter_delta, 'step': iter_step},
             'ours': {'strike': our_strike, 'delta': our_delta},
-        }
+        },
+        'params': {
+            'delta': delta,
+            'spot': spot,
+            'sigma': sigma,
+            'tau': tau,
+        },
     }
 
 
 if __name__ == "__main__":
     rs = np.random.RandomState(42)
 
+    num_mismatch = 0
     num_fail = 0
     for _ in tqdm(range(1000)):
         results = make_simulation(rs=rs, tol=0.01)
+
+        if not results['match']:
+            num_mismatch += 1
 
         if not results['success']:
             num_fail += 1
 
     pp = round(float(1000 - num_fail) / 1000. * 100, 1)
-    print(f'Success rate: {1000-num_fail} out of 1000 ({pp}%)')
+    print(f'Recovers delta rate: {1000-num_fail} out of 1000 ({pp}%)')
+
+    pp = round(float(1000 - num_mismatch) / 1000. * 100, 1)
+    print(f'Matches iterative rate: {1000-num_mismatch} out of 1000 ({pp}%)')
