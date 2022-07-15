@@ -120,7 +120,6 @@ export async function fixture(
   );
 
   const vaultManager = await ParetoManager.deploy(
-    110,
     risky.address,
     stable.address,
     aggregatorV3.address,

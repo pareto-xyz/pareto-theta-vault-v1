@@ -1,6 +1,10 @@
+/**
+ * Utilities to check test performance. Contains implementations of solidity 
+ * functions in javascript.
+ */
+
 import { Contract } from "ethers";
 import { fromBn, toBn } from "evm-bn";
-
 
 /**
  * @notice Compute expected performance and management fees
