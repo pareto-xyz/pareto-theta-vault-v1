@@ -199,13 +199,13 @@ runTest("ParetoVault", function () {
       expect(fromBn(managerState.manualStrike, stableDecimals)).to.be.equal(
         "0"
       );
-      expect(fromBn(managerState.manualVolatility, 4)).to.be.equal("0");
-      // Volatility (sigma) must be in [0, 1]
+      expect(fromBn(managerState.manualSigma, 4)).to.be.equal("0");
+      // Sigma must be in [0, 1]
       expect(
-        fromBnToFloat(managerState.manualVolatility, 4)
+        fromBnToFloat(managerState.manualSigma, 4)
       ).to.be.greaterThanOrEqual(0);
       expect(
-        fromBnToFloat(managerState.manualVolatility, 4)
+        fromBnToFloat(managerState.manualSigma, 4)
       ).to.be.lessThanOrEqual(1);
       // Gamma (1 - fee) must be in [0, 1]
       expect(fromBn(managerState.manualGamma, 4)).to.be.equal("0");
@@ -217,7 +217,7 @@ runTest("ParetoVault", function () {
       );
       // Rounds are initialized to zero
       expect(managerState.manualStrikeRound).to.be.equal(0);
-      expect(managerState.manualVolatilityRound).to.be.equal(0);
+      expect(managerState.manualSigmaRound).to.be.equal(0);
       expect(managerState.manualGammaRound).to.be.equal(0);
     });
     /**
@@ -301,11 +301,11 @@ runTest("ParetoVault", function () {
       expect((await vault.managerState()).manualStrikeRound).to.be.equal(1);
     });
     it("correctly set sigma", async function () {
-      await vault.connect(this.wallets.keeper).setVolatility(toBn("0.8", 4));
+      await vault.connect(this.wallets.keeper).setSigma(toBn("0.8", 4));
       expect(
-        fromBn((await vault.managerState()).manualVolatility, 4)
+        fromBn((await vault.managerState()).manualSigma, 4)
       ).to.be.equal("0.8");
-      expect((await vault.managerState()).manualVolatilityRound).to.be.equal(1);
+      expect((await vault.managerState()).manualSigmaRound).to.be.equal(1);
     });
     it("correctly set gamma", async function () {
       await vault.connect(this.wallets.keeper).setGamma(toBn("0.95", 4));
