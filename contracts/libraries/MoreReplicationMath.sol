@@ -95,7 +95,7 @@ library MoreReplicationMath {
     }
 
     /**
-     * @notice Compute strike price under Black-Scholes model given a chosen delta, 
+     * @notice Compute strike price under Black-Scholes model given a chosen delta,
      *         implied volatility, and spot price
      * @param delta Desired delta when deriving strike price (written as a percentage with 4 decimals)
      * @param spot Spot price of risky asset in stable
@@ -111,7 +111,7 @@ library MoreReplicationMath {
         uint256 scaleFactorStable
     ) internal pure returns (uint256 strike) {
         int128 strikeX64;
-        {   
+        {
             int128 deltaX64 = delta.percentageToX64();
             int128 scoreX64 = deltaX64.getInverseCDF();
 

@@ -432,12 +432,15 @@ runTest("TestParetoVault", function () {
       expect(
         fromBnToFloat(poolState.nextPoolParams.strike, stableDecimals)
       ).to.be.closeTo(
-        fromBnToFloat(await this.contracts.vaultManager.getNextStrikePrice(
-          poolState.nextPoolParams.delta,
-          poolState.nextPoolParams.sigma,
-          1179500,
+        fromBnToFloat(
+          await this.contracts.vaultManager.getNextStrikePrice(
+            poolState.nextPoolParams.delta,
+            poolState.nextPoolParams.sigma,
+            1179500,
+            stableDecimals
+          ),
           stableDecimals
-        ), stableDecimals), 
+        ),
         1e-3
       );
     });

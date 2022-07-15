@@ -174,7 +174,7 @@ contract ParetoManager is IParetoManager, Ownable {
     }
 
     /**
-     * @notice Computes the strike price for the next pool by back-deriving strike 
+     * @notice Computes the strike price for the next pool by back-deriving strike
      *         from a known delta, implied volatility, and spot price
      * @dev Uses the same decimals as the stable token
      * @param sigma Implied volatility
@@ -188,12 +188,7 @@ contract ParetoManager is IParetoManager, Ownable {
         uint32 sigma,
         uint256 tau,
         uint8 stableDecimals
-    )
-        external
-        view
-        override
-        returns (uint128 strikePrice)
-    {
+    ) external view override returns (uint128 strikePrice) {
         uint256 scaleFactorStable = 10**(18 - stableDecimals);
         // Get price of risky in stable asset
         uint256 spotPrice = _getOraclePrice(false);

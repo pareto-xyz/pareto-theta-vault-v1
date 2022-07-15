@@ -33,7 +33,7 @@ interface IParetoManager {
     function getOracleDecimals() external view returns (uint8);
 
     /**
-     * @notice Computes the strike price for the next pool by back-deriving strike 
+     * @notice Computes the strike price for the next pool by back-deriving strike
      *         from a known delta, implied volatility, and spot price
      * @dev Uses the same decimals as the stable token
      * @param delta Black Scholes delta

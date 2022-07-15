@@ -3,6 +3,7 @@ import { Contract } from "ethers";
 import expect from "../shared/expect";
 import { normalCDF } from "../shared/utils";
 import { fromBn, toBn } from "evm-bn";
+import { ppf } from "../../scripts/utils/testUtils";
 
 let moreReplicationMath: Contract;
 
@@ -86,5 +87,65 @@ describe("MoreReplicationMath contract", () => {
 
       expect(parseFloat(r1)).to.be.closeTo(r2, 0.01);
     });
+  });
+  it("correct computation of S1", async function () {
+    // The spot is at price 1
+    var strikes = [1.001, 1.01, 0.999, 0.99];
+    var sigmas = [0.3, 0.5, 0.7, 0.9];
+    var tauInSeconds = [
+      3600, // one hour
+      86400, // one day
+      604800, // one week
+    ];
+    let invariant = 0;
+    let spot: string;
+    let strike: string;
+    let sigma: string;
+    let r1: string;
+    let s1: string;
+
+    for (var i = 0; i < strikes.length; i++) {
+      for (var j = 0; j < sigmas.length; j++) {
+        for (var k = 0; k < tauInSeconds.length; k++) {
+          spot = toBn("1", 18).toString();
+          strike = toBn(strikes[i].toString(), 18).toString();
+          sigma = toBn(sigmas[j].toString(), 4).toString();
+          r1 = fromBn(
+            await moreReplicationMath.getRiskyPerLp(
+              spot,
+              strike,
+              sigma,
+              tauInSeconds[k],
+              1,
+              1
+            ),
+            18
+          );
+          s1 = fromBn(
+            await moreReplicationMath.getStablePerLp(
+              invariant,
+              toBn(r1, 18).toString(),
+              strike,
+              sigma,
+              tauInSeconds[k],
+              1,
+              1
+            ),
+            18
+          );
+          let tau = tauInSeconds[k] / 31536000;
+          let top = Math.log(1 / strikes[i]) + (tau * sigmas[j] ** 2) / 2;
+          let bot = sigmas[j] * Math.sqrt(tau);
+          let d1 = top / bot;
+          let r2 = 1 - normalCDF(d1, 0, 1);
+
+          let s2 = strikes[i] * normalCDF(ppf(1 - r2) - bot, 0, 1) + invariant;
+
+          /// @dev: 0.01 is a generous margin for error
+          expect(parseFloat(r1)).to.be.closeTo(r2, 0.01);
+          expect(parseFloat(s1)).to.be.closeTo(s2, 0.01);
+        }
+      }
+    }
   });
 });

@@ -204,9 +204,9 @@ runTest("ParetoVault", function () {
       expect(
         fromBnToFloat(managerState.manualSigma, 4)
       ).to.be.greaterThanOrEqual(0);
-      expect(
-        fromBnToFloat(managerState.manualSigma, 4)
-      ).to.be.lessThanOrEqual(1);
+      expect(fromBnToFloat(managerState.manualSigma, 4)).to.be.lessThanOrEqual(
+        1
+      );
       // Gamma (1 - fee) must be in [0, 1]
       expect(fromBn(managerState.manualGamma, 4)).to.be.equal("0");
       expect(
@@ -302,9 +302,9 @@ runTest("ParetoVault", function () {
     });
     it("correctly set sigma", async function () {
       await vault.connect(this.wallets.keeper).setSigma(toBn("0.8", 4));
-      expect(
-        fromBn((await vault.managerState()).manualSigma, 4)
-      ).to.be.equal("0.8");
+      expect(fromBn((await vault.managerState()).manualSigma, 4)).to.be.equal(
+        "0.8"
+      );
       expect((await vault.managerState()).manualSigmaRound).to.be.equal(1);
     });
     it("correctly set gamma", async function () {

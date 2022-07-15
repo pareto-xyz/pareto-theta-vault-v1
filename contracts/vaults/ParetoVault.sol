@@ -576,7 +576,7 @@ contract ParetoVault is
     /**
      * @notice Sets the delta for the next vault
      * @dev Set only by the owner
-     * @param delta Black scholes delta 
+     * @param delta Black scholes delta
      */
     function setDelta(uint32 delta) external onlyKeeper {
         require((delta > 0) && (delta < 10000), "!delta");

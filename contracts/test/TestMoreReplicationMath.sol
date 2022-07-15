@@ -25,4 +25,25 @@ contract TestMoreReplicationMath {
                 scaleFactorStable
             );
     }
+
+    function getStablePerLp(
+        int128 invariantX64,
+        uint256 riskyPerLp,
+        uint256 strike,
+        uint256 sigma,
+        uint256 tau,
+        uint256 scaleFactorRisky,
+        uint256 scaleFactorStable
+    ) external pure returns (uint256 stablePerLp) {
+        return
+            MoreReplicationMath.getStablePerLp(
+                invariantX64,
+                riskyPerLp,
+                strike,
+                sigma,
+                tau,
+                scaleFactorRisky,
+                scaleFactorStable
+            );
+    }
 }

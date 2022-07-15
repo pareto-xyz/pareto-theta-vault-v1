@@ -2,19 +2,18 @@
  * Utilities to check test performance. Contains implementations of solidity 
  * functions in javascript.
  */
-
 import { Contract } from "ethers";
 import { fromBn, toBn } from "evm-bn";
 
 /**
  * @notice Compute expected performance and management fees
- * @param preVaultRisky is the amount of locked risky from last round
- * @param preVaultStable is the amount of locked stable from last round
- * @param postVaultRisky is the amount of risky token in the vault
- * @param postVaultStable is the amount of stable token in the vault
- * @param riskyToStablePrice is the price of a risky token in stable
- * @param managementFeePerWeek is the management fee in percentage per week
- * @param performanceFee is the performance fee in percentage per week
+ * @param preVaultRisky Amount of locked risky from last round
+ * @param preVaultStable Amount of locked stable from last round
+ * @param postVaultRisky Amount of risky token in the vault
+ * @param postVaultStable Amount of stable token in the vault
+ * @param riskyToStablePrice Price of a risky token in stable
+ * @param managementFeePerWeek Management fee in percentage per week
+ * @param performanceFee Performance fee in percentage per week
  */
 export function getVaultFees(
   preVaultRisky: number,
@@ -94,10 +93,10 @@ export function getVaultFees(
 /**
  * @notice Compute the amounts of risky and stable assets to be locked
  *         Takes into account the fees
- * @param vaultRisky is the amount of risky token in the vault
- * @param vaultStable is the amount of stable token in the vault
- * @param riskyToStablePrice is the price of a risky token in stable
- * @returns the amount of risky and stable token to be locked
+ * @param vaultRisky Amount of risky token in the vault
+ * @param vaultStable Amount of stable token in the vault
+ * @param riskyToStablePrice Price of a risky token in stable
+ * @returns Amount of risky and stable token to be locked
  */
 export function getLockedAmounts(
   vaultRisky: number,
@@ -184,9 +183,9 @@ export async function getVaultBalance(
 
 /**
  * @notice Helper function to go from BigNumber to float
- * @param value is the raw BigNumber object
- * @param decimals is the amount of decimals in the BigNumber
- * @returns the floating point value (through string casting)
+ * @param value Raw BigNumber object
+ * @param decimals Amount of decimals in the BigNumber
+ * @returns The floating point value (through string casting)
  */
 export function fromBnToFloat(
   value: any,
@@ -197,13 +196,53 @@ export function fromBnToFloat(
 
 /**
  * @notice Helper function to go from float to BigNumber
- * @param value is the float object
- * @param decimals is the amount of decimals in the BigNumber
- * @returns the BigNumber object
+ * @param value Float object
+ * @param decimals Amount of decimals in the BigNumber
+ * @returns BigNumber object
  */
- export function fromFloatToBn(
+export function fromFloatToBn(
   value: number,
   decimals: number
 ): any {
   return toBn(value.toString(), decimals);
+}
+
+/**
+ * @notice Inverse error function
+ * @dev https://stackoverflow.com/questions/12556685/is-there-a-javascript-implementation-of-the-inverse-error-function-akin-to-matl
+ * @param x Input 
+ * @returns Output
+ */
+function erfinv(x: number): number {
+  var z: number;
+  var a = 0.147;                                                   
+  var the_sign_of_x: number;
+  if(x == 0) {
+    the_sign_of_x = 0;
+  } else if (x > 0) {
+    the_sign_of_x = 1;
+  } else {
+    the_sign_of_x = -1;
+  }
+  if(x != 0) {
+    var ln_1minus_x_sqrd = Math.log(1-x*x);
+    var ln_1minusxx_by_a = ln_1minus_x_sqrd / a;
+    var ln_1minusxx_by_2 = ln_1minus_x_sqrd / 2;
+    var ln_etc_by2_plus2 = ln_1minusxx_by_2 + (2/(Math.PI * a));
+    var first_sqrt = Math.sqrt((ln_etc_by2_plus2*ln_etc_by2_plus2)-ln_1minusxx_by_a);
+    var second_sqrt = Math.sqrt(first_sqrt - ln_etc_by2_plus2);
+    z = second_sqrt * the_sign_of_x;
+  } else { // x is zero
+    z = 0;
+  }
+  return z;
+}
+
+/**
+ * @notice Inverse CDF function
+ * @param x Input 
+ * @returns Output
+ */
+export function ppf(x: number): number {
+  return Math.sqrt(2) * erfinv(2*x-1)
 }
