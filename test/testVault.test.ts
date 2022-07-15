@@ -429,8 +429,19 @@ runTest("TestParetoVault", function () {
       let poolState = await vault.poolState();
       await vault.testPrepareNextPool(poolState.currPoolId);
       poolState = await vault.poolState();
-      expect(poolState.nextPoolParams.strike).to.be.equal(
-        await this.contracts.vaultManager.getNextStrikePrice()
+      expect(
+        fromBnToFloat(poolState.nextPoolParams.strike, stableDecimals)
+      ).to.be.closeTo(
+        fromBnToFloat(
+          await this.contracts.vaultManager.getNextStrikePrice(
+            poolState.nextPoolParams.delta,
+            poolState.nextPoolParams.sigma,
+            1179500,
+            stableDecimals
+          ),
+          stableDecimals
+        ),
+        1e-3
       );
     });
     it("Correctly sets next sigma", async function () {
@@ -438,7 +449,7 @@ runTest("TestParetoVault", function () {
       await vault.testPrepareNextPool(poolState.currPoolId);
       poolState = await vault.poolState();
       expect(poolState.nextPoolParams.sigma).to.be.equal(
-        await this.contracts.vaultManager.getNextVolatility()
+        await this.contracts.vaultManager.getNextSigma()
       );
     });
     it("Correctly sets next maturity", async function () {

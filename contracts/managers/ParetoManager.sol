@@ -37,45 +37,41 @@ contract ParetoManager is IParetoManager, Ownable {
     ///         False if oracle returns stable in terms of risky
     bool public immutable riskyFirst;
 
-    /// @notice Multiplier for strike selection as a percentage
-    uint256 public override strikeMultiplier;
-
-    /// @notice  Strike multiplier has 2 decimal places e.g. 150 = 1.5x spot price
-    uint256 private constant STRIKE_DECIMALS = 10**2;
-
     /// @notice Minimum `riskyPerLp` and `stablePerLp` is 1%
     uint256 private constant MIN_PER_LP = 10000000000000000;
 
     /// @notice Maximum `riskyPerLp` and `stablePerLp` is 1%
     uint256 private constant MAX_PER_LP = 990000000000000000;
 
+    /// @notice Default value for implied volatility is 80%
+    uint32 private constant DEFAULT_SIGMA = 8000;
+
+    /// @notice Default value for Primitive pool fees is 5%
+    uint32 private constant DEFAULT_GAMMA = 9500;
+
+    /// @notice Default value for Black Scholes delta is 20%
+    uint32 private constant DEFAULT_DELTA = 2000;
+
     /************************************************
      * Constructor and initializers
      ***********************************************/
 
     /**
-     * @param _strikeMultiplier Multiplier on spot to set strike
      * @param _risky Address for the risky token
      * @param _stable Address for the stable token
      * @param _chainlinkOracle Address for the risky-stable price oracle
      * @param _riskyFirst Reports if the oracle gives risky-stable or stable-risky price
      */
     constructor(
-        uint256 _strikeMultiplier,
         address _risky,
         address _stable,
         address _chainlinkOracle,
         bool _riskyFirst
     ) {
-        require(
-            _strikeMultiplier > STRIKE_DECIMALS,
-            "_strikeMultiplier too small"
-        );
         require(_risky != address(0), "!_risky");
         require(_stable != address(0), "!_stable");
         require(_chainlinkOracle != address(0), "!_chainlinkOracle");
 
-        strikeMultiplier = _strikeMultiplier;
         risky = _risky;
         stable = _stable;
         chainlinkOracle = _chainlinkOracle;
@@ -178,46 +174,62 @@ contract ParetoManager is IParetoManager, Ownable {
     }
 
     /**
-     * @notice Computes the strike price for the next pool by a multiple of the current price.
-     *         Requires an oracle for spot price
+     * @notice Computes the strike price for the next pool by back-deriving strike
+     *         from a known delta, implied volatility, and spot price
      * @dev Uses the same decimals as the stable token
+     * @param sigma Implied volatility
+     * @param tau Time to maturity in seconds.
+     *            The conversion to years will happen within `MoreReplicationMath`
+     * @param stableDecimals Decimals for the stable asset
      * @return strikePrice Relative price of risky in stable
      */
-    function getNextStrikePrice()
-        external
-        view
-        override
-        returns (uint128 strikePrice)
-    {
+    function getNextStrikePrice(
+        uint32 delta,
+        uint32 sigma,
+        uint256 tau,
+        uint8 stableDecimals
+    ) external view override returns (uint128 strikePrice) {
+        uint256 scaleFactorStable = 10**(18 - stableDecimals);
         // Get price of risky in stable asset
         uint256 spotPrice = _getOraclePrice(false);
-        uint256 rawStrike = spotPrice.mul(strikeMultiplier).div(
-            STRIKE_DECIMALS
+        uint256 rawStrike = MoreReplicationMath.getStrikeGivenDelta(
+            delta,
+            spotPrice,
+            sigma,
+            tau,
+            scaleFactorStable
         );
         strikePrice = uint128(rawStrike);
         return strikePrice;
     }
 
     /**
-     * @notice Computes the volatility for the next pool
+     * @notice Computes the implied volatility for the next pool
      * @dev Currently hardcoded to 80%.
      *      Optimal choice is to match realized volatility in market
      * @return sigma Estimate of implied volatility
      */
-    function getNextVolatility() external pure override returns (uint32 sigma) {
-        sigma = 8000; // TODO - placeholder 80% sigma
-        return sigma;
+    function getNextSigma() external pure override returns (uint32 sigma) {
+        return DEFAULT_SIGMA;
     }
 
     /**
      * @notice Computes the gamma (or 1 - fee) for the next pool
-     * @dev Currently hardcoded to 0.95.
+     * @dev Currently hardcoded to 95% (or 5% fees).
      *      Choosing gamma effects the quality of replication
      * @return gamma Gamma for the next pool
      */
     function getNextGamma() external pure override returns (uint32 gamma) {
-        gamma = 9500; // TODO - placeholder 95% gamma = 5% fee
-        return gamma;
+        return DEFAULT_GAMMA;
+    }
+
+    /**
+     * @notice Computes the Black-Scholes delta used to create next pool
+     * @dev Currently hardcoded to 20%. A higher value is more risky
+     * @return delta Delta for the Black-Scholes model
+     */
+    function getNextDelta() external pure override returns (uint32 delta) {
+        return DEFAULT_DELTA;
     }
 
     /**
@@ -300,14 +312,5 @@ contract ParetoManager is IParetoManager, Ownable {
             stableForLp = MAX_PER_LP;
         }
         return stableForLp;
-    }
-
-    /**
-     * @notice Set the multiplier for deciding strike price
-     * @param _strikeMultiplier Strike multiplier (decimals = 2)
-     */
-    function setStrikeMultiplier(uint256 _strikeMultiplier) external onlyOwner {
-        require(_strikeMultiplier > STRIKE_DECIMALS, "_strikeMultiplier < 1");
-        strikeMultiplier = _strikeMultiplier;
     }
 }

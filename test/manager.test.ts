@@ -4,6 +4,7 @@ import { parseWei } from "web3-units";
 import expect from "./shared/expect";
 import { fromBn, toBn } from "evm-bn";
 import { normalCDF } from "./shared/utils";
+import { ppf } from "../scripts/utils/testUtils";
 
 let manager: Contract;
 let risky: Contract;
@@ -38,7 +39,6 @@ describe("ParetoManager contract", function () {
     // Load the manager
     const ParetoManager = await hre.ethers.getContractFactory("ParetoManager");
     manager = await ParetoManager.deploy(
-      110,
       risky.address,
       stable.address,
       aggregatorV3.address,
@@ -57,12 +57,6 @@ describe("ParetoManager contract", function () {
      */
     it("correct default stable", async function () {
       expect(await manager.stable()).to.be.equal(stable.address);
-    });
-    /**
-     * @notice Checks that the manager's stored strike multiplier is correct
-     */
-    it("correct default strike multiplier", async function () {
-      expect(await manager.strikeMultiplier()).to.be.equal(110); // by initialization
     });
   });
   describe("function getters", function () {
@@ -178,16 +172,127 @@ describe("ParetoManager contract", function () {
      * @notice Checks getNextStrikePrice multiplies spot price
      * from oracle by the multiplier
      */
-    it("correctly get next strike price", async function () {
-      let strikeMultiplier = await manager.strikeMultiplier();
+    it("correctly get next strike price - default", async function () {
       let spotPrice = await manager.getRiskyToStablePrice();
-      let expected = fromBn(
-        strikeMultiplier.mul(spotPrice),
-        2 + stableDecimals
+      let strikePrice = await manager.getNextStrikePrice(
+        2000,
+        8000,
+        604800,
+        stableDecimals
       );
+      expect(parseFloat(fromBn(strikePrice, stableDecimals))).to.be.greaterThan(
+        parseFloat(fromBn(spotPrice, stableDecimals))
+      );
+      // Hardcoded answer from previous run -- should not change
+      expect(parseFloat(fromBn(strikePrice, stableDecimals))).to.be.closeTo(
+        1.10443209144177454,
+        1e-6
+      );
+    });
+    it("correctly get next strike price - change delta", async function () {
+      let spotPrice = await manager.getRiskyToStablePrice();
+      let strikePrice = await manager.getNextStrikePrice(
+        1000,
+        8000,
+        604800,
+        stableDecimals
+      );
+      expect(parseFloat(fromBn(strikePrice, stableDecimals))).to.be.greaterThan(
+        parseFloat(fromBn(spotPrice, stableDecimals))
+      );
+      // Hardcoded answer from previous run -- should not change
+      expect(parseFloat(fromBn(strikePrice, stableDecimals))).to.be.closeTo(
+        1.159604176436641313,
+        1e-6
+      );
+    });
+    it("correctly get next strike price - check delta direction", async function () {
+      let strikePrice1 = await manager.getNextStrikePrice(
+        1000,
+        8000,
+        604800,
+        stableDecimals
+      );
+      let strikePrice2 = await manager.getNextStrikePrice(
+        1500,
+        8000,
+        604800,
+        stableDecimals
+      );
+      // Higher delta = lower next strike price
       expect(
-        parseFloat(fromBn(await manager.getNextStrikePrice(), stableDecimals))
-      ).to.be.closeTo(parseFloat(expected), 0.0001);
+        parseFloat(fromBn(strikePrice1, stableDecimals))
+      ).to.be.greaterThan(parseFloat(fromBn(strikePrice2, stableDecimals)));
+    });
+    it("correctly get next strike price - check different tau", async function () {
+      let spotPrice = await manager.getRiskyToStablePrice();
+      let strikePrice = await manager.getNextStrikePrice(
+        1000,
+        8000,
+        86400,
+        stableDecimals
+      );
+      expect(parseFloat(fromBn(strikePrice, stableDecimals))).to.be.greaterThan(
+        parseFloat(fromBn(spotPrice, stableDecimals))
+      );
+      // Hardcoded answer from previous run -- should not change
+      expect(parseFloat(fromBn(strikePrice, stableDecimals))).to.be.closeTo(
+        1.0560405696252742,
+        1e-6
+      );
+    });
+    it("correctly get next strike price - check tau direction", async function () {
+      let strikePrice1 = await manager.getNextStrikePrice(
+        1000,
+        8000,
+        86400,
+        stableDecimals
+      );
+      let strikePrice2 = await manager.getNextStrikePrice(
+        1000,
+        8000,
+        604800,
+        stableDecimals
+      );
+      // Higher tau = higher next strike price
+      expect(parseFloat(fromBn(strikePrice1, stableDecimals))).to.be.lessThan(
+        parseFloat(fromBn(strikePrice2, stableDecimals))
+      );
+    });
+    it("correctly get next strike price - check different sigma", async function () {
+      let spotPrice = await manager.getRiskyToStablePrice();
+      let strikePrice = await manager.getNextStrikePrice(
+        1000,
+        1000,
+        604800,
+        stableDecimals
+      );
+      expect(parseFloat(fromBn(strikePrice, stableDecimals))).to.be.greaterThan(
+        parseFloat(fromBn(spotPrice, stableDecimals))
+      );
+      // Hardcoded answer from previous run -- should not change
+      expect(parseFloat(fromBn(strikePrice, stableDecimals))).to.be.closeTo(
+        1.0179991190380546,
+        1e-6
+      );
+    });
+    it("correctly get next strike price - check sigma direction", async function () {
+      let strikePrice1 = await manager.getNextStrikePrice(
+        1000,
+        8000,
+        604800,
+        stableDecimals
+      );
+      let strikePrice2 = await manager.getNextStrikePrice(
+        1000,
+        1000,
+        604800,
+        stableDecimals
+      );
+      // Higher sigma = higher next strike price
+      expect(
+        parseFloat(fromBn(strikePrice1, stableDecimals))
+      ).to.be.greaterThan(parseFloat(fromBn(strikePrice2, stableDecimals)));
     });
     /**
      * @notice Checks getNextStrikePrice works with a different
@@ -197,22 +302,28 @@ describe("ParetoManager contract", function () {
       aggregatorV3.setLatestAnswer(
         parseWei("3.14", await aggregatorV3.decimals()).raw
       );
-      let strikeMultiplier = await manager.strikeMultiplier();
       let spotPrice = await manager.getRiskyToStablePrice();
-      let expected = fromBn(
-        strikeMultiplier.mul(spotPrice),
-        2 + stableDecimals
+      let strikePrice = await manager.getNextStrikePrice(
+        2000,
+        8000,
+        604800,
+        stableDecimals
       );
-      expect(
-        parseFloat(fromBn(await manager.getNextStrikePrice(), stableDecimals))
-      ).to.be.closeTo(parseFloat(expected), 0.0001);
+      expect(parseFloat(fromBn(strikePrice, stableDecimals))).to.be.greaterThan(
+        parseFloat(fromBn(spotPrice, stableDecimals))
+      );
+      // Hardcoded answer from previous run -- should not change
+      expect(parseFloat(fromBn(strikePrice, stableDecimals))).to.be.closeTo(
+        0.3517299654273167,
+        1e-6
+      );
     });
     /**
      * @notice Checks fetching the volatility for next round
      * @dev This is currently hardcoded to return 0.8
      */
-    it("correctly get next volatility", async function () {
-      expect(fromBn(await manager.getNextVolatility(), 4)).to.be.equal("0.8");
+    it("correctly get next sigma", async function () {
+      expect(fromBn(await manager.getNextSigma(), 4)).to.be.equal("0.8");
     });
     /**
      * @notice Checks fetching the gamma for next round
@@ -220,13 +331,6 @@ describe("ParetoManager contract", function () {
      */
     it("correctly get next gamma", async function () {
       expect(fromBn(await manager.getNextGamma(), 4)).to.be.equal("0.95");
-    });
-    /**
-     * @notice Check that setting the strike multiplier works.
-     */
-    it("correctly set strike multiplier", async function () {
-      await manager.setStrikeMultiplier(200);
-      expect(await manager.strikeMultiplier()).to.be.equal("200");
     });
     /**
      * @notice Check that invalid strike multipliers are blocked
@@ -283,6 +387,67 @@ describe("ParetoManager contract", function () {
 
             /// @dev: 0.01 is a generous margin for error
             expect(parseFloat(r1)).to.be.closeTo(r2, 0.01);
+          }
+        }
+      }
+    });
+    it("correct computation of S1", async function () {
+      // The spot is at price 1
+      var strikes = [1.001, 1.01, 0.999, 0.99];
+      var sigmas = [0.3, 0.5, 0.7, 0.9];
+      var tauInSeconds = [
+        3600, // one hour
+        86400, // one day
+        604800, // one week
+      ];
+      let invariant = 0;
+      let strike: string;
+      let sigma: string;
+      let r1: string;
+      let s1: string;
+
+      for (var i = 0; i < strikes.length; i++) {
+        for (var j = 0; j < sigmas.length; j++) {
+          for (var k = 0; k < tauInSeconds.length; k++) {
+            strike = toBn(strikes[i].toString(), 18).toString();
+            sigma = toBn(sigmas[j].toString(), 4).toString();
+            r1 = fromBn(
+              await manager.getRiskyPerLp(
+                toBn("1", stableDecimals).toString(),
+                strike,
+                sigma,
+                tauInSeconds[k],
+                riskyDecimals,
+                stableDecimals
+              ),
+              riskyDecimals
+            );
+            s1 = fromBn(
+              await manager.getStablePerLp(
+                invariant,
+                toBn(r1, riskyDecimals).toString(),
+                strike,
+                sigma,
+                tauInSeconds[k],
+                riskyDecimals,
+                stableDecimals
+              ),
+              stableDecimals
+            );
+            let tau = tauInSeconds[k] / 31536000;
+            let top = Math.log(1 / strikes[i]) + (tau * sigmas[j] ** 2) / 2;
+            let bot = sigmas[j] * Math.sqrt(tau);
+            let d1 = top / bot;
+            let r2 = 1 - normalCDF(d1, 0, 1);
+            r2 = Math.max(Math.min(r2, 0.99), 0.01);
+
+            let s2 =
+              strikes[i] * normalCDF(ppf(1 - r2) - bot, 0, 1) + invariant;
+            s2 = Math.max(Math.min(s2, 0.99), 0.01);
+
+            /// @dev: 0.01 is a generous margin for error
+            expect(parseFloat(r1)).to.be.closeTo(r2, 0.01);
+            expect(parseFloat(s1)).to.be.closeTo(s2, 0.01);
           }
         }
       }

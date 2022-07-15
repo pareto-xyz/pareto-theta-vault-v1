@@ -33,12 +33,22 @@ interface IParetoManager {
     function getOracleDecimals() external view returns (uint8);
 
     /**
-     * @notice Computes the strike price for the next pool by a multiple of the current price.
-     *         Requires an oracle for spot price
+     * @notice Computes the strike price for the next pool by back-deriving strike
+     *         from a known delta, implied volatility, and spot price
      * @dev Uses the same decimals as the stable token
+     * @param delta Black Scholes delta
+     * @param sigma Implied volatility
+     * @param tau Time to maturity in seconds.
+     *            The conversion to years will happen within `MoreReplicationMath`
+     * @param stableDecimals Decimals for the stable asset
      * @return strikePrice Relative price of risky in stable
      */
-    function getNextStrikePrice() external view returns (uint128);
+    function getNextStrikePrice(
+        uint32 delta,
+        uint32 sigma,
+        uint256 tau,
+        uint8 stableDecimals
+    ) external view returns (uint128);
 
     /**
      * @notice Computes the volatility for the next pool
@@ -46,15 +56,22 @@ interface IParetoManager {
      *      Optimal choice is to match realized volatility in market
      * @return sigma Estimate of implied volatility
      */
-    function getNextVolatility() external pure returns (uint32);
+    function getNextSigma() external pure returns (uint32);
 
     /**
      * @notice Computes the gamma (or 1 - fee) for the next pool
-     * @dev Currently hardcoded to 0.95.
+     * @dev Currently hardcoded to 95% (or 5% fees).
      *      Choosing gamma effects the quality of replication
      * @return gamma Gamma for the next pool
      */
     function getNextGamma() external pure returns (uint32);
+
+    /**
+     * @notice Computes the Black Scholes delta value
+     * @dev Currently hardcoded to 20%. A higher value is more risky
+     * @return delta Delta for the Black-Scholes model
+     */
+    function getNextDelta() external pure returns (uint32);
 
     /**
      * @notice Computes the riskyForLp using oracle as spot price
@@ -105,7 +122,4 @@ interface IParetoManager {
 
     /// @notice Address for the stable asset
     function stable() external view returns (address);
-
-    /// @notice Multiplier for strike selection as a percentage
-    function strikeMultiplier() external view returns (uint256);
 }

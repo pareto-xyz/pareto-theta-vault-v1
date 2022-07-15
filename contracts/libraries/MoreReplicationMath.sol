@@ -93,4 +93,38 @@ library MoreReplicationMath {
         );
         return stablePerLp;
     }
+
+    /**
+     * @notice Compute strike price under Black-Scholes model given a chosen delta,
+     *         implied volatility, and spot price
+     * @param delta Desired delta when deriving strike price (written as a percentage with 4 decimals)
+     * @param spot Spot price of risky asset in stable
+     * @param sigma Implied volatility (normalized)
+     * @param tau Expiry time T minus the current time t
+     * @param scaleFactorStable Unsigned 256-bit integer scaling factor for stable e.g. 10^(18 - stable.decimals())
+     */
+    function getStrikeGivenDelta(
+        uint256 delta,
+        uint256 spot,
+        uint256 sigma,
+        uint256 tau,
+        uint256 scaleFactorStable
+    ) internal pure returns (uint256 strike) {
+        int128 strikeX64;
+        {
+            int128 deltaX64 = delta.percentageToX64();
+            int128 scoreX64 = deltaX64.getInverseCDF();
+
+            int128 tauX64 = tau.toYears(); /// @dev: Convert to years
+            int128 sigmaX64 = sigma.percentageToX64();
+            int128 volX64 = sigmaX64.mul(tauX64.sqrt());
+            int128 tauSigmaSqrX64 = tauX64.mul(sigmaX64.pow(2)).div(TWO_INT);
+            int128 logitX64 = (tauSigmaSqrX64.sub(volX64.mul(scoreX64)));
+
+            int128 spotX64 = spot.scaleToX64(scaleFactorStable);
+            strikeX64 = spotX64.mul(logitX64.exp());
+        }
+        strike = strikeX64.scaleFromX64(scaleFactorStable);
+        return strike;
+    }
 }
