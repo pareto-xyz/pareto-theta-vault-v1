@@ -46,4 +46,20 @@ contract TestMoreReplicationMath {
                 scaleFactorStable
             );
     }
+
+    function getStrikeGivenDelta(
+        uint256 delta,
+        uint256 spot,
+        uint256 sigma,
+        uint256 tau,
+        uint256 scaleFactorStable
+    ) external pure returns (uint256 strike) {
+        return MoreReplicationMath.getStrikeGivenDelta(
+            delta,
+            spot,
+            sigma,
+            tau,
+            scaleFactorStable
+        );
+    }
 }

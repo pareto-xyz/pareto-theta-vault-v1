@@ -3,7 +3,7 @@ import { Contract } from "ethers";
 import expect from "../shared/expect";
 import { normalCDF } from "../shared/utils";
 import { fromBn, toBn } from "evm-bn";
-import { ppf } from "../../scripts/utils/testUtils";
+import { fromBnToFloat, ppf } from "../../scripts/utils/testUtils";
 
 let moreReplicationMath: Contract;
 
@@ -144,6 +144,39 @@ describe("MoreReplicationMath contract", () => {
           /// @dev: 0.01 is a generous margin for error
           expect(parseFloat(r1)).to.be.closeTo(r2, 0.01);
           expect(parseFloat(s1)).to.be.closeTo(s2, 0.01);
+        }
+      }
+    }
+  });
+  it("correct computation of strike given delta", async function () {
+    var spot = 1500;
+    var deltas = [0.1, 0.3, 0.5, 0.7, 0.9];
+    var sigmas = [0.1, 0.3, 0.5, 0.7, 0.9];
+    var tauInSeconds = [
+      3600, // one hour
+      86400, // one day
+      604800, // one week
+    ];
+    let strike: number;
+    for (var i = 0; i < deltas.length; i++) {
+      for (var j = 0; j < sigmas.length; j++) {
+        for (var k = 0; k < tauInSeconds.length; k++) {
+          strike = fromBnToFloat(
+            await moreReplicationMath.getStrikeGivenDelta(
+              toBn(deltas[i].toString(), 4).toString(),
+              toBn(spot.toString(), 18).toString(),
+              toBn(sigmas[j].toString(), 4).toString(),
+              tauInSeconds[k],
+              1
+            ),
+            18
+          );
+          let tau = tauInSeconds[k] / 31536000;
+          let one = (tau * sigmas[j]**2) / 2;
+          let two = sigmas[j] * Math.sqrt(tau);
+          let strike2 = spot * Math.exp(one - two * ppf(deltas[i]));
+
+          expect(strike).to.be.closeTo(strike2, 1);
         }
       }
     }
