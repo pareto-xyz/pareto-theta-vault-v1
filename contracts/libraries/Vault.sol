@@ -49,6 +49,7 @@ library Vault {
      * @param sigma Implied volatility of the pool
      * @param maturity Timestamp when the option pool expires
      * @param gamma Gamma of the pool (1 - fee)
+     * @param delta Black-Scholes delta used to derive strike price
      * @param riskyPerLp Risky reserve per liquidity with risky decimals
      * @param stablePerLp Stable reserve per liq. with stable decimals
      * @dev The variable `RiskyPerLp` (R1) is computed as `R1 = 1 - N(d1)`.
@@ -60,6 +61,7 @@ library Vault {
         uint32 sigma;
         uint32 maturity;
         uint32 gamma;
+        uint32 delta;
         uint256 riskyPerLp;
         uint256 stablePerLp;
     }
@@ -72,14 +74,18 @@ library Vault {
      * @param manualVolatilityRound Round of a manual IV
      * @param manualGamma Manually specified fee rate
      * @param manualGammaRound Round of a manual fee rate
+     * @param manualDelta Manually specified Black-Scholes delta
+     * @param manualDeltaRound Round of a manual Black-Scholes delta
      */
     struct ManagerState {
         uint128 manualStrike;
         uint16 manualStrikeRound;
-        uint32 manualVolatility;
-        uint16 manualVolatilityRound;
+        uint32 manualSigma;
+        uint16 manualSigmaRound;
         uint32 manualGamma;
         uint16 manualGammaRound;
+        uint32 manualDelta;
+        uint16 manualDeltaRound;
     }
 
     /**

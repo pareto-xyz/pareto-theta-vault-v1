@@ -273,17 +273,24 @@ contract ParetoVault is
 
     /**
      * @notice Emitted when keeper manually sets next round's implied volatility
-     * @param volatility Implied volatility in decimals of four
+     * @param volatility Implied volatility in decimals of four (percentage)
      * @param round Current round
      */
-    event VolatilitySetEvent(uint32 volatility, uint16 round);
+    event SigmaSetEvent(uint32 volatility, uint16 round);
 
     /**
      * @notice Emitted when keeper manually sets next round's trading fee
-     * @param gamma 1-fee in decimals of four
+     * @param gamma 1-fee in decimals of four (percentage)
      * @param round Current round
      */
     event GammaSetEvent(uint32 gamma, uint16 round);
+
+    /**
+     * @notice Emitted when keeper manually sets next round's delta
+     * @param delta Black scholes delta in decimals of four (percentage)
+     * @param round Current round
+     */
+    event DeltaSetEvent(uint32 delta, uint16 round);
 
     /**
      * @notice Emitted when owner sets new yearly management fee in 6 decimals
@@ -545,13 +552,13 @@ contract ParetoVault is
      * @notice Sets the implied volatility for the next vault
      * @dev Must be a number between 0 and 1 in decimals of 4.
      *      Set only by the owner
-     * @param volatility Implied volatility of the next RMM-01 pool
+     * @param sigma Implied volatility of the next RMM-01 pool
      */
-    function setVolatility(uint32 volatility) external onlyKeeper {
-        require(volatility > 0, "!volatility");
-        emit VolatilitySetEvent(volatility, vaultState.round);
-        managerState.manualVolatility = volatility;
-        managerState.manualVolatilityRound = vaultState.round;
+    function setSigma(uint32 sigma) external onlyKeeper {
+        require(sigma > 0, "!sigma");
+        emit SigmaSetEvent(sigma, vaultState.round);
+        managerState.manualSigma = sigma;
+        managerState.manualSigmaRound = vaultState.round;
     }
 
     /**
@@ -560,10 +567,22 @@ contract ParetoVault is
      * @param gamma One minus fee for the next RMM-01 pool
      */
     function setGamma(uint32 gamma) external onlyKeeper {
-        require(gamma > 0, "!gamma");
+        require((gamma > 0) && (gamma < 10000), "!gamma");
         emit GammaSetEvent(gamma, vaultState.round);
         managerState.manualGamma = gamma;
         managerState.manualGammaRound = vaultState.round;
+    }
+
+    /**
+     * @notice Sets the delta for the next vault
+     * @dev Set only by the owner
+     * @param delta Black scholes delta 
+     */
+    function setDelta(uint32 delta) external onlyKeeper {
+        require((delta > 0) && (delta < 10000), "!delta");
+        emit DeltaSetEvent(delta, vaultState.round);
+        managerState.manualDelta = delta;
+        managerState.manualDeltaRound = vaultState.round;
     }
 
     /************************************************
@@ -951,35 +970,44 @@ contract ParetoVault is
         returns (
             bytes32 nextPoolId,
             uint128 nextStrikePrice,
-            uint32 nextVolatility,
+            uint32 nextSigma,
             uint32 nextGamma
         )
     {
         // Compute the maturity date for the next pool
         uint32 nextMaturity = _getNextMaturity(currPoolId);
+        uint256 tau = uint256(nextMaturity).sub(block.timestamp);
 
         // Manager contains logic to get params of the next pool
         IParetoManager manager = IParetoManager(vaultManager);
 
+        // Check if we manually set volatility, otherwise call manager
+        nextSigma = managerState.manualSigmaRound == vaultState.round
+            ? managerState.manualSigma
+            : manager.getNextSigma();
+        require(nextSigma > 0, "!nextSigma");
+
+        uint32 nextDelta = managerState.manualDeltaRound == vaultState.round
+            ? managerState.manualDelta
+            : manager.getNextDelta();
+        require((nextDelta > 0) && (nextDelta < 10000), "!nextDelta");
+
         // Check if we manually set strike price, otherwise call manager
         nextStrikePrice = managerState.manualStrikeRound == vaultState.round
             ? managerState.manualStrike
-            : manager.getNextStrikePrice();
+            : manager.getNextStrikePrice(
+                nextDelta,
+                nextSigma,
+                tau,
+                tokenParams.stableDecimals
+            );
         require(nextStrikePrice > 0, "!nextStrikePrice");
-
-        // Check if we manually set volatility, otherwise call manager
-        nextVolatility = managerState.manualVolatilityRound == vaultState.round
-            ? managerState.manualVolatility
-            : manager.getNextVolatility();
-        require(nextVolatility > 0, "!nextVolatility");
 
         // Check if we manually set gamma, otherwise call manager
         nextGamma = managerState.manualGammaRound == vaultState.round
             ? managerState.manualGamma
             : manager.getNextGamma();
-        require(nextGamma > 0, "!nextGamma");
-
-        uint256 tau = uint256(nextMaturity).sub(block.timestamp);
+        require((nextGamma > 0) && (nextGamma < 10000), "!nextGamma");
 
         // Fetch the oracle price - this will be used to RMM-01 initial price
         // as well as how much liquidity to swap
@@ -989,7 +1017,7 @@ contract ParetoVault is
         uint256 riskyPerLp = manager.getRiskyPerLp(
             spotAtCreation,
             nextStrikePrice,
-            nextVolatility,
+            nextSigma,
             tau,
             tokenParams.riskyDecimals,
             tokenParams.stableDecimals
@@ -1001,9 +1029,10 @@ contract ParetoVault is
         Vault.PoolParams memory nextParams = Vault.PoolParams({
             spotAtCreation: uint128(spotAtCreation),
             strike: nextStrikePrice,
-            sigma: nextVolatility,
+            sigma: nextSigma,
             maturity: nextMaturity,
             gamma: nextGamma,
+            delta: nextDelta,
             riskyPerLp: riskyPerLp,
             stablePerLp: 0 /// @dev placeholder value
         });
@@ -1019,7 +1048,7 @@ contract ParetoVault is
             ),
             riskyPerLp,
             nextStrikePrice,
-            nextVolatility,
+            nextSigma,
             tau,
             tokenParams.riskyDecimals,
             tokenParams.stableDecimals
@@ -1027,7 +1056,7 @@ contract ParetoVault is
         nextParams.stablePerLp = stablePerLp;
         poolState.nextPoolParams = nextParams;
 
-        return (nextPoolId, nextStrikePrice, nextVolatility, nextGamma);
+        return (nextPoolId, nextStrikePrice, nextSigma, nextGamma);
     }
 
     /**
