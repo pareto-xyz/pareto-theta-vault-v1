@@ -442,7 +442,9 @@ contract ParetoVault is
         );
 
         /// @dev Set initial cap to 10k risky
-        uint256 startingCap = Vault.INIT_VAULT_CAP.mul(10**tokenParams.riskyDecimals);
+        uint256 startingCap = Vault.INIT_VAULT_CAP.mul(
+            10**tokenParams.riskyDecimals
+        );
         VaultMath.assertUint128(startingCap);
         controller.capRisky = uint128(startingCap);
 
@@ -560,7 +562,7 @@ contract ParetoVault is
      */
     function setCapRisky(uint128 newCapRisky) external onlyOwner {
         require(newCapRisky > 0, "newCapRisky < 0");
-        // New cap must be at least the amount owned by vault at the moment 
+        // New cap must be at least the amount owned by vault at the moment
         /// @dev This does not include the stable tokens
         require(newCapRisky < totalRisky(), "!newCapRisky");
         emit CapSetEvent(newCapRisky, vaultState.round);
