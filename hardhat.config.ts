@@ -5,6 +5,7 @@ import "hardhat-deploy-ethers";
 import "hardhat-tracer";
 import "hardhat-dependency-compiler";
 import "@primitivefi/hardhat-dodoc";
+import "hardhat-gas-reporter";
 import "solidity-coverage";
 
 module.exports = {
