@@ -9,7 +9,7 @@ library Vault {
     /// @notice Fees are 6-decimal places. For example: 20 * 10**6 = 20%
     uint256 internal constant FEE_DECIMALS = 6;
     /// @notice Cap on the vault risky assets (without risky decimals)
-    uint256 internal constant INIT_VAULT_CAP = 10000;
+    uint256 internal constant INIT_VAULT_CAP = 10;
     /// @notice Pool fee for uniswap-v3 router
     uint24 internal constant UNI_POOL_FEE = 5000;
 
