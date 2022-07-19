@@ -88,7 +88,7 @@ library Vault {
      */
     struct Controller {
         bool pause;
-        bool pauseRound;
+        uint16 pauseRound;
         uint128 capRisky;
         uint128 strike;
         uint16 strikeRound;

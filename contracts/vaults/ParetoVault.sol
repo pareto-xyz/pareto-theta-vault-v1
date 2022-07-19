@@ -465,6 +465,17 @@ contract ParetoVault is
     }
 
     /**
+     * @notice Throws if called when vault is paused
+     */
+    modifier onlyWhenActive() {
+        require(
+            !(controller.pause && (controller.pauseRound == vaultState.round)),
+            "Vault is paused"
+        );
+        _;
+    }
+
+    /**
      * @notice Seeds vault with minimum funding for RMM-01 pool deployment.
      *         Called only by owner
      * @dev Requires approval by owner to contract of at least MIN_LIQUIDITY.
@@ -570,6 +581,25 @@ contract ParetoVault is
     }
 
     /**
+     * @notice Pauses the vault such that no additional deposits, withdrawals, deposits, or rollover can occur
+     * @dev This is a dangerous function. Caution should be used
+     */
+    function pauseVault() external onlyOwner {
+        emit PauseVaultEvent(vaultState.round);
+        controller.pause = true;
+        controller.pauseRound = vaultState.round;
+    }
+
+    /**
+     * @notice Unpauses the vault. The vault will continuing from when it was paused.
+     * @dev This is a dangerous function. Caution should be used
+     */
+    function unpauseVault() external onlyOwner {
+        emit UnpauseVaultEvent();
+        controller.pause = false;
+    }
+
+    /**
      * @notice Sets the fee to search for when routing a Uniswap trade
      * @dev Set only by the owner
      * @param newPoolFee Pool fee of the Uniswap AMM used to route swaps of risky and stable tokens
@@ -638,7 +668,11 @@ contract ParetoVault is
      * @dev Writing 1 makes subsequent writes warm, reducing the gas from 20k to 5k
      * @param numRounds Number of rounds to initialize in the map
      */
-    function initRounds(uint256 numRounds) external nonReentrant {
+    function initRounds(uint256 numRounds)
+        external
+        onlyWhenActive
+        nonReentrant
+    {
         require(numRounds > 0, "!numRounds");
         uint256 _round = vaultState.round;
         for (uint256 i = 0; i < numRounds; i++) {
@@ -657,9 +691,13 @@ contract ParetoVault is
      * @dev Emits `DepositEvent`
      * @param riskyAmount Amount of risky asset to deposit
      */
-    function deposit(uint256 riskyAmount) external override nonReentrant {
+    function deposit(uint256 riskyAmount)
+        external
+        override
+        onlyWhenActive
+        nonReentrant
+    {
         require(riskyAmount > 0, "!riskyAmount");
-
         _processDeposit(riskyAmount, msg.sender);
         emit DepositEvent(msg.sender, riskyAmount, vaultState.round);
 
@@ -678,7 +716,12 @@ contract ParetoVault is
      * @dev Emits `WithdrawRequestEvent`
      * @param shares Number of shares to withdraw
      */
-    function requestWithdraw(uint256 shares) external override nonReentrant {
+    function requestWithdraw(uint256 shares)
+        external
+        override
+        onlyWhenActive
+        nonReentrant
+    {
         _requestWithdraw(shares);
 
         // Update global variable caching shares queued for withdrawal
@@ -694,7 +737,7 @@ contract ParetoVault is
      * @dev Emits `WithdrawCompleteEvent`.
      *      Burns receipts, and transfers tokens to `msg.sender`
      */
-    function completeWithdraw() external override nonReentrant {
+    function completeWithdraw() external override onlyWhenActive nonReentrant {
         (uint256 riskyWithdrawn, uint256 stableWithdrawn) = _completeWithdraw();
 
         // Update globals caching withdrawal amounts from last round
@@ -712,7 +755,7 @@ contract ParetoVault is
      * @dev Emits `DeployVaultEvent`.
      *      This is the first function to be called when starting a new vault round
      */
-    function deployVault() external onlyKeeper nonReentrant {
+    function deployVault() external onlyWhenActive onlyKeeper nonReentrant {
         bytes32 currPoolId = poolState.currPoolId;
 
         (
@@ -779,7 +822,7 @@ contract ParetoVault is
      * @dev Pending assets get converted into locked assets.
      *      The round is complete after this call, at which the round is incremented
      */
-    function rollover() external onlyKeeper nonReentrant {
+    function rollover() external onlyWhenActive onlyKeeper nonReentrant {
         (
             bytes32 newPoolId,
             uint256 idealLockedRisky,
