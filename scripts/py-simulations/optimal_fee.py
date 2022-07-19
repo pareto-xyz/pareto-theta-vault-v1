@@ -29,12 +29,12 @@ STRIKE = 2000
 # *for example if the strike priced is K, a parameter of 0.8 will
 # start the simulation with an initial price of 0.8*K
 
-min_vol = 0.5
-max_vol = 2.0
+min_vol = 0.50
+max_vol = 2.00
 min_drift = 1
 max_drift = 1
-min_distance = 0.5
-max_distance = 2.0
+min_distance = 0.50
+max_distance = 0.95
 N_vol = 20
 N_drift = 1
 N_distance = 20
@@ -50,12 +50,30 @@ optimal_fee_array = [
     ] for i in range(len(parameters[0]))
 ]
 
+def save_results(parameters, optimal_fee_array):
+    data = {}
+    data['parameters'] = [
+        parameters[0].tolist(),
+        parameters[1].tolist(),
+        parameters[2].tolist(),
+    ]
+    data['optimal_fees'] = optimal_fee_array
+    now = datetime.now()
+    dt_string = now.strftime("%d-%m-%Y_%H-%M-%S")
+    filename = 'optimization_results_'+ dt_string + '.dat'
+    Path('optimization_results').mkdir(parents=True, exist_ok=True)
+
+    with open('optimization_results/'+filename, 'w+') as f:
+        json.dump(data, f)
+
+
 start = time.time()
 pbar = tqdm(
     total=len(parameters[0])*len(parameters[1])*len(parameters[2]),
     position=0,
     leave=True,
 )
+count = 0
 for i in range(len(parameters[0])): 
     for j in range(len(parameters[1])):
         for m in range(len(parameters[2])):
@@ -82,20 +100,10 @@ for i in range(len(parameters[0])):
                 'fee': optimal_fee,
                 'time': time.time() - start,
             })
+            count += 1
+            if count % 10 == 0:
+                # save results as you go
+                save_results(parameters, optimal_fee_array)
             pbar.update()
 pbar.close()
 
-data = {}
-data['parameters'] = [
-    parameters[0].tolist(),
-    parameters[1].tolist(),
-    parameters[2].tolist(),
-]
-data['optimal_fees'] = optimal_fee_array
-now = datetime.now()
-dt_string = now.strftime("%d-%m-%Y_%H-%M-%S")
-filename = 'optimization_results_'+ dt_string + '.dat'
-Path('optimization_results').mkdir(parents=True, exist_ok=True)
-
-with open('optimization_results/'+filename, 'w+') as f:
-    json.dump(data, f)
