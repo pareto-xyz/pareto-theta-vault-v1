@@ -6,3 +6,4 @@ source env/bin/activate;
 pip install numpy;
 pip install cvxpy;
 pip install tqdm;
+pip install joblib;

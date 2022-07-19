@@ -3,13 +3,15 @@ Contains the necessary AMM logic.
 """
 
 import math
+import warnings
 from math import inf
 import scipy
 from scipy.stats import norm
-from scipy import optimize
 import numpy as np
 
-from modules.utils import nonnegative, quantilePrime, blackScholesCoveredCallSpotPrice
+warnings.filterwarnings("ignore")
+
+from .utils import nonnegative, quantilePrime, blackScholesCoveredCallSpotPrice
 
 EPSILON = 1e-8
 

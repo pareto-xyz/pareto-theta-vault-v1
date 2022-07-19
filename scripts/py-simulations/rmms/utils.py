@@ -50,14 +50,14 @@ def getRiskyReservesGivenSpotPrice(S, K, sigma, tau):
     Given some spot price S, get the risky reserves corresponding to that spot price by solving
     S = -y' = -f'(x) for x. Only useful in the no-fee case.
     """
-
     def func(x):
         return S - blackScholesCoveredCallSpotPrice(x, K, sigma, tau)
 
     if S > K:
-        sol, r = newton(func, 0.01, maxiter=100, disp=False, full_output=True)
+        _, r = newton(func, 0.01, maxiter=100, disp=False, full_output=True)
     else:
-        sol, r = newton(func, 0.5, maxiter=100, disp=False, full_output=True)
+        _, r = newton(func, 0.5, maxiter=100, disp=False, full_output=True)
+
     reserves_risky = r.root
     # The reserves almost don't change anymore at the boundaries, so if we haven't
     # converged, we return what we logically know to be very close to the actual 
@@ -94,7 +94,8 @@ def getRisklessGivenRisky(risky, K, sigma, tau):
 
 def generateGBM(T, mu, sigma, S0, dt):
     """
-    Generate a geometric brownian motion time series. Shamelessly copy pasted from here: https://stackoverflow.com/a/13203189
+    Generate a geometric brownian motion time series. 
+    Shamelessly copy pasted from here: https://stackoverflow.com/a/13203189
 
     Params:
 
@@ -112,7 +113,7 @@ def generateGBM(T, mu, sigma, S0, dt):
     N = round(T / dt)
     t = np.linspace(0, T, N)
     W = np.random.standard_normal(size=N)
-    W = np.cumsum(W) * np.sqrt(dt)  ### standard brownian motion ###
+    W = np.cumsum(W) * np.sqrt(dt)  # standard brownian motion
     X = (mu - 0.5 * sigma ** 2) * t + sigma * W
-    S = S0 * np.exp(X)  ### geometric brownian motion ###
+    S = S0 * np.exp(X)  # geometric brownian motion
     return t, S

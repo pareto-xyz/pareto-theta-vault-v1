@@ -4,8 +4,8 @@ Functions used to run an actual simulation
 
 import numpy as np 
 
-from modules.arb import arbitrageExactly
-from modules.utils import getRiskyGivenSpotPriceWithDelta, getRiskyReservesGivenSpotPrice, getRisklessGivenRisky
+from .arb import arbitrageExactly
+from .utils import getRiskyGivenSpotPriceWithDelta, getRisklessGivenRisky
 
 
 def simulate(Pool, t, gbm):

@@ -172,7 +172,7 @@ describe("MoreReplicationMath contract", () => {
             18
           );
           let tau = tauInSeconds[k] / 31536000;
-          let one = (tau * sigmas[j]**2) / 2;
+          let one = (tau * sigmas[j] ** 2) / 2;
           let two = sigmas[j] * Math.sqrt(tau);
           let strike2 = spot * Math.exp(one - two * ppf(deltas[i]));
 
