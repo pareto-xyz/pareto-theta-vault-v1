@@ -276,7 +276,7 @@ contract ParetoVault is
      * @param capRisky Maximum amount of risky token held by vault (in risky decimals)
      * @param round Round when the cap was set
      */
-    event CapSetEvent(int128 capRisky, uint16 round);
+    event CapSetEvent(uint128 capRisky, uint16 round);
 
     /**
      * @notice Pause vault operations and user flow
@@ -424,18 +424,20 @@ contract ParetoVault is
         primitiveParams.factory = _primitiveFactory;
         primitiveParams.decimals = 18;
         uniswapParams.router = _uniswapRouter;
-        /// @dev we may not want this to be a constant
-        uniswapParams.poolFee = 3000;
+
+        uniswapParams.poolFee = 5000;
         tokenParams.risky = _risky;
         tokenParams.stable = _stable;
         tokenParams.riskyDecimals = IERC20(_risky).decimals();
         tokenParams.stableDecimals = IERC20(_stable).decimals();
         performanceFee = _performanceFee;
+
         // Compute management to charge per week by yearly amount
         /// @dev Dividing by 52142857 means we need to multiply 10**6
         managementFee = _managementFee.mul(10**Vault.FEE_DECIMALS).div(
             WEEKS_PER_YEAR
         );
+
         // Approval for manager to transfer tokens
         IERC20(_risky).safeIncreaseAllowance(
             _primitiveManager,
@@ -445,6 +447,15 @@ contract ParetoVault is
             _primitiveManager,
             type(uint256).max
         );
+    
+        // Set default safety parameters
+        vaultSafety.pause = false;
+
+        /// @dev Set initial cap to 10k risky
+        uint256 startingCap = Vault.INIT_VAULT_CAP.mul(10**tokenParams.riskyDecimals);
+        VaultMath.assertUint128(startingCap);
+        vaultSafety.capRisky = uint128(startingCap);
+
         // Initialize round
         vaultState.round = 1;
     }
@@ -554,6 +565,19 @@ contract ParetoVault is
     }
 
     /**
+     * @notice Sets the cap on vault liquidity
+     * @dev Set only by the owner
+     */
+    function setCapRisky(uint128 newCapRisky) external onlyOwner {
+        require(newCapRisky > 0, "newCapRisky < 0");
+        // New cap must be at least the amount owned by vault at the moment 
+        /// @dev This does not include the stable tokens
+        require(require(newCapRisky < totalRisky(), "!newCapRisky");.add(riskyAmount) > vaultSafety.cap, "Deposit exceeds cap");
+        emit CapSetEvent(newCapRisky, vaultState.round);
+        vaultSafety.capRisky = newCapRisky;
+    }
+
+    /**
      * @notice Sets the fee to search for when routing a Uniswap trade
      * @dev Set only by the owner
      * @param newPoolFee Pool fee of the Uniswap AMM used to route swaps of risky and stable tokens
@@ -644,8 +668,8 @@ contract ParetoVault is
     function deposit(uint256 riskyAmount) external override nonReentrant {
         require(riskyAmount > 0, "!riskyAmount");
 
-        emit DepositEvent(msg.sender, riskyAmount, vaultState.round);
         _processDeposit(riskyAmount, msg.sender);
+        emit DepositEvent(msg.sender, riskyAmount, vaultState.round);
 
         // Make transfers from tx caller to contract
         IERC20(tokenParams.risky).safeTransferFrom(
@@ -843,6 +867,12 @@ contract ParetoVault is
      */
     function _processDeposit(uint256 riskyAmount, address creditor) internal {
         uint16 currRound = vaultState.round;
+
+        // Check deposit is below cap
+        require(
+            totalRisky().add(riskyAmount) > vaultSafety.cap,
+            "Vault exceeds cap"
+        );
 
         // Find cached receipt for user if already deposited in a previous round
         Vault.DepositReceipt memory receipt = depositReceipts[creditor];
@@ -1704,7 +1734,7 @@ contract ParetoVault is
      * @notice Returns vault's balance of risky assets, including amounts locked in pools
      * @return riskyAmount Amount of risky asset used or owned by the contract
      */
-    function totalRisky() public view returns (uint256) {
+    require(function totalRisky() public view returns (uint256) {.add(riskyAmount) > vaultSafety.cap, "Deposit exceeds cap");
         return
             uint256(vaultState.lockedRisky).add(
                 IERC20(tokenParams.risky).balanceOf(address(this))
