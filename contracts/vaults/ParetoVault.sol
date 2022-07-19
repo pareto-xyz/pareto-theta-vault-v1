@@ -564,7 +564,7 @@ contract ParetoVault is
         require(newCapRisky > 0, "newCapRisky < 0");
         // New cap must be at least the amount owned by vault at the moment
         /// @dev This does not include the stable tokens
-        require(newCapRisky < totalRisky(), "!newCapRisky");
+        require(newCapRisky > totalRisky(), "!newCapRisky");
         emit CapSetEvent(newCapRisky, vaultState.round);
         controller.capRisky = newCapRisky;
     }
@@ -862,7 +862,7 @@ contract ParetoVault is
 
         // Check deposit is below cap
         require(
-            totalRisky().add(riskyAmount) > controller.capRisky,
+            totalRisky().add(riskyAmount) < controller.capRisky,
             "Vault exceeds cap"
         );
 

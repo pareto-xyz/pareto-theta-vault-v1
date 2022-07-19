@@ -195,30 +195,20 @@ runTest("ParetoVault", function () {
      *  properly initialized
      */
     it("correct default manager state", async function () {
-      let managerState = await vault.managerState();
-      expect(fromBn(managerState.manualStrike, stableDecimals)).to.be.equal(
-        "0"
-      );
-      expect(fromBn(managerState.manualSigma, 4)).to.be.equal("0");
+      let managerState = await vault.controller();
+      expect(fromBn(managerState.strike, stableDecimals)).to.be.equal("0");
+      expect(fromBn(managerState.sigma, 4)).to.be.equal("0");
       // Sigma must be in [0, 1]
-      expect(
-        fromBnToFloat(managerState.manualSigma, 4)
-      ).to.be.greaterThanOrEqual(0);
-      expect(fromBnToFloat(managerState.manualSigma, 4)).to.be.lessThanOrEqual(
-        1
-      );
+      expect(fromBnToFloat(managerState.sigma, 4)).to.be.greaterThanOrEqual(0);
+      expect(fromBnToFloat(managerState.sigma, 4)).to.be.lessThanOrEqual(1);
       // Gamma (1 - fee) must be in [0, 1]
-      expect(fromBn(managerState.manualGamma, 4)).to.be.equal("0");
-      expect(
-        fromBnToFloat(managerState.manualGamma, 4)
-      ).to.be.greaterThanOrEqual(0);
-      expect(fromBnToFloat(managerState.manualGamma, 4)).to.be.lessThanOrEqual(
-        1
-      );
+      expect(fromBn(managerState.gamma, 4)).to.be.equal("0");
+      expect(fromBnToFloat(managerState.gamma, 4)).to.be.greaterThanOrEqual(0);
+      expect(fromBnToFloat(managerState.gamma, 4)).to.be.lessThanOrEqual(1);
       // Rounds are initialized to zero
-      expect(managerState.manualStrikeRound).to.be.equal(0);
-      expect(managerState.manualSigmaRound).to.be.equal(0);
-      expect(managerState.manualGammaRound).to.be.equal(0);
+      expect(managerState.strikeRound).to.be.equal(0);
+      expect(managerState.sigmaRound).to.be.equal(0);
+      expect(managerState.gammaRound).to.be.equal(0);
     });
     /**
      * @notice Check contract has zero risky and zero stable tokens
@@ -252,6 +242,36 @@ runTest("ParetoVault", function () {
       await vault.setKeeper(this.wallets.alice.address);
       expect(await vault.keeper()).to.be.equal(this.wallets.alice.address);
     });
+    it("check user cannot set keeper", async function () {
+      try {
+        await vault
+          .connect(this.wallets.alice)
+          .setKeeper(this.wallets.alice.address);
+        expect(false);
+      } catch (err) {
+        expect(err.message).to.include("Ownable: caller is not the owner");
+      }
+    });
+    it("check current keeper cannot set keeper", async function () {
+      try {
+        await vault
+          .connect(this.wallets.keeper)
+          .setKeeper(this.wallets.alice.address);
+        expect(false);
+      } catch (err) {
+        expect(err.message).to.include("Ownable: caller is not the owner");
+      }
+    });
+    it("check fee recipient cannot set keeper", async function () {
+      try {
+        await vault
+          .connect(this.wallets.feeRecipient)
+          .setKeeper(this.wallets.alice.address);
+        expect(false);
+      } catch (err) {
+        expect(err.message).to.include("Ownable: caller is not the owner");
+      }
+    });
     it("correctly set fee recipient", async function () {
       expect(await vault.feeRecipient()).to.be.equal(
         this.wallets.feeRecipient.address
@@ -261,6 +281,36 @@ runTest("ParetoVault", function () {
         this.wallets.alice.address
       );
     });
+    it("check user cannot set fee recipient", async function () {
+      try {
+        await vault
+          .connect(this.wallets.alice)
+          .setFeeRecipient(this.wallets.alice.address);
+        expect(false);
+      } catch (err) {
+        expect(err.message).to.include("Ownable: caller is not the owner");
+      }
+    });
+    it("check keeper cannot set fee recipient", async function () {
+      try {
+        await vault
+          .connect(this.wallets.keeper)
+          .setFeeRecipient(this.wallets.alice.address);
+        expect(false);
+      } catch (err) {
+        expect(err.message).to.include("Ownable: caller is not the owner");
+      }
+    });
+    it("check current fee recipient cannot set fee recipient", async function () {
+      try {
+        await vault
+          .connect(this.wallets.feeRecipient)
+          .setFeeRecipient(this.wallets.alice.address);
+        expect(false);
+      } catch (err) {
+        expect(err.message).to.include("Ownable: caller is not the owner");
+      }
+    });
     it("correctly set management fee", async function () {
       let expectedFee = 30 / 52.142857;
       await vault.setManagementFee(300000);
@@ -269,15 +319,104 @@ runTest("ParetoVault", function () {
         0.001
       );
     });
+    it("check user cannot set management fee", async function () {
+      try {
+        await vault.connect(this.wallets.alice).setManagementFee(300000);
+        expect(false);
+      } catch (err) {
+        expect(err.message).to.include("Ownable: caller is not the owner");
+      }
+    });
+    it("check keeper cannot set management fee", async function () {
+      try {
+        await vault.connect(this.wallets.keeper).setManagementFee(300000);
+        expect(false);
+      } catch (err) {
+        expect(err.message).to.include("Ownable: caller is not the owner");
+      }
+    });
+    it("check fee recipient cannot set management fee", async function () {
+      try {
+        await vault.connect(this.wallets.feeRecipient).setManagementFee(300000);
+        expect(false);
+      } catch (err) {
+        expect(err.message).to.include("Ownable: caller is not the owner");
+      }
+    });
     it("correctly set performance fee", async function () {
       await vault.setPerformanceFee(30000);
       expect(fromBn(await vault.performanceFee(), 4)).to.be.equal("3");
+    });
+    it("check user cannot set performance fee", async function () {
+      try {
+        await vault.connect(this.wallets.alice).setPerformanceFee(300000);
+        expect(false);
+      } catch (err) {
+        expect(err.message).to.include("Ownable: caller is not the owner");
+      }
+    });
+    it("check keeper cannot set performance fee", async function () {
+      try {
+        await vault.connect(this.wallets.keeper).setPerformanceFee(300000);
+        expect(false);
+      } catch (err) {
+        expect(err.message).to.include("Ownable: caller is not the owner");
+      }
+    });
+    it("check fee recipient cannot set performance fee", async function () {
+      try {
+        await vault
+          .connect(this.wallets.feeRecipient)
+          .setPerformanceFee(300000);
+        expect(false);
+      } catch (err) {
+        expect(err.message).to.include("Ownable: caller is not the owner");
+      }
     });
     it("correctly set vault manager", async function () {
       await vault.setVaultManager(this.wallets.deployer.address);
       expect(await vault.vaultManager()).to.be.equal(
         this.wallets.deployer.address
       );
+    });
+    it("correct default vault cap", async function () {
+      let controller = await vault.controller();
+      expect(controller.capRisky).to.be.equal(toBn("10000", riskyDecimals));
+    });
+    it("correctly set vault cap", async function () {
+      await vault.setCapRisky(toBn("1000", riskyDecimals));
+      let controller = await vault.controller();
+      expect(controller.capRisky).to.be.equal(toBn("1000", riskyDecimals));
+    });
+    it("check user cannot set vault cap", async function () {
+      try {
+        await vault
+          .connect(this.wallets.alice)
+          .setCapRisky(toBn("1000", riskyDecimals));
+        expect(false);
+      } catch (err) {
+        expect(err.message).to.include("Ownable: caller is not the owner");
+      }
+    });
+    it("check keeper cannot set vault cap", async function () {
+      try {
+        await vault
+          .connect(this.wallets.keeper)
+          .setCapRisky(toBn("1000", riskyDecimals));
+        expect(false);
+      } catch (err) {
+        expect(err.message).to.include("Ownable: caller is not the owner");
+      }
+    });
+    it("check feeRecipient cannot set vault cap", async function () {
+      try {
+        await vault
+          .connect(this.wallets.feeRecipient)
+          .setCapRisky(toBn("1000", riskyDecimals));
+        expect(false);
+      } catch (err) {
+        expect(err.message).to.include("Ownable: caller is not the owner");
+      }
     });
   });
 
@@ -296,23 +435,24 @@ runTest("ParetoVault", function () {
         .connect(this.wallets.keeper)
         .setStrikePrice(toBn("2", stableDecimals));
       expect(
-        fromBn((await vault.managerState()).manualStrike, stableDecimals)
+        fromBn((await vault.controller()).strike, stableDecimals)
       ).to.be.equal("2");
-      expect((await vault.managerState()).manualStrikeRound).to.be.equal(1);
+      expect((await vault.controller()).strikeRound).to.be.equal(1);
     });
     it("correctly set sigma", async function () {
       await vault.connect(this.wallets.keeper).setSigma(toBn("0.8", 4));
-      expect(fromBn((await vault.managerState()).manualSigma, 4)).to.be.equal(
-        "0.8"
-      );
-      expect((await vault.managerState()).manualSigmaRound).to.be.equal(1);
+      expect(fromBn((await vault.controller()).sigma, 4)).to.be.equal("0.8");
+      expect((await vault.controller()).sigmaRound).to.be.equal(1);
     });
     it("correctly set gamma", async function () {
       await vault.connect(this.wallets.keeper).setGamma(toBn("0.95", 4));
-      expect(fromBn((await vault.managerState()).manualGamma, 4)).to.be.equal(
-        "0.95"
-      );
-      expect((await vault.managerState()).manualGammaRound).to.be.equal(1);
+      expect(fromBn((await vault.controller()).gamma, 4)).to.be.equal("0.95");
+      expect((await vault.controller()).gammaRound).to.be.equal(1);
+    });
+    it("correctly set delta", async function () {
+      await vault.connect(this.wallets.keeper).setDelta(toBn("0.25", 4));
+      expect(fromBn((await vault.controller()).delta, 4)).to.be.equal("0.25");
+      expect((await vault.controller()).deltaRound).to.be.equal(1);
     });
   });
 
