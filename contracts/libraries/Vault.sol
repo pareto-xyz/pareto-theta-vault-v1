@@ -10,6 +10,8 @@ library Vault {
     uint256 internal constant FEE_DECIMALS = 6;
     /// @notice Cap on the vault risky assets (without risky decimals)
     uint256 internal constant INIT_VAULT_CAP = 10000;
+    /// @notice Pool fee for uniswap-v3 router
+    uint24 internal constant UNI_POOL_FEE = 5000;
 
     /**
      * @notice State of the current and next RMM-01 pool
@@ -69,39 +71,33 @@ library Vault {
     }
 
     /**
-     * @notice State used to override manager parameters for the next pool
-     * @param manualStrike Manually specified strike price
-     * @param manualStrikeRound Round of a manual strike
-     * @param manualVolatility Manually specified IV
-     * @param manualVolatilityRound Round of a manual IV
-     * @param manualGamma Manually specified fee rate
-     * @param manualGammaRound Round of a manual fee rate
-     * @param manualDelta Manually specified Black-Scholes delta
-     * @param manualDeltaRound Round of a manual Black-Scholes delta
-     */
-    struct ManagerState {
-        uint128 manualStrike;
-        uint16 manualStrikeRound;
-        uint32 manualSigma;
-        uint16 manualSigmaRound;
-        uint32 manualGamma;
-        uint16 manualGammaRound;
-        uint32 manualDelta;
-        uint16 manualDeltaRound;
-    }
-
-    /**
-     * @notice Safety parameters for maintaining the vault
-     * @dev Managed by the owner only (not the keeper)
+     * @notice State used to override and control the vault
+     * @dev Used either by the keeper or the owner
      * @param pause Pause the vault, no longer allow deposits, pool deployment, nor rollover
      * @param pauseRound Store the round at which the owner pauses the vault
      * @param capRisky Although RTVs are uncapped, a cap may be useful for initial testing.
      *                 Specified in risky decimals
+     * @param strike Manually specified strike price
+     * @param strikeRound Round of a manual strike
+     * @param sigma Manually specified IV
+     * @param sigmaRound Round of a manual IV
+     * @param gamma Manually specified fee rate
+     * @param gammaRound Round of a manual fee rate
+     * @param delta Manually specified Black-Scholes delta
+     * @param deltaRound Round of a manual Black-Scholes delta
      */
-    struct VaultSafety {
+    struct Controller {
         bool pause;
         bool pauseRound;
         uint128 capRisky;
+        uint128 strike;
+        uint16 strikeRound;
+        uint32 sigma;
+        uint16 sigmaRound;
+        uint32 gamma;
+        uint16 gammaRound;
+        uint32 delta;
+        uint16 deltaRound;
     }
 
     /**

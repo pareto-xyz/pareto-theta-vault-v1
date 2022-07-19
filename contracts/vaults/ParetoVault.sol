@@ -71,20 +71,15 @@ contract ParetoVault is
      */
     Vault.VaultState public vaultState;
 
-    /**
-     * @notice Stores information on overrides made by the owner to manage vault safety
-     * @dev Includes raising the cap and pausing the vault
-     */
-    Vault.VaultSafety public vaultSafety; 
-
     /// @notice Tracks the state of RMM-01 pool, including pool identifiers and parameters
     Vault.PoolState public poolState;
 
     /**
-     * @notice The keeper can manually specify strike price, volatility, gamma
-     * @dev The manageState saves these choices for use in `_prepareNextPool`
+     * @notice Stores keeper/owner choices that control vault behavior
+     * @dev The keeper can manually specify strike price, volatility, gamma.
+     *      The owner can manually specify the cap or pause the vault
      */
-    Vault.ManagerState public managerState;
+    Vault.Controller public controller;
 
     /// @notice Recipient of the fees charged each rollover
     address public override feeRecipient;
@@ -387,7 +382,7 @@ contract ParetoVault is
         address _stable,
         uint256 _managementFee,
         uint256 _performanceFee
-    ) ERC20(TOKEN_NAME, TOKEN_SYMBOL) {
+    ) ERC20(TOKEN_NAME, "PTHETA-V1") {
         require(_keeper != address(0), "!_keeper");
         require(_feeRecipient != address(0), "!_feeRecipient");
         require(_feeRecipient != address(0), "!_feeRecipient");
@@ -424,14 +419,12 @@ contract ParetoVault is
         primitiveParams.factory = _primitiveFactory;
         primitiveParams.decimals = 18;
         uniswapParams.router = _uniswapRouter;
-
-        uniswapParams.poolFee = 5000;
+        uniswapParams.poolFee = Vault.UNI_POOL_FEE;
         tokenParams.risky = _risky;
         tokenParams.stable = _stable;
         tokenParams.riskyDecimals = IERC20(_risky).decimals();
         tokenParams.stableDecimals = IERC20(_stable).decimals();
         performanceFee = _performanceFee;
-
         // Compute management to charge per week by yearly amount
         /// @dev Dividing by 52142857 means we need to multiply 10**6
         managementFee = _managementFee.mul(10**Vault.FEE_DECIMALS).div(
@@ -447,14 +440,11 @@ contract ParetoVault is
             _primitiveManager,
             type(uint256).max
         );
-    
-        // Set default safety parameters
-        vaultSafety.pause = false;
 
         /// @dev Set initial cap to 10k risky
         uint256 startingCap = Vault.INIT_VAULT_CAP.mul(10**tokenParams.riskyDecimals);
         VaultMath.assertUint128(startingCap);
-        vaultSafety.capRisky = uint128(startingCap);
+        controller.capRisky = uint128(startingCap);
 
         // Initialize round
         vaultState.round = 1;
@@ -574,7 +564,7 @@ contract ParetoVault is
         /// @dev This does not include the stable tokens
         require(newCapRisky < totalRisky(), "!newCapRisky");
         emit CapSetEvent(newCapRisky, vaultState.round);
-        vaultSafety.capRisky = newCapRisky;
+        controller.capRisky = newCapRisky;
     }
 
     /**
@@ -595,8 +585,8 @@ contract ParetoVault is
     function setStrikePrice(uint128 strikePrice) external onlyKeeper {
         require(strikePrice > 0, "!strikePrice");
         emit StrikePriceSetEvent(strikePrice, vaultState.round);
-        managerState.manualStrike = strikePrice;
-        managerState.manualStrikeRound = vaultState.round;
+        controller.strike = strikePrice;
+        controller.strikeRound = vaultState.round;
     }
 
     /**
@@ -608,8 +598,8 @@ contract ParetoVault is
     function setSigma(uint32 sigma) external onlyKeeper {
         require(sigma > 0, "!sigma");
         emit SigmaSetEvent(sigma, vaultState.round);
-        managerState.manualSigma = sigma;
-        managerState.manualSigmaRound = vaultState.round;
+        controller.sigma = sigma;
+        controller.sigmaRound = vaultState.round;
     }
 
     /**
@@ -620,8 +610,8 @@ contract ParetoVault is
     function setGamma(uint32 gamma) external onlyKeeper {
         require((gamma > 0) && (gamma < 10000), "!gamma");
         emit GammaSetEvent(gamma, vaultState.round);
-        managerState.manualGamma = gamma;
-        managerState.manualGammaRound = vaultState.round;
+        controller.gamma = gamma;
+        controller.gammaRound = vaultState.round;
     }
 
     /**
@@ -632,8 +622,8 @@ contract ParetoVault is
     function setDelta(uint32 delta) external onlyKeeper {
         require((delta > 0) && (delta < 10000), "!delta");
         emit DeltaSetEvent(delta, vaultState.round);
-        managerState.manualDelta = delta;
-        managerState.manualDeltaRound = vaultState.round;
+        controller.delta = delta;
+        controller.deltaRound = vaultState.round;
     }
 
     /************************************************
@@ -870,7 +860,7 @@ contract ParetoVault is
 
         // Check deposit is below cap
         require(
-            totalRisky().add(riskyAmount) > vaultSafety.capRisky,
+            totalRisky().add(riskyAmount) > controller.capRisky,
             "Vault exceeds cap"
         );
 
@@ -1038,20 +1028,20 @@ contract ParetoVault is
         // Manager contains logic to get params of the next pool
         IParetoManager manager = IParetoManager(vaultManager);
 
-        // Check if we manually set volatility, otherwise call manager
-        nextSigma = managerState.manualSigmaRound == vaultState.round
-            ? managerState.manualSigma
+        // Check if we manually set sigma, otherwise call manager
+        nextSigma = controller.sigmaRound == vaultState.round
+            ? controller.sigma
             : manager.getNextSigma();
         require(nextSigma > 0, "!nextSigma");
 
-        uint32 nextDelta = managerState.manualDeltaRound == vaultState.round
-            ? managerState.manualDelta
+        uint32 nextDelta = controller.deltaRound == vaultState.round
+            ? controller.delta
             : manager.getNextDelta();
         require((nextDelta > 0) && (nextDelta < 10000), "!nextDelta");
 
         // Check if we manually set strike price, otherwise call manager
-        nextStrikePrice = managerState.manualStrikeRound == vaultState.round
-            ? managerState.manualStrike
+        nextStrikePrice = controller.strikeRound == vaultState.round
+            ? controller.strike
             : manager.getNextStrikePrice(
                 nextDelta,
                 nextSigma,
@@ -1061,8 +1051,8 @@ contract ParetoVault is
         require(nextStrikePrice > 0, "!nextStrikePrice");
 
         // Check if we manually set gamma, otherwise call manager
-        nextGamma = managerState.manualGammaRound == vaultState.round
-            ? managerState.manualGamma
+        nextGamma = controller.gammaRound == vaultState.round
+            ? controller.gamma
             : manager.getNextGamma();
         require((nextGamma > 0) && (nextGamma < 10000), "!nextGamma");
 
