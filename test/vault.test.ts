@@ -548,6 +548,49 @@ runTest("ParetoVault", function () {
       expect(fromBn(receipt.riskyToDeposit, riskyDecimals)).to.be.equal("1500");
       expect(fromBn(receipt.ownedShares, 1)).to.be.equal("0");
     });
+    it("check cannot deposit more than default cap", async function () {
+      try {
+        await vault
+          .connect(this.wallets.alice)
+          .deposit(toBn("10000", riskyDecimals));
+        expect(false);
+      } catch (err) {
+        expect(err.message).to.include("Vault exceeds cap");
+      }
+    });
+    it("check cannot double deposit more than default cap", async function () {
+      await vault
+        .connect(this.wallets.alice)
+        .deposit(toBn("9999", riskyDecimals));
+      try {
+        await vault
+          .connect(this.wallets.alice)
+          .deposit(toBn("1", riskyDecimals));
+        expect(false);
+      } catch (err) {
+        expect(err.message).to.include("Vault exceeds cap");
+      }
+    });
+    it("check cannot over deposit with new cap", async function () {
+      await vault.setCapRisky(toBn("1000", riskyDecimals));
+      try {
+        await vault
+          .connect(this.wallets.alice)
+          .deposit(toBn("1000", riskyDecimals));
+        expect(false);
+      } catch (err) {
+        expect(err.message).to.include("Vault exceeds cap");
+      }
+    });
+    it("check cap cannot be set to be below owned assets", async function () {
+      await vault.setCapRisky(toBn("5000", riskyDecimals));
+      try {
+        await vault.setCapRisky(toBn("1000", riskyDecimals));
+        expect(false);
+      } catch (err) {
+        console.log(err.message);
+      }
+    });
   });
 
   /**
