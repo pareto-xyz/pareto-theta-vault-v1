@@ -429,6 +429,7 @@ runTest("TestParetoVault", function () {
       let poolState = await vault.poolState();
       await vault.testPrepareNextPool(poolState.currPoolId);
       poolState = await vault.poolState();
+      var currEpoch = Math.floor(Date.now() / 1000); 
       expect(
         fromBnToFloat(poolState.nextPoolParams.strike, stableDecimals)
       ).to.be.closeTo(
@@ -436,7 +437,7 @@ runTest("TestParetoVault", function () {
           await this.contracts.vaultManager.getNextStrikePrice(
             poolState.nextPoolParams.delta,
             poolState.nextPoolParams.sigma,
-            1179500,
+            poolState.nextPoolParams.maturity - currEpoch,
             stableDecimals
           ),
           stableDecimals
