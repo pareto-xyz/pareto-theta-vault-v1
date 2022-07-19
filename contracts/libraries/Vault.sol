@@ -89,6 +89,20 @@ library Vault {
     }
 
     /**
+     * @notice Safety parameters for maintaining the vault
+     * @dev Managed by the owner only (not the keeper)
+     * @param pause Pause the vault, no longer allow deposits, pool deployment, nor rollover
+     * @param pauseRound Store the round at which the owner pauses the vault
+     * @param capRisky Although RTVs are uncapped, a cap may be useful for initial testing.
+     *                 Specified in risky decimals
+     */
+    struct VaultSafety {
+        bool pause;
+        bool pauseRound;
+        uint128 capRisky;
+    }
+
+    /**
      * @notice State of the vault, containing locked and pending assets 
      *         along with assets queued for withdrawal
      * @param round Current round number

@@ -71,6 +71,12 @@ contract ParetoVault is
      */
     Vault.VaultState public vaultState;
 
+    /**
+     * @notice Stores information on overrides made by the owner to manage vault safety
+     * @dev Includes raising the cap and pausing the vault
+     */
+    Vault.VaultSafety public vaultSafety; 
+
     /// @notice Tracks the state of RMM-01 pool, including pool identifiers and parameters
     Vault.PoolState public poolState;
 
@@ -263,6 +269,27 @@ contract ParetoVault is
         uint256 optimalStable,
         address indexed keeper
     );
+
+    /**
+     * @notice Set the cap on the vault
+     * @dev Must be set by the owner
+     * @param capRisky Maximum amount of risky token held by vault (in risky decimals)
+     * @param round Round when the cap was set
+     */
+    event CapSetEvent(int128 capRisky, uint16 round);
+
+    /**
+     * @notice Pause vault operations and user flow
+     * @dev Must be set by the owner
+     * @param round Round when the vault is paused (should be current round)
+     */
+    event PauseVaultEvent(uint16 round);
+
+    /**
+     * @notice Un-pause vault operations and user flow
+     * @dev Must be set by the owner
+     */
+    event UnpauseVaultEvent();
 
     /**
      * @notice Emitted when keeper manually sets next round's strike price in stable decimals
