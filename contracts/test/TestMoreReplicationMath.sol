@@ -54,12 +54,13 @@ contract TestMoreReplicationMath {
         uint256 tau,
         uint256 scaleFactorStable
     ) external pure returns (uint256 strike) {
-        return MoreReplicationMath.getStrikeGivenDelta(
-            delta,
-            spot,
-            sigma,
-            tau,
-            scaleFactorStable
-        );
+        return
+            MoreReplicationMath.getStrikeGivenDelta(
+                delta,
+                spot,
+                sigma,
+                tau,
+                scaleFactorStable
+            );
     }
 }
