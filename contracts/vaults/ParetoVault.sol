@@ -572,7 +572,7 @@ contract ParetoVault is
         require(newCapRisky > 0, "newCapRisky < 0");
         // New cap must be at least the amount owned by vault at the moment 
         /// @dev This does not include the stable tokens
-        require(require(newCapRisky < totalRisky(), "!newCapRisky");.add(riskyAmount) > vaultSafety.cap, "Deposit exceeds cap");
+        require(newCapRisky < totalRisky(), "!newCapRisky");
         emit CapSetEvent(newCapRisky, vaultState.round);
         vaultSafety.capRisky = newCapRisky;
     }
@@ -870,7 +870,7 @@ contract ParetoVault is
 
         // Check deposit is below cap
         require(
-            totalRisky().add(riskyAmount) > vaultSafety.cap,
+            totalRisky().add(riskyAmount) > vaultSafety.capRisky,
             "Vault exceeds cap"
         );
 
@@ -1734,7 +1734,7 @@ contract ParetoVault is
      * @notice Returns vault's balance of risky assets, including amounts locked in pools
      * @return riskyAmount Amount of risky asset used or owned by the contract
      */
-    require(function totalRisky() public view returns (uint256) {.add(riskyAmount) > vaultSafety.cap, "Deposit exceeds cap");
+    function totalRisky() public view returns (uint256) {
         return
             uint256(vaultState.lockedRisky).add(
                 IERC20(tokenParams.risky).balanceOf(address(this))
