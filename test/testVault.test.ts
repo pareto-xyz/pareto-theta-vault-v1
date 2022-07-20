@@ -429,7 +429,7 @@ runTest("TestParetoVault", function () {
       let poolState = await vault.poolState();
       await vault.testPrepareNextPool(poolState.currPoolId);
       poolState = await vault.poolState();
-      var currEpoch = Math.floor(Date.now() / 1000); 
+      var currEpoch = Math.floor(Date.now() / 1000);
       expect(
         fromBnToFloat(poolState.nextPoolParams.strike, stableDecimals)
       ).to.be.closeTo(

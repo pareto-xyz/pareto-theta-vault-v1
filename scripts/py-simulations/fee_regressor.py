@@ -17,14 +17,14 @@ def main(args):
     z = np.array(optimal_fees)[:, 0, :]
 
     inputs = np.vstack([x.flatten(), y.flatten()]).T
-    targets = z.flatten()[..., np.newaxis]
+    targets = z.flatten()
 
     model = LinearRegression()
     model.fit(inputs, targets)
 
     output = {
-        'coef_': [float(v) for v in model.coef_[0]], 
-        'intercept_': float(model.intercept_[0]),
+        'coef_':model.coef_.tolist(), 
+        'intercept_': model.intercept_,
     }
     with open(args.save_file, 'w') as fp:
         json.dump(output, fp)
@@ -35,13 +35,12 @@ def main(args):
         return w1 * x[:, 0] + w2 * x[:, 1] + b
 
     preds = predictor(inputs)
-    assert np.sum(preds != model.predict(inputs)[:, 0]) == 0, \
+    assert np.sum(preds != model.predict(inputs)) == 0, \
         "Unexpected prediction"
 
-    shape = int(np.sqrt(preds.shape[0]))
-    z_preds = preds.reshape(shape, shape)
-    z_preds = np.maximum(z_preds, np.zeros_like(z_preds))
-    z_min, z_max = np.abs(z).min(), np.abs(z).max()
+    # Make a new heatmap for new predictions
+    z_preds = preds.reshape(z.shape[0], z.shape[1])
+    z_min, z_max = np.abs(z_preds).min(), np.abs(z_preds).max()
 
     c = plt.imshow(
         z_preds,
