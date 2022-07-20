@@ -77,7 +77,7 @@ contract ParetoVault is
     /**
      * @notice Stores keeper/owner choices that control vault behavior
      * @dev The keeper can manually specify strike price, volatility, gamma.
-     *      The owner can manually specify the cap or pause the vault
+     *      The owner can manually specify the cap
      */
     Vault.Controller public controller;
 
@@ -452,17 +452,6 @@ contract ParetoVault is
     }
 
     /**
-     * @notice Throws if called when vault is paused
-     */
-    modifier onlyWhenActive() {
-        require(
-            !(controller.pause && (controller.pauseRound == vaultState.round)),
-            "Vault is paused"
-        );
-        _;
-    }
-
-    /**
      * @notice Seeds vault with minimum funding for RMM-01 pool deployment.
      *         Called only by owner
      * @dev Requires approval by owner to contract of at least MIN_LIQUIDITY.
@@ -568,23 +557,6 @@ contract ParetoVault is
     }
 
     /**
-     * @notice Pauses the vault such that no additional deposits, withdrawals, deposits, or rollover can occur
-     * @dev This is a dangerous function. Caution should be used
-     */
-    function pauseVault() external onlyOwner {
-        controller.pause = true;
-        controller.pauseRound = vaultState.round;
-    }
-
-    /**
-     * @notice Unpauses the vault. The vault will continuing from when it was paused.
-     * @dev This is a dangerous function. Caution should be used
-     */
-    function unpauseVault() external onlyOwner {
-        controller.pause = false;
-    }
-
-    /**
      * @notice Sets the fee to search for when routing a Uniswap trade
      * @dev Set only by the owner
      * @param newPoolFee Pool fee of the Uniswap AMM used to route swaps of risky and stable tokens
@@ -679,7 +651,6 @@ contract ParetoVault is
         external
         override
         nonReentrant
-        onlyWhenActive
     {
         require(riskyAmount > 0, "!riskyAmount");
         _processDeposit(riskyAmount, msg.sender);
@@ -704,7 +675,6 @@ contract ParetoVault is
         external
         override
         nonReentrant
-        onlyWhenActive
     {
         _requestWithdraw(shares);
 
@@ -725,7 +695,6 @@ contract ParetoVault is
         external
         override
         nonReentrant
-        onlyWhenActive 
     {
         (uint256 riskyWithdrawn, uint256 stableWithdrawn) = _completeWithdraw();
 

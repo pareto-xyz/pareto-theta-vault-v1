@@ -73,8 +73,6 @@ library Vault {
     /**
      * @notice State used to override and control the vault
      * @dev Used either by the keeper or the owner
-     * @param pause Pause the vault, no longer allow deposits, pool deployment, nor rollover
-     * @param pauseRound Store the round at which the owner pauses the vault
      * @param capRisky Although RTVs are uncapped, a cap may be useful for initial testing.
      *                 Specified in risky decimals
      * @param strike Manually specified strike price
@@ -87,8 +85,6 @@ library Vault {
      * @param deltaRound Round of a manual Black-Scholes delta
      */
     struct Controller {
-        bool pause;
-        uint16 pauseRound;
         uint128 capRisky;
         uint128 strike;
         uint16 strikeRound;
