@@ -274,19 +274,6 @@ contract ParetoVault is
     event CapSetEvent(uint128 capRisky, uint16 round);
 
     /**
-     * @notice Pause vault operations and user flow
-     * @dev Must be set by the owner
-     * @param round Round when the vault is paused (should be current round)
-     */
-    event PauseVaultEvent(uint16 round);
-
-    /**
-     * @notice Un-pause vault operations and user flow
-     * @dev Must be set by the owner
-     */
-    event UnpauseVaultEvent();
-
-    /**
      * @notice Emitted when keeper manually sets next round's strike price in stable decimals
      * @param strikePrice Next strike price in terms of stable assets
      * @param round Current round
@@ -585,7 +572,6 @@ contract ParetoVault is
      * @dev This is a dangerous function. Caution should be used
      */
     function pauseVault() external onlyOwner {
-        emit PauseVaultEvent(vaultState.round);
         controller.pause = true;
         controller.pauseRound = vaultState.round;
     }
@@ -595,7 +581,6 @@ contract ParetoVault is
      * @dev This is a dangerous function. Caution should be used
      */
     function unpauseVault() external onlyOwner {
-        emit UnpauseVaultEvent();
         controller.pause = false;
     }
 
