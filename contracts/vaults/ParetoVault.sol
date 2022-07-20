@@ -655,7 +655,6 @@ contract ParetoVault is
      */
     function initRounds(uint256 numRounds)
         external
-        onlyWhenActive
         nonReentrant
     {
         require(numRounds > 0, "!numRounds");
@@ -679,8 +678,8 @@ contract ParetoVault is
     function deposit(uint256 riskyAmount)
         external
         override
-        onlyWhenActive
         nonReentrant
+        onlyWhenActive
     {
         require(riskyAmount > 0, "!riskyAmount");
         _processDeposit(riskyAmount, msg.sender);
@@ -704,8 +703,8 @@ contract ParetoVault is
     function requestWithdraw(uint256 shares)
         external
         override
-        onlyWhenActive
         nonReentrant
+        onlyWhenActive
     {
         _requestWithdraw(shares);
 
@@ -722,7 +721,12 @@ contract ParetoVault is
      * @dev Emits `WithdrawCompleteEvent`.
      *      Burns receipts, and transfers tokens to `msg.sender`
      */
-    function completeWithdraw() external override onlyWhenActive nonReentrant {
+    function completeWithdraw()
+        external
+        override
+        nonReentrant
+        onlyWhenActive 
+    {
         (uint256 riskyWithdrawn, uint256 stableWithdrawn) = _completeWithdraw();
 
         // Update globals caching withdrawal amounts from last round
@@ -740,7 +744,7 @@ contract ParetoVault is
      * @dev Emits `DeployVaultEvent`.
      *      This is the first function to be called when starting a new vault round
      */
-    function deployVault() external onlyWhenActive onlyKeeper nonReentrant {
+    function deployVault() external onlyKeeper nonReentrant {
         bytes32 currPoolId = poolState.currPoolId;
 
         (
@@ -807,7 +811,7 @@ contract ParetoVault is
      * @dev Pending assets get converted into locked assets.
      *      The round is complete after this call, at which the round is incremented
      */
-    function rollover() external onlyWhenActive onlyKeeper nonReentrant {
+    function rollover() external onlyKeeper nonReentrant {
         (
             bytes32 newPoolId,
             uint256 idealLockedRisky,
@@ -1342,18 +1346,29 @@ contract ParetoVault is
             lockedStable = optimalStable;
         } else if (initialRisky > optimalRisky) {
             // Case 2: trade risky for stable
-            uint256 deltaStable = _swapRiskyForStable(
+            uint256 deltaStable = UniswapRouter.swap(
+                address(this),
+                tokenParams.risky,
+                tokenParams.stable,
+                uniswapParams.poolFee,
                 initialRisky.sub(optimalRisky),
-                optimalStable.sub(initialStable)
+                optimalStable.sub(initialStable),
+                uniswapParams.router
             );
             lockedRisky = optimalRisky;
             lockedStable = initialStable.add(deltaStable);
         } else if (initialStable > optimalStable) {
             // Case 3: trade stable for risky
-            uint256 deltaRisky = _swapStableForRisky(
+            uint256 deltaRisky = UniswapRouter.swap(
+                address(this),
+                tokenParams.stable,
+                tokenParams.risky,
+                uniswapParams.poolFee,
                 initialStable.sub(optimalStable),
-                optimalRisky.sub(initialRisky)
+                optimalRisky.sub(initialRisky),
+                uniswapParams.router
             );
+
             lockedRisky = initialRisky.add(deltaRisky);
             lockedStable = optimalStable;
         }
@@ -1536,52 +1551,6 @@ contract ParetoVault is
         }
 
         return (feeInRisky, feeInStable);
-    }
-
-    /************************************************
-     * Uniswap Bindings
-     ***********************************************/
-
-    /**
-     * @notice Use `UniswapRouter` to swap risky for stable tokens
-     * @param riskyToSwap Amount of risky token to trade
-     * @param stableMinExpected Minimum amount of stable token expected from trade
-     * @return stableFromSwap Amount of stable token obtained
-     */
-    function _swapRiskyForStable(uint256 riskyToSwap, uint256 stableMinExpected)
-        internal
-        returns (uint256 stableFromSwap)
-    {
-        stableFromSwap = UniswapRouter.swap(
-            address(this),
-            tokenParams.risky,
-            tokenParams.stable,
-            uniswapParams.poolFee,
-            riskyToSwap,
-            stableMinExpected,
-            uniswapParams.router
-        );
-    }
-
-    /**
-     * @notice Use `UniswapRouter` to swap risky for stable tokens
-     * @param stableToSwap Amount of risky token traded
-     * @param riskyMinExpected Minimum amount of risky token expected from trade
-     * @return riskyFromSwap Amount of stable token obtained
-     */
-    function _swapStableForRisky(uint256 stableToSwap, uint256 riskyMinExpected)
-        internal
-        returns (uint256 riskyFromSwap)
-    {
-        riskyFromSwap = UniswapRouter.swap(
-            address(this),
-            tokenParams.stable,
-            tokenParams.risky,
-            uniswapParams.poolFee,
-            stableToSwap,
-            riskyMinExpected,
-            uniswapParams.router
-        );
     }
 
     /************************************************
