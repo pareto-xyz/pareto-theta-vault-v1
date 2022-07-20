@@ -452,5 +452,35 @@ describe("ParetoManager contract", function () {
         }
       }
     });
+    it("correct computation of S1 under minimum", async function () {
+      let s1 = fromBn(
+        await manager.getStablePerLp(
+          0,
+          toBn("0.99", riskyDecimals).toString(),
+          toBn("1.1", stableDecimals).toString(),
+          toBn("0.7", 4).toString(),
+          604800,
+          riskyDecimals,
+          stableDecimals
+        ),
+        stableDecimals
+      );
+      expect(s1).to.be.equal(0.01);
+    });
+    it("correct computation of S1 over maximum", async function () {
+      let s1 = fromBn(
+        await manager.getStablePerLp(
+          0,
+          toBn("0.01", riskyDecimals).toString(),
+          toBn("1.1", stableDecimals).toString(),
+          toBn("0.7", 4).toString(),
+          604800,
+          riskyDecimals,
+          stableDecimals
+        ),
+        stableDecimals
+      );
+      expect(s1).to.be.equal(0.99);
+    });
   });
 });
