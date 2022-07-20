@@ -75,7 +75,7 @@ runTest("ParetoVault", function () {
     it("correct default keeper address", async function () {
       expect(await vault.keeper()).to.be.equal(this.wallets.keeper.address);
     });
-    it("correct default fee receipient address", async function () {
+    it("correct default fee recipient address", async function () {
       expect(await vault.feeRecipient()).to.be.equal(
         this.wallets.feeRecipient.address
       );
@@ -102,7 +102,7 @@ runTest("ParetoVault", function () {
     });
     it("correct default uniswap fee", async function () {
       expect(fromBn((await vault.uniswapParams()).poolFee, 6)).to.be.equal(
-        "0.003"
+        "0.005"
       );
     });
     it("correct default risky address", async function () {
@@ -195,30 +195,20 @@ runTest("ParetoVault", function () {
      *  properly initialized
      */
     it("correct default manager state", async function () {
-      let managerState = await vault.managerState();
-      expect(fromBn(managerState.manualStrike, stableDecimals)).to.be.equal(
-        "0"
-      );
-      expect(fromBn(managerState.manualSigma, 4)).to.be.equal("0");
+      let managerState = await vault.controller();
+      expect(fromBn(managerState.strike, stableDecimals)).to.be.equal("0");
+      expect(fromBn(managerState.sigma, 4)).to.be.equal("0");
       // Sigma must be in [0, 1]
-      expect(
-        fromBnToFloat(managerState.manualSigma, 4)
-      ).to.be.greaterThanOrEqual(0);
-      expect(fromBnToFloat(managerState.manualSigma, 4)).to.be.lessThanOrEqual(
-        1
-      );
+      expect(fromBnToFloat(managerState.sigma, 4)).to.be.greaterThanOrEqual(0);
+      expect(fromBnToFloat(managerState.sigma, 4)).to.be.lessThanOrEqual(1);
       // Gamma (1 - fee) must be in [0, 1]
-      expect(fromBn(managerState.manualGamma, 4)).to.be.equal("0");
-      expect(
-        fromBnToFloat(managerState.manualGamma, 4)
-      ).to.be.greaterThanOrEqual(0);
-      expect(fromBnToFloat(managerState.manualGamma, 4)).to.be.lessThanOrEqual(
-        1
-      );
+      expect(fromBn(managerState.gamma, 4)).to.be.equal("0");
+      expect(fromBnToFloat(managerState.gamma, 4)).to.be.greaterThanOrEqual(0);
+      expect(fromBnToFloat(managerState.gamma, 4)).to.be.lessThanOrEqual(1);
       // Rounds are initialized to zero
-      expect(managerState.manualStrikeRound).to.be.equal(0);
-      expect(managerState.manualSigmaRound).to.be.equal(0);
-      expect(managerState.manualGammaRound).to.be.equal(0);
+      expect(managerState.strikeRound).to.be.equal(0);
+      expect(managerState.sigmaRound).to.be.equal(0);
+      expect(managerState.gammaRound).to.be.equal(0);
     });
     /**
      * @notice Check contract has zero risky and zero stable tokens
@@ -252,6 +242,36 @@ runTest("ParetoVault", function () {
       await vault.setKeeper(this.wallets.alice.address);
       expect(await vault.keeper()).to.be.equal(this.wallets.alice.address);
     });
+    it("check user cannot set keeper", async function () {
+      try {
+        await vault
+          .connect(this.wallets.alice)
+          .setKeeper(this.wallets.alice.address);
+        expect(false);
+      } catch (err) {
+        expect(err.message).to.include("Ownable: caller is not the owner");
+      }
+    });
+    it("check current keeper cannot set keeper", async function () {
+      try {
+        await vault
+          .connect(this.wallets.keeper)
+          .setKeeper(this.wallets.alice.address);
+        expect(false);
+      } catch (err) {
+        expect(err.message).to.include("Ownable: caller is not the owner");
+      }
+    });
+    it("check fee recipient cannot set keeper", async function () {
+      try {
+        await vault
+          .connect(this.wallets.feeRecipient)
+          .setKeeper(this.wallets.alice.address);
+        expect(false);
+      } catch (err) {
+        expect(err.message).to.include("Ownable: caller is not the owner");
+      }
+    });
     it("correctly set fee recipient", async function () {
       expect(await vault.feeRecipient()).to.be.equal(
         this.wallets.feeRecipient.address
@@ -261,6 +281,36 @@ runTest("ParetoVault", function () {
         this.wallets.alice.address
       );
     });
+    it("check user cannot set fee recipient", async function () {
+      try {
+        await vault
+          .connect(this.wallets.alice)
+          .setFeeRecipient(this.wallets.alice.address);
+        expect(false);
+      } catch (err) {
+        expect(err.message).to.include("Ownable: caller is not the owner");
+      }
+    });
+    it("check keeper cannot set fee recipient", async function () {
+      try {
+        await vault
+          .connect(this.wallets.keeper)
+          .setFeeRecipient(this.wallets.alice.address);
+        expect(false);
+      } catch (err) {
+        expect(err.message).to.include("Ownable: caller is not the owner");
+      }
+    });
+    it("check current fee recipient cannot set fee recipient", async function () {
+      try {
+        await vault
+          .connect(this.wallets.feeRecipient)
+          .setFeeRecipient(this.wallets.alice.address);
+        expect(false);
+      } catch (err) {
+        expect(err.message).to.include("Ownable: caller is not the owner");
+      }
+    });
     it("correctly set management fee", async function () {
       let expectedFee = 30 / 52.142857;
       await vault.setManagementFee(300000);
@@ -269,15 +319,104 @@ runTest("ParetoVault", function () {
         0.001
       );
     });
+    it("check user cannot set management fee", async function () {
+      try {
+        await vault.connect(this.wallets.alice).setManagementFee(300000);
+        expect(false);
+      } catch (err) {
+        expect(err.message).to.include("Ownable: caller is not the owner");
+      }
+    });
+    it("check keeper cannot set management fee", async function () {
+      try {
+        await vault.connect(this.wallets.keeper).setManagementFee(300000);
+        expect(false);
+      } catch (err) {
+        expect(err.message).to.include("Ownable: caller is not the owner");
+      }
+    });
+    it("check fee recipient cannot set management fee", async function () {
+      try {
+        await vault.connect(this.wallets.feeRecipient).setManagementFee(300000);
+        expect(false);
+      } catch (err) {
+        expect(err.message).to.include("Ownable: caller is not the owner");
+      }
+    });
     it("correctly set performance fee", async function () {
       await vault.setPerformanceFee(30000);
       expect(fromBn(await vault.performanceFee(), 4)).to.be.equal("3");
+    });
+    it("check user cannot set performance fee", async function () {
+      try {
+        await vault.connect(this.wallets.alice).setPerformanceFee(300000);
+        expect(false);
+      } catch (err) {
+        expect(err.message).to.include("Ownable: caller is not the owner");
+      }
+    });
+    it("check keeper cannot set performance fee", async function () {
+      try {
+        await vault.connect(this.wallets.keeper).setPerformanceFee(300000);
+        expect(false);
+      } catch (err) {
+        expect(err.message).to.include("Ownable: caller is not the owner");
+      }
+    });
+    it("check fee recipient cannot set performance fee", async function () {
+      try {
+        await vault
+          .connect(this.wallets.feeRecipient)
+          .setPerformanceFee(300000);
+        expect(false);
+      } catch (err) {
+        expect(err.message).to.include("Ownable: caller is not the owner");
+      }
     });
     it("correctly set vault manager", async function () {
       await vault.setVaultManager(this.wallets.deployer.address);
       expect(await vault.vaultManager()).to.be.equal(
         this.wallets.deployer.address
       );
+    });
+    it("correct default vault cap", async function () {
+      let controller = await vault.controller();
+      expect(controller.capRisky).to.be.equal(toBn("10", riskyDecimals));
+    });
+    it("correctly set vault cap", async function () {
+      await vault.setCapRisky(toBn("20", riskyDecimals));
+      let controller = await vault.controller();
+      expect(controller.capRisky).to.be.equal(toBn("20", riskyDecimals));
+    });
+    it("check user cannot set vault cap", async function () {
+      try {
+        await vault
+          .connect(this.wallets.alice)
+          .setCapRisky(toBn("5", riskyDecimals));
+        expect(false);
+      } catch (err) {
+        expect(err.message).to.include("Ownable: caller is not the owner");
+      }
+    });
+    it("check keeper cannot set vault cap", async function () {
+      try {
+        await vault
+          .connect(this.wallets.keeper)
+          .setCapRisky(toBn("5", riskyDecimals));
+        expect(false);
+      } catch (err) {
+        expect(err.message).to.include("Ownable: caller is not the owner");
+      }
+    });
+    it("check feeRecipient cannot set vault cap", async function () {
+      try {
+        await vault
+          .connect(this.wallets.feeRecipient)
+          .setCapRisky(toBn("5", riskyDecimals));
+        expect(false);
+      } catch (err) {
+        expect(err.message).to.include("Ownable: caller is not the owner");
+      }
     });
   });
 
@@ -296,23 +435,24 @@ runTest("ParetoVault", function () {
         .connect(this.wallets.keeper)
         .setStrikePrice(toBn("2", stableDecimals));
       expect(
-        fromBn((await vault.managerState()).manualStrike, stableDecimals)
+        fromBn((await vault.controller()).strike, stableDecimals)
       ).to.be.equal("2");
-      expect((await vault.managerState()).manualStrikeRound).to.be.equal(1);
+      expect((await vault.controller()).strikeRound).to.be.equal(1);
     });
     it("correctly set sigma", async function () {
       await vault.connect(this.wallets.keeper).setSigma(toBn("0.8", 4));
-      expect(fromBn((await vault.managerState()).manualSigma, 4)).to.be.equal(
-        "0.8"
-      );
-      expect((await vault.managerState()).manualSigmaRound).to.be.equal(1);
+      expect(fromBn((await vault.controller()).sigma, 4)).to.be.equal("0.8");
+      expect((await vault.controller()).sigmaRound).to.be.equal(1);
     });
     it("correctly set gamma", async function () {
       await vault.connect(this.wallets.keeper).setGamma(toBn("0.95", 4));
-      expect(fromBn((await vault.managerState()).manualGamma, 4)).to.be.equal(
-        "0.95"
-      );
-      expect((await vault.managerState()).manualGammaRound).to.be.equal(1);
+      expect(fromBn((await vault.controller()).gamma, 4)).to.be.equal("0.95");
+      expect((await vault.controller()).gammaRound).to.be.equal(1);
+    });
+    it("correctly set delta", async function () {
+      await vault.connect(this.wallets.keeper).setDelta(toBn("0.25", 4));
+      expect(fromBn((await vault.controller()).delta, 4)).to.be.equal("0.25");
+      expect((await vault.controller()).deltaRound).to.be.equal(1);
     });
   });
 
@@ -326,41 +466,33 @@ runTest("ParetoVault", function () {
         await this.contracts.risky.balanceOf(this.wallets.alice.address),
         riskyDecimals
       );
-      await vault
-        .connect(this.wallets.alice)
-        .deposit(toBn("1000", riskyDecimals));
-      // The vault should gain 1000
+      await vault.connect(this.wallets.alice).deposit(toBn("5", riskyDecimals));
+      // The vault should gain 5
       expect(fromBn(await vault.totalRisky(), riskyDecimals)).to.be.equal(
         // the 0.0000000000001 is from the owner's initial deposit
-        "1000.0000000000001"
+        "5.0000000000001"
       );
       let aliceEnd = fromBnToFloat(
         await this.contracts.risky.balanceOf(this.wallets.alice.address),
         riskyDecimals
       );
       // Alice should lose that amount
-      expect(aliceStart - aliceEnd).to.be.equal(1000);
+      expect(aliceStart - aliceEnd).to.be.equal(5);
     });
     it("correct change to pending risky post single deposit", async function () {
       let vaultState: any;
       vaultState = await vault.vaultState();
       expect(fromBn(vaultState.pendingRisky, riskyDecimals)).to.be.equal("0");
       // Perform the deposit
-      await vault
-        .connect(this.wallets.alice)
-        .deposit(toBn("1000", riskyDecimals));
+      await vault.connect(this.wallets.alice).deposit(toBn("5", riskyDecimals));
       vaultState = await vault.vaultState();
-      expect(fromBn(vaultState.pendingRisky, riskyDecimals)).to.be.equal(
-        "1000"
-      );
+      expect(fromBn(vaultState.pendingRisky, riskyDecimals)).to.be.equal("5");
     });
     it("correct receipt post single deposit", async function () {
-      await vault
-        .connect(this.wallets.alice)
-        .deposit(toBn("1000", riskyDecimals));
+      await vault.connect(this.wallets.alice).deposit(toBn("5", riskyDecimals));
       var receipt = await vault.depositReceipts(this.wallets.alice.address);
       expect(receipt.round).to.be.equal(1);
-      expect(fromBn(receipt.riskyToDeposit, riskyDecimals)).to.be.equal("1000");
+      expect(fromBn(receipt.riskyToDeposit, riskyDecimals)).to.be.equal("5");
       expect(fromBn(receipt.ownedShares, 1)).to.be.equal("0");
     });
     it("correct account balances post double deposit", async function () {
@@ -368,45 +500,72 @@ runTest("ParetoVault", function () {
         await this.contracts.risky.balanceOf(this.wallets.alice.address),
         riskyDecimals
       );
-      await vault
-        .connect(this.wallets.alice)
-        .deposit(toBn("1000", riskyDecimals));
-      await vault
-        .connect(this.wallets.alice)
-        .deposit(toBn("500", riskyDecimals));
+      await vault.connect(this.wallets.alice).deposit(toBn("5", riskyDecimals));
+      await vault.connect(this.wallets.alice).deposit(toBn("2", riskyDecimals));
       let aliceEnd = fromBnToFloat(
         await this.contracts.risky.balanceOf(this.wallets.alice.address),
         riskyDecimals
       );
       // Alice should lose that amount
-      expect(aliceStart - aliceEnd).to.be.equal(1500);
+      expect(aliceStart - aliceEnd).to.be.equal(7);
     });
     it("correct change to pending risky post double deposit", async function () {
       let vaultState: any;
       vaultState = await vault.vaultState();
       expect(fromBn(vaultState.pendingRisky, riskyDecimals)).to.be.equal("0");
-      await vault
-        .connect(this.wallets.alice)
-        .deposit(toBn("1000", riskyDecimals));
-      await vault
-        .connect(this.wallets.alice)
-        .deposit(toBn("500", riskyDecimals));
+      await vault.connect(this.wallets.alice).deposit(toBn("5", riskyDecimals));
+      await vault.connect(this.wallets.alice).deposit(toBn("2", riskyDecimals));
       vaultState = await vault.vaultState();
-      expect(fromBn(vaultState.pendingRisky, riskyDecimals)).to.be.equal(
-        "1500"
-      );
+      expect(fromBn(vaultState.pendingRisky, riskyDecimals)).to.be.equal("7");
     });
     it("correct receipt post double deposit", async function () {
-      await vault
-        .connect(this.wallets.alice)
-        .deposit(toBn("1000", riskyDecimals));
-      await vault
-        .connect(this.wallets.alice)
-        .deposit(toBn("500", riskyDecimals));
+      await vault.connect(this.wallets.alice).deposit(toBn("5", riskyDecimals));
+      await vault.connect(this.wallets.alice).deposit(toBn("2", riskyDecimals));
       var receipt = await vault.depositReceipts(this.wallets.alice.address);
       expect(receipt.round).to.be.equal(1);
-      expect(fromBn(receipt.riskyToDeposit, riskyDecimals)).to.be.equal("1500");
+      expect(fromBn(receipt.riskyToDeposit, riskyDecimals)).to.be.equal("7");
       expect(fromBn(receipt.ownedShares, 1)).to.be.equal("0");
+    });
+    it("check cannot deposit more than default cap", async function () {
+      try {
+        await vault
+          .connect(this.wallets.alice)
+          .deposit(toBn("20", riskyDecimals));
+        expect(false);
+      } catch (err) {
+        expect(err.message).to.include("Vault exceeds cap");
+      }
+    });
+    it("check cannot double deposit more than default cap", async function () {
+      await vault.connect(this.wallets.alice).deposit(toBn("9", riskyDecimals));
+      try {
+        await vault
+          .connect(this.wallets.alice)
+          .deposit(toBn("1", riskyDecimals));
+        expect(false);
+      } catch (err) {
+        expect(err.message).to.include("Vault exceeds cap");
+      }
+    });
+    it("check cannot over deposit with new cap", async function () {
+      await vault.setCapRisky(toBn("5", riskyDecimals));
+      try {
+        await vault
+          .connect(this.wallets.alice)
+          .deposit(toBn("5", riskyDecimals));
+        expect(false);
+      } catch (err) {
+        expect(err.message).to.include("Vault exceeds cap");
+      }
+    });
+    it("check cap cannot be set to be below owned assets", async function () {
+      await vault.setCapRisky(toBn("5", riskyDecimals));
+      try {
+        await vault.setCapRisky(toBn("1", riskyDecimals));
+        expect(false);
+      } catch (err) {
+        console.log(err.message);
+      }
     });
   });
 
@@ -436,24 +595,16 @@ runTest("ParetoVault", function () {
     });
     it("Check can deposit before deployment", async function () {
       // This is expected so we don't want on deployment to allow deposits
-      await vault
-        .connect(this.wallets.alice)
-        .deposit(toBn("1000", riskyDecimals));
+      await vault.connect(this.wallets.alice).deposit(toBn("5", riskyDecimals));
       await vault.connect(this.wallets.keeper).deployVault();
       let vaultState = await vault.vaultState();
-      expect(fromBn(vaultState.pendingRisky, riskyDecimals)).to.be.equal(
-        "1000"
-      );
+      expect(fromBn(vaultState.pendingRisky, riskyDecimals)).to.be.equal("5");
     });
     it("check can deposit after deployment", async function () {
       await vault.connect(this.wallets.keeper).deployVault();
-      await vault
-        .connect(this.wallets.alice)
-        .deposit(toBn("1000", riskyDecimals));
+      await vault.connect(this.wallets.alice).deposit(toBn("5", riskyDecimals));
       let vaultState = await vault.vaultState();
-      expect(fromBn(vaultState.pendingRisky, riskyDecimals)).to.be.equal(
-        "1000"
-      );
+      expect(fromBn(vaultState.pendingRisky, riskyDecimals)).to.be.equal("5");
     });
     it("check pool state post deployment", async function () {
       await vault.connect(this.wallets.keeper).deployVault();
@@ -516,9 +667,7 @@ runTest("ParetoVault", function () {
      */
     it("check liquidity is taken out of pool in deployment", async function () {
       // Alice makes a deposit into the vault (pending)
-      await vault
-        .connect(this.wallets.alice)
-        .deposit(toBn("1000", riskyDecimals));
+      await vault.connect(this.wallets.alice).deposit(toBn("5", riskyDecimals));
 
       // Vault is started
       await vault.connect(this.wallets.keeper).deployVault();
@@ -679,7 +828,7 @@ runTest("ParetoVault", function () {
       ).to.be.equal("1");
     });
     it("check pool state post rollover", async function () {
-      let poolState;
+      let poolState: any;
 
       // Alice deposits 1 eth
       await vault.connect(this.wallets.alice).deposit(toBn("1", riskyDecimals));
@@ -912,16 +1061,12 @@ runTest("ParetoVault", function () {
       // Keeper deploys vault
       await vault.connect(this.wallets.keeper).deployVault();
       // Alice deposits risky into vault
-      await vault
-        .connect(this.wallets.alice)
-        .deposit(toBn("1000", riskyDecimals));
+      await vault.connect(this.wallets.alice).deposit(toBn("5", riskyDecimals));
       // Vault rolls over
       await vault.connect(this.wallets.keeper).rollover();
     });
     it("check total supply of shares is non-zero", async function () {
-      expect(fromBn(await vault.totalSupply(), shareDecimals)).to.be.equal(
-        "1000"
-      );
+      expect(fromBn(await vault.totalSupply(), shareDecimals)).to.be.equal("5");
     });
     it("check new shares were minted", async function () {
       let totalSupply = fromBnToFloat(await vault.totalSupply(), shareDecimals);
@@ -949,9 +1094,7 @@ runTest("ParetoVault", function () {
 
     beforeEach(async function () {
       // Alice makes a deposit into the vault
-      await vault
-        .connect(this.wallets.alice)
-        .deposit(toBn("1000", riskyDecimals));
+      await vault.connect(this.wallets.alice).deposit(toBn("2", riskyDecimals));
 
       await vault.connect(this.wallets.keeper).deployVault();
       await vault.connect(this.wallets.keeper).rollover();
@@ -965,9 +1108,7 @@ runTest("ParetoVault", function () {
       oldLockedStable = fromBn(vaultState.lockedStable, stableDecimals);
 
       // Alice makes a larger deposit into the vault
-      await vault
-        .connect(this.wallets.alice)
-        .deposit(toBn("2000", riskyDecimals));
+      await vault.connect(this.wallets.alice).deposit(toBn("5", riskyDecimals));
 
       await vault.connect(this.wallets.keeper).deployVault();
 
@@ -1083,9 +1224,7 @@ runTest("ParetoVault", function () {
   describe("check fee computation in vault success", function () {
     beforeEach(async function () {
       // Alice makes a deposit into the vault
-      await vault
-        .connect(this.wallets.alice)
-        .deposit(toBn("1000", riskyDecimals));
+      await vault.connect(this.wallets.alice).deposit(toBn("5", riskyDecimals));
 
       // Vault is started
       await vault.connect(this.wallets.keeper).deployVault();
@@ -1097,11 +1236,8 @@ runTest("ParetoVault", function () {
         parseWei("0.95", oracleDecimals).raw
       );
 
-      /// @dev Simulate OTM by minting a "premium" (e.g. 10%)
-      await this.contracts.risky.mint(
-        vault.address,
-        toBn("100", riskyDecimals)
-      );
+      /// @dev Simulate OTM by minting a "premium"
+      await this.contracts.risky.mint(vault.address, toBn("1", riskyDecimals));
 
       // deploy vault removes liquidity from old one
       await vault.connect(this.wallets.keeper).deployVault();
@@ -1231,9 +1367,7 @@ runTest("ParetoVault", function () {
       expect(fromBn(stableBalance, stableDecimals)).to.be.equal("0");
     });
     it("check account shares after rollover", async function () {
-      await vault
-        .connect(this.wallets.alice)
-        .deposit(toBn("1000", riskyDecimals));
+      await vault.connect(this.wallets.alice).deposit(toBn("5", riskyDecimals));
 
       await vault.connect(this.wallets.keeper).deployVault();
       await vault.connect(this.wallets.keeper).rollover();
@@ -1246,9 +1380,7 @@ runTest("ParetoVault", function () {
         this.wallets.alice.address
       );
 
-      await vault
-        .connect(this.wallets.alice)
-        .deposit(toBn("1000", riskyDecimals));
+      await vault.connect(this.wallets.alice).deposit(toBn("5", riskyDecimals));
 
       await vault.connect(this.wallets.keeper).deployVault();
       await vault.connect(this.wallets.keeper).rollover();
@@ -1268,9 +1400,7 @@ runTest("ParetoVault", function () {
   describe("check user withdraw", function () {
     beforeEach(async function () {
       // Alice makes a deposit into the vault
-      await vault
-        .connect(this.wallets.alice)
-        .deposit(toBn("1000", riskyDecimals));
+      await vault.connect(this.wallets.alice).deposit(toBn("5", riskyDecimals));
 
       // Vault is started
       await vault.connect(this.wallets.keeper).deployVault();
@@ -1292,7 +1422,7 @@ runTest("ParetoVault", function () {
       let vaultState = await vault.vaultState();
       expect(
         fromBn(vaultState.currQueuedWithdrawShares, shareDecimals)
-      ).to.be.equal("1000");
+      ).to.be.equal("5");
 
       // Check pending withdraws are updated
       let pendingWithdraw = await vault.pendingWithdraw(

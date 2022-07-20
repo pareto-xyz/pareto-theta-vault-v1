@@ -75,10 +75,11 @@ contract ParetoVault is
     Vault.PoolState public poolState;
 
     /**
-     * @notice The keeper can manually specify strike price, volatility, gamma
-     * @dev The manageState saves these choices for use in `_prepareNextPool`
+     * @notice Stores keeper/owner choices that control vault behavior
+     * @dev The keeper can manually specify strike price, volatility, gamma.
+     *      The owner can manually specify the cap
      */
-    Vault.ManagerState public managerState;
+    Vault.Controller public controller;
 
     /// @notice Recipient of the fees charged each rollover
     address public override feeRecipient;
@@ -265,6 +266,14 @@ contract ParetoVault is
     );
 
     /**
+     * @notice Set the cap on the vault
+     * @dev Must be set by the owner
+     * @param capRisky Maximum amount of risky token held by vault (in risky decimals)
+     * @param round Round when the cap was set
+     */
+    event CapSetEvent(uint128 capRisky, uint16 round);
+
+    /**
      * @notice Emitted when keeper manually sets next round's strike price in stable decimals
      * @param strikePrice Next strike price in terms of stable assets
      * @param round Current round
@@ -360,7 +369,7 @@ contract ParetoVault is
         address _stable,
         uint256 _managementFee,
         uint256 _performanceFee
-    ) ERC20(TOKEN_NAME, TOKEN_SYMBOL) {
+    ) ERC20(TOKEN_NAME, "PTHETA-V1") {
         require(_keeper != address(0), "!_keeper");
         require(_feeRecipient != address(0), "!_feeRecipient");
         require(_feeRecipient != address(0), "!_feeRecipient");
@@ -397,8 +406,7 @@ contract ParetoVault is
         primitiveParams.factory = _primitiveFactory;
         primitiveParams.decimals = 18;
         uniswapParams.router = _uniswapRouter;
-        /// @dev we may not want this to be a constant
-        uniswapParams.poolFee = 3000;
+        uniswapParams.poolFee = Vault.UNI_POOL_FEE;
         tokenParams.risky = _risky;
         tokenParams.stable = _stable;
         tokenParams.riskyDecimals = IERC20(_risky).decimals();
@@ -409,6 +417,7 @@ contract ParetoVault is
         managementFee = _managementFee.mul(10**Vault.FEE_DECIMALS).div(
             WEEKS_PER_YEAR
         );
+
         // Approval for manager to transfer tokens
         IERC20(_risky).safeIncreaseAllowance(
             _primitiveManager,
@@ -418,6 +427,14 @@ contract ParetoVault is
             _primitiveManager,
             type(uint256).max
         );
+
+        /// @dev Set initial cap to 10k risky
+        uint256 startingCap = Vault.INIT_VAULT_CAP.mul(
+            10**tokenParams.riskyDecimals
+        );
+        VaultMath.assertUint128(startingCap);
+        controller.capRisky = uint128(startingCap);
+
         // Initialize round
         vaultState.round = 1;
     }
@@ -527,6 +544,19 @@ contract ParetoVault is
     }
 
     /**
+     * @notice Sets the cap on vault liquidity
+     * @dev Set only by the owner
+     */
+    function setCapRisky(uint128 newCapRisky) external onlyOwner {
+        require(newCapRisky > 0, "newCapRisky < 0");
+        // New cap must be at least the amount owned by vault at the moment
+        /// @dev This does not include the stable tokens
+        require(newCapRisky > totalRisky(), "!newCapRisky");
+        emit CapSetEvent(newCapRisky, vaultState.round);
+        controller.capRisky = newCapRisky;
+    }
+
+    /**
      * @notice Sets the fee to search for when routing a Uniswap trade
      * @dev Set only by the owner
      * @param newPoolFee Pool fee of the Uniswap AMM used to route swaps of risky and stable tokens
@@ -544,8 +574,8 @@ contract ParetoVault is
     function setStrikePrice(uint128 strikePrice) external onlyKeeper {
         require(strikePrice > 0, "!strikePrice");
         emit StrikePriceSetEvent(strikePrice, vaultState.round);
-        managerState.manualStrike = strikePrice;
-        managerState.manualStrikeRound = vaultState.round;
+        controller.strike = strikePrice;
+        controller.strikeRound = vaultState.round;
     }
 
     /**
@@ -557,8 +587,8 @@ contract ParetoVault is
     function setSigma(uint32 sigma) external onlyKeeper {
         require(sigma > 0, "!sigma");
         emit SigmaSetEvent(sigma, vaultState.round);
-        managerState.manualSigma = sigma;
-        managerState.manualSigmaRound = vaultState.round;
+        controller.sigma = sigma;
+        controller.sigmaRound = vaultState.round;
     }
 
     /**
@@ -569,8 +599,8 @@ contract ParetoVault is
     function setGamma(uint32 gamma) external onlyKeeper {
         require((gamma > 0) && (gamma < 10000), "!gamma");
         emit GammaSetEvent(gamma, vaultState.round);
-        managerState.manualGamma = gamma;
-        managerState.manualGammaRound = vaultState.round;
+        controller.gamma = gamma;
+        controller.gammaRound = vaultState.round;
     }
 
     /**
@@ -581,8 +611,8 @@ contract ParetoVault is
     function setDelta(uint32 delta) external onlyKeeper {
         require((delta > 0) && (delta < 10000), "!delta");
         emit DeltaSetEvent(delta, vaultState.round);
-        managerState.manualDelta = delta;
-        managerState.manualDeltaRound = vaultState.round;
+        controller.delta = delta;
+        controller.deltaRound = vaultState.round;
     }
 
     /************************************************
@@ -595,7 +625,10 @@ contract ParetoVault is
      * @dev Writing 1 makes subsequent writes warm, reducing the gas from 20k to 5k
      * @param numRounds Number of rounds to initialize in the map
      */
-    function initRounds(uint256 numRounds) external nonReentrant {
+    function initRounds(uint256 numRounds)
+        external
+        nonReentrant
+    {
         require(numRounds > 0, "!numRounds");
         uint256 _round = vaultState.round;
         for (uint256 i = 0; i < numRounds; i++) {
@@ -614,11 +647,14 @@ contract ParetoVault is
      * @dev Emits `DepositEvent`
      * @param riskyAmount Amount of risky asset to deposit
      */
-    function deposit(uint256 riskyAmount) external override nonReentrant {
+    function deposit(uint256 riskyAmount)
+        external
+        override
+        nonReentrant
+    {
         require(riskyAmount > 0, "!riskyAmount");
-
-        emit DepositEvent(msg.sender, riskyAmount, vaultState.round);
         _processDeposit(riskyAmount, msg.sender);
+        emit DepositEvent(msg.sender, riskyAmount, vaultState.round);
 
         // Make transfers from tx caller to contract
         IERC20(tokenParams.risky).safeTransferFrom(
@@ -635,7 +671,11 @@ contract ParetoVault is
      * @dev Emits `WithdrawRequestEvent`
      * @param shares Number of shares to withdraw
      */
-    function requestWithdraw(uint256 shares) external override nonReentrant {
+    function requestWithdraw(uint256 shares)
+        external
+        override
+        nonReentrant
+    {
         _requestWithdraw(shares);
 
         // Update global variable caching shares queued for withdrawal
@@ -651,7 +691,11 @@ contract ParetoVault is
      * @dev Emits `WithdrawCompleteEvent`.
      *      Burns receipts, and transfers tokens to `msg.sender`
      */
-    function completeWithdraw() external override nonReentrant {
+    function completeWithdraw()
+        external
+        override
+        nonReentrant
+    {
         (uint256 riskyWithdrawn, uint256 stableWithdrawn) = _completeWithdraw();
 
         // Update globals caching withdrawal amounts from last round
@@ -817,6 +861,12 @@ contract ParetoVault is
     function _processDeposit(uint256 riskyAmount, address creditor) internal {
         uint16 currRound = vaultState.round;
 
+        // Check deposit is below cap
+        require(
+            totalRisky().add(riskyAmount) < controller.capRisky,
+            "Vault exceeds cap"
+        );
+
         // Find cached receipt for user if already deposited in a previous round
         Vault.DepositReceipt memory receipt = depositReceipts[creditor];
 
@@ -981,20 +1031,20 @@ contract ParetoVault is
         // Manager contains logic to get params of the next pool
         IParetoManager manager = IParetoManager(vaultManager);
 
-        // Check if we manually set volatility, otherwise call manager
-        nextSigma = managerState.manualSigmaRound == vaultState.round
-            ? managerState.manualSigma
+        // Check if we manually set sigma, otherwise call manager
+        nextSigma = controller.sigmaRound == vaultState.round
+            ? controller.sigma
             : manager.getNextSigma();
         require(nextSigma > 0, "!nextSigma");
 
-        uint32 nextDelta = managerState.manualDeltaRound == vaultState.round
-            ? managerState.manualDelta
+        uint32 nextDelta = controller.deltaRound == vaultState.round
+            ? controller.delta
             : manager.getNextDelta();
         require((nextDelta > 0) && (nextDelta < 10000), "!nextDelta");
 
         // Check if we manually set strike price, otherwise call manager
-        nextStrikePrice = managerState.manualStrikeRound == vaultState.round
-            ? managerState.manualStrike
+        nextStrikePrice = controller.strikeRound == vaultState.round
+            ? controller.strike
             : manager.getNextStrikePrice(
                 nextDelta,
                 nextSigma,
@@ -1004,8 +1054,8 @@ contract ParetoVault is
         require(nextStrikePrice > 0, "!nextStrikePrice");
 
         // Check if we manually set gamma, otherwise call manager
-        nextGamma = managerState.manualGammaRound == vaultState.round
-            ? managerState.manualGamma
+        nextGamma = controller.gammaRound == vaultState.round
+            ? controller.gamma
             : manager.getNextGamma();
         require((nextGamma > 0) && (nextGamma < 10000), "!nextGamma");
 
@@ -1265,18 +1315,29 @@ contract ParetoVault is
             lockedStable = optimalStable;
         } else if (initialRisky > optimalRisky) {
             // Case 2: trade risky for stable
-            uint256 deltaStable = _swapRiskyForStable(
+            uint256 deltaStable = UniswapRouter.swap(
+                address(this),
+                tokenParams.risky,
+                tokenParams.stable,
+                uniswapParams.poolFee,
                 initialRisky.sub(optimalRisky),
-                optimalStable.sub(initialStable)
+                optimalStable.sub(initialStable),
+                uniswapParams.router
             );
             lockedRisky = optimalRisky;
             lockedStable = initialStable.add(deltaStable);
         } else if (initialStable > optimalStable) {
             // Case 3: trade stable for risky
-            uint256 deltaRisky = _swapStableForRisky(
+            uint256 deltaRisky = UniswapRouter.swap(
+                address(this),
+                tokenParams.stable,
+                tokenParams.risky,
+                uniswapParams.poolFee,
                 initialStable.sub(optimalStable),
-                optimalRisky.sub(initialRisky)
+                optimalRisky.sub(initialRisky),
+                uniswapParams.router
             );
+
             lockedRisky = initialRisky.add(deltaRisky);
             lockedStable = optimalStable;
         }
@@ -1459,52 +1520,6 @@ contract ParetoVault is
         }
 
         return (feeInRisky, feeInStable);
-    }
-
-    /************************************************
-     * Uniswap Bindings
-     ***********************************************/
-
-    /**
-     * @notice Use `UniswapRouter` to swap risky for stable tokens
-     * @param riskyToSwap Amount of risky token to trade
-     * @param stableMinExpected Minimum amount of stable token expected from trade
-     * @return stableFromSwap Amount of stable token obtained
-     */
-    function _swapRiskyForStable(uint256 riskyToSwap, uint256 stableMinExpected)
-        internal
-        returns (uint256 stableFromSwap)
-    {
-        stableFromSwap = UniswapRouter.swap(
-            address(this),
-            tokenParams.risky,
-            tokenParams.stable,
-            uniswapParams.poolFee,
-            riskyToSwap,
-            stableMinExpected,
-            uniswapParams.router
-        );
-    }
-
-    /**
-     * @notice Use `UniswapRouter` to swap risky for stable tokens
-     * @param stableToSwap Amount of risky token traded
-     * @param riskyMinExpected Minimum amount of risky token expected from trade
-     * @return riskyFromSwap Amount of stable token obtained
-     */
-    function _swapStableForRisky(uint256 stableToSwap, uint256 riskyMinExpected)
-        internal
-        returns (uint256 riskyFromSwap)
-    {
-        riskyFromSwap = UniswapRouter.swap(
-            address(this),
-            tokenParams.stable,
-            tokenParams.risky,
-            uniswapParams.poolFee,
-            stableToSwap,
-            riskyMinExpected,
-            uniswapParams.router
-        );
     }
 
     /************************************************

@@ -122,20 +122,6 @@ contract TestParetoVault is ParetoVault {
         return _getVaultFees(feeParams);
     }
 
-    function testSwapRiskyForStable(
-        uint256 riskyToSwap,
-        uint256 stableMinExpected
-    ) public returns (uint256) {
-        return _swapRiskyForStable(riskyToSwap, stableMinExpected);
-    }
-
-    function testSwapStableForRisky(
-        uint256 stableToSwap,
-        uint256 riskyMinExpected
-    ) public returns (uint256) {
-        return _swapStableForRisky(stableToSwap, riskyMinExpected);
-    }
-
     function testGetNextMaturity(bytes32 poolId) public view returns (uint32) {
         return _getNextMaturity(poolId);
     }
