@@ -465,7 +465,7 @@ describe("ParetoManager contract", function () {
         ),
         stableDecimals
       );
-      expect(s1).to.be.equal(0.01);
+      expect(s1).to.be.equal("0.01");
     });
     it("correct computation of S1 over maximum", async function () {
       let s1 = fromBn(
@@ -480,7 +480,7 @@ describe("ParetoManager contract", function () {
         ),
         stableDecimals
       );
-      expect(s1).to.be.equal(0.99);
+      expect(s1).to.be.equal("0.99");
     });
   });
 });

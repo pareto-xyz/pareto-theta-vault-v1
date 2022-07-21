@@ -613,6 +613,104 @@ runTest("TestParetoVault", function () {
     });
   });
 
+  describe("Test internal rebalancing", function () {
+    beforeEach(async function () {
+      await vault.connect(this.wallets.alice).deposit(toBn("5", riskyDecimals));
+      await vault.connect(this.wallets.keeper).deployVault();
+      await vault.connect(this.wallets.keeper).testPrepareRollover();
+    });
+    it("Check rebalancing computation does not error", async function () {
+      // EVM by design exposes returned values for calls, but does not expose them for transactions.
+      // @dev: Hard to check outputs due to this
+      await vault.testRebalance(
+        toBn("5", riskyDecimals),
+        toBn("1", riskyDecimals)
+      );
+    });
+    it("Check rebalancing computation fails w/o liquidity", async function () {
+      try {
+        await vault.testRebalance(
+          toBn("1", riskyDecimals),
+          toBn("5", riskyDecimals)
+        );
+      } catch (err) {
+        expect(err.message).to.include("ERC20: burn amount exceeds balance");
+      }
+    });
+  });
+
+  describe("Test internal RMM-01 pool deployment", function () {
+    beforeEach(async function () {
+      await vault.connect(this.wallets.alice).deposit(toBn("5", riskyDecimals));
+    });
+    it("Check pool deployment does not error: test 1/5", async function () {
+      var currEpoch = Math.floor(Date.now() / 1000);
+      // EVM by design exposes returned values for calls, but does not expose them for transactions
+      await vault.testDeployPool({
+        spotAtCreation: toBn("1.0", riskyDecimals).toString(),
+        strike: toBn("1.1", riskyDecimals).toString(),
+        sigma: toBn("0.9", 4).toString(),
+        maturity: currEpoch + 604800, // one week
+        gamma: toBn("0.95", 4).toString(),
+        delta: toBn("0.2", 4).toString(),
+        riskyPerLp: toBn("0.5", riskyDecimals).toString(),
+        stablePerLp: toBn("0.5", stableDecimals).toString(),
+      });
+    });
+    it("Check pool deployment does not error: test 2/5", async function () {
+      var currEpoch = Math.floor(Date.now() / 1000);
+      await vault.testDeployPool({
+        spotAtCreation: toBn("1.0", riskyDecimals).toString(),
+        strike: toBn("1.5", riskyDecimals).toString(),
+        sigma: toBn("0.9", 4).toString(),
+        maturity: currEpoch + 604800, // one week
+        gamma: toBn("0.95", 4).toString(),
+        delta: toBn("0.2", 4).toString(),
+        riskyPerLp: toBn("0.5", riskyDecimals).toString(),
+        stablePerLp: toBn("0.5", stableDecimals).toString(),
+      });
+    });
+    it("Check pool deployment does not error: test 3/5", async function () {
+      var currEpoch = Math.floor(Date.now() / 1000);
+      await vault.testDeployPool({
+        spotAtCreation: toBn("1.0", riskyDecimals).toString(),
+        strike: toBn("1.1", riskyDecimals).toString(),
+        sigma: toBn("0.1", 4).toString(),
+        maturity: currEpoch + 604800, // one week
+        gamma: toBn("0.95", 4).toString(),
+        delta: toBn("0.2", 4).toString(),
+        riskyPerLp: toBn("0.5", riskyDecimals).toString(),
+        stablePerLp: toBn("0.5", stableDecimals).toString(),
+      });
+    });
+    it("Check pool deployment does not error: test 4/5", async function () {
+      var currEpoch = Math.floor(Date.now() / 1000);
+      await vault.testDeployPool({
+        spotAtCreation: toBn("1.0", riskyDecimals).toString(),
+        strike: toBn("1.1", riskyDecimals).toString(),
+        sigma: toBn("0.9", 4).toString(),
+        maturity: currEpoch + 604800, // one week
+        gamma: toBn("0.95", 4).toString(),
+        delta: toBn("0.2", 4).toString(),
+        riskyPerLp: toBn("0.9", riskyDecimals).toString(),
+        stablePerLp: toBn("0.1", stableDecimals).toString(),
+      });
+    });
+    it("Check pool deployment does not error: test 5/5", async function () {
+      var currEpoch = Math.floor(Date.now() / 1000);
+      await vault.testDeployPool({
+        spotAtCreation: toBn("1.0", riskyDecimals).toString(),
+        strike: toBn("1.1", riskyDecimals).toString(),
+        sigma: toBn("0.9", 4).toString(),
+        maturity: currEpoch + 604800, // one week
+        gamma: toBn("0.95", 4).toString(),
+        delta: toBn("0.2", 4).toString(),
+        riskyPerLp: toBn("0.1", riskyDecimals).toString(),
+        stablePerLp: toBn("0.9", stableDecimals).toString(),
+      });
+    });
+  });
+
   describe("Test internal optimal swap computation", function () {
     it("Check best swap computation: test 1/3", async function () {
       let [riskyBest, stableBest] = await vault.testGetBestSwap(
