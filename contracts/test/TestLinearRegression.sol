@@ -8,11 +8,11 @@ import {LinearRegression} from "../libraries/LinearRegression.sol";
  */
 contract TestLinearRegression {
     function predict(
-        uint256[] memory inputs,
-        uint256[] memory weights,
+        uint256[2] memory inputs,
+        uint256[2] memory weights,
         uint256 bias,
-        bool[] memory inputSigns,
-        bool[] memory weightSigns,
+        bool[2] memory inputSigns,
+        bool[2] memory weightSigns,
         bool biasSign,
         uint256 inputScaleFactor,
         uint256 weightScaleFactor

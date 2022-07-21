@@ -16,36 +16,12 @@ describe("TestLinearRegression contract", () => {
     linearRegression = await TestLinearRegression.deploy();
   });
   describe("Check the prediction function", function () {
-    it("Check error if lengths do not match", async function () {
-      let inputs = [toBn("1", 18).toString(), toBn("2", 18).toString()];
-      let weights = [toBn("1", 18).toString()];
-      let bias = toBn("1", 18).toString();
-      let inputSigns = [true];
-      let weightSigns = [true];
-      let biasSign = true;
-      let inputScaleFactor = 1;
-      let weightScaleFactor = 1;
-      try {
-        await linearRegression.predict(
-          inputs,
-          weights,
-          bias,
-          inputSigns,
-          weightSigns,
-          biasSign,
-          inputScaleFactor,
-          weightScaleFactor
-        );
-      } catch (err) {
-        expect(err.message).to.include("!length");
-      }
-    });
     it("Check one-dimensional with positive inputs and positive weights: test 1/3", async function () {
-      let inputs = [toBn("1", 18).toString()];
-      let weights = [toBn("1", 18).toString()];
+      let inputs = [toBn("1", 18).toString(), toBn("0", 18).toString()];
+      let weights = [toBn("1", 18).toString(), toBn("0", 18).toString()];
       let bias = toBn("1", 18).toString();
-      let inputSigns = [true];
-      let weightSigns = [true];
+      let inputSigns = [true, true];
+      let weightSigns = [true, true];
       let biasSign = true;
       let inputScaleFactor = 1;
       let weightScaleFactor = 1;
@@ -63,11 +39,11 @@ describe("TestLinearRegression contract", () => {
       expect(fromBn(outputs.pred, 18)).to.equal("2");
     });
     it("Check one-dimensional with positive inputs and positive weights: test 2/3", async function () {
-      let inputs = [toBn("3.141", 18).toString()];
-      let weights = [toBn("0.783", 18).toString()];
+      let inputs = [toBn("3.141", 18).toString(), toBn("0", 18).toString()];
+      let weights = [toBn("0.783", 18).toString(), toBn("0", 18).toString()];
       let bias = toBn("1.182", 18).toString();
-      let inputSigns = [true];
-      let weightSigns = [true];
+      let inputSigns = [true, true];
+      let weightSigns = [true, true];
       let biasSign = true;
       let inputScaleFactor = 1;
       let weightScaleFactor = 1;
@@ -86,11 +62,11 @@ describe("TestLinearRegression contract", () => {
       expect(fromBnToFloat(outputs.pred, 18)).to.be.closeTo(answer, 1e-3);
     });
     it("Check one-dimensional with positive inputs and positive weights: test 3/3", async function () {
-      let inputs = [toBn("0.998", 18).toString()];
-      let weights = [toBn("8.214", 18).toString()];
+      let inputs = [toBn("0.998", 18).toString(), toBn("0", 18).toString()];
+      let weights = [toBn("8.214", 18).toString(), toBn("0", 18).toString()];
       let bias = toBn("4.444", 18).toString();
-      let inputSigns = [true];
-      let weightSigns = [true];
+      let inputSigns = [true, true];
+      let weightSigns = [true, true];
       let biasSign = true;
       let inputScaleFactor = 1;
       let weightScaleFactor = 1;
@@ -109,11 +85,11 @@ describe("TestLinearRegression contract", () => {
       expect(fromBnToFloat(outputs.pred, 18)).to.be.closeTo(answer, 1e-3);
     });
     it("Check one-dimensional with positive inputs and negative weights: test 1/3", async function () {
-      let inputs = [toBn("1", 18).toString()];
-      let weights = [toBn("1", 18).toString()];
+      let inputs = [toBn("1", 18).toString(), toBn("0", 18).toString()];
+      let weights = [toBn("1", 18).toString(), toBn("0", 18).toString()];
       let bias = toBn("1", 18).toString();
-      let inputSigns = [true];
-      let weightSigns = [false];
+      let inputSigns = [true, true];
+      let weightSigns = [false, true];
       let biasSign = true;
       let inputScaleFactor = 1;
       let weightScaleFactor = 1;
@@ -131,11 +107,11 @@ describe("TestLinearRegression contract", () => {
       expect(fromBn(outputs.pred, 18)).to.equal("0");
     });
     it("Check one-dimensional with positive inputs and negative weights: test 2/3", async function () {
-      let inputs = [toBn("3.141", 18).toString()];
-      let weights = [toBn("0.783", 18).toString()];
+      let inputs = [toBn("3.141", 18).toString(), toBn("0", 18).toString()];
+      let weights = [toBn("0.783", 18).toString(), toBn("0", 18).toString()];
       let bias = toBn("1.182", 18).toString();
-      let inputSigns = [true];
-      let weightSigns = [false];
+      let inputSigns = [true, true];
+      let weightSigns = [false, true];
       let biasSign = true;
       let inputScaleFactor = 1;
       let weightScaleFactor = 1;
@@ -157,11 +133,11 @@ describe("TestLinearRegression contract", () => {
       );
     });
     it("Check one-dimensional with positive inputs and negative weights: test 3/3", async function () {
-      let inputs = [toBn("0.998", 18).toString()];
-      let weights = [toBn("8.214", 18).toString()];
+      let inputs = [toBn("0.998", 18).toString(), toBn("0", 18).toString()];
+      let weights = [toBn("8.214", 18).toString(), toBn("0", 18).toString()];
       let bias = toBn("4.444", 18).toString();
-      let inputSigns = [true];
-      let weightSigns = [false];
+      let inputSigns = [true, true];
+      let weightSigns = [false, true];
       let biasSign = false;
       let inputScaleFactor = 1;
       let weightScaleFactor = 1;
@@ -183,11 +159,11 @@ describe("TestLinearRegression contract", () => {
       );
     });
     it("Check one-dimensional with negative inputs and negative weights: test 1/3", async function () {
-      let inputs = [toBn("1", 18).toString()];
-      let weights = [toBn("1", 18).toString()];
+      let inputs = [toBn("1", 18).toString(), toBn("0", 18).toString()];
+      let weights = [toBn("1", 18).toString(), toBn("0", 18).toString()];
       let bias = toBn("1", 18).toString();
-      let inputSigns = [false];
-      let weightSigns = [false];
+      let inputSigns = [false, true];
+      let weightSigns = [false, true];
       let biasSign = true;
       let inputScaleFactor = 1;
       let weightScaleFactor = 1;
@@ -205,11 +181,11 @@ describe("TestLinearRegression contract", () => {
       expect(fromBn(outputs.pred, 18)).to.equal("2");
     });
     it("Check one-dimensional with negative inputs and negative weights: test 2/3", async function () {
-      let inputs = [toBn("3.141", 18).toString()];
-      let weights = [toBn("0.783", 18).toString()];
+      let inputs = [toBn("3.141", 18).toString(), toBn("0", 18).toString()];
+      let weights = [toBn("0.783", 18).toString(), toBn("0", 18).toString()];
       let bias = toBn("1.182", 18).toString();
-      let inputSigns = [false];
-      let weightSigns = [false];
+      let inputSigns = [false, true];
+      let weightSigns = [false, true];
       let biasSign = true;
       let inputScaleFactor = 1;
       let weightScaleFactor = 1;
@@ -231,11 +207,11 @@ describe("TestLinearRegression contract", () => {
       );
     });
     it("Check one-dimensional with negative inputs and negative weights: test 3/3", async function () {
-      let inputs = [toBn("0.998", 18).toString()];
-      let weights = [toBn("8.214", 18).toString()];
+      let inputs = [toBn("0.998", 18).toString(), toBn("0", 18).toString()];
+      let weights = [toBn("8.214", 18).toString(), toBn("0", 18).toString()];
       let bias = toBn("4.444", 18).toString();
-      let inputSigns = [false];
-      let weightSigns = [false];
+      let inputSigns = [false, true];
+      let weightSigns = [false, true];
       let biasSign = false;
       let inputScaleFactor = 1;
       let weightScaleFactor = 1;

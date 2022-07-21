@@ -16,6 +16,7 @@ library LinearRegression {
 
     /**
      * @notice Compute `y_hat = x^Tw + b`
+     * @dev Currently hardcoded to have two inputs
      * @param inputs One dimensional array of input features
      * @param weights One dimensional array of weight features
      * @param bias Scalar intercept term
@@ -28,19 +29,15 @@ library LinearRegression {
      * @return predSign Boolean where true is positive and false is negative
      */
     function predict(
-        uint256[] memory inputs,
-        uint256[] memory weights,
+        uint256[2] memory inputs,
+        uint256[2] memory weights,
         uint256 bias,
-        bool[] memory inputSigns,
-        bool[] memory weightSigns,
+        bool[2] memory inputSigns,
+        bool[2] memory weightSigns,
         bool biasSign,
         uint256 inputScaleFactor,
         uint256 weightScaleFactor
     ) internal pure returns (uint256 pred, bool predSign) {
-        require(inputs.length == weights.length, "!length");
-        require(inputs.length == inputSigns.length, "!length");
-        require(weights.length == weightSigns.length, "!length");
-
         int128 inputX64;
         int128 weightX64;
         int128 predX64;

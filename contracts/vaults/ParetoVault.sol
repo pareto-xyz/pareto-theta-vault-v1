@@ -1027,10 +1027,15 @@ contract ParetoVault is
             : manager.getNextDelta();
         require((nextDelta > 0) && (nextDelta < 10000), "!nextDelta");
 
+        // Fetch the oracle price - this will be used to RMM-01 initial price
+        // as well as how much liquidity to swap
+        uint256 spotAtCreation = manager.getRiskyToStablePrice();
+
         // Check if we manually set strike price, otherwise call manager
         nextStrikePrice = controller.strikeRound == vaultState.round
             ? controller.strike
             : manager.getNextStrikePrice(
+                spotAtCreation,
                 nextDelta,
                 nextSigma,
                 tau,
@@ -1041,12 +1046,13 @@ contract ParetoVault is
         // Check if we manually set gamma, otherwise call manager
         nextGamma = controller.gammaRound == vaultState.round
             ? controller.gamma
-            : manager.getNextGamma();
+            : manager.getNextGamma(
+                spotAtCreation,
+                nextStrikePrice,
+                nextSigma,
+                tokenParams.stableDecimals
+            );
         require((nextGamma > 0) && (nextGamma < 10000), "!nextGamma");
-
-        // Fetch the oracle price - this will be used to RMM-01 initial price
-        // as well as how much liquidity to swap
-        uint256 spotAtCreation = manager.getRiskyToStablePrice();
 
         /// @dev: tau = maturity timestamp - current timestamp
         uint256 riskyPerLp = manager.getRiskyPerLp(
