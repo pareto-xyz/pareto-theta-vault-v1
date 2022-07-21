@@ -36,14 +36,10 @@ library LinearRegression {
         bool biasSign,
         uint256 inputScaleFactor,
         uint256 weightScaleFactor
-    ) internal pure returns (
-        uint256 pred,
-        bool predSign
-    ) {
+    ) internal pure returns (uint256 pred, bool predSign) {
         require(inputs.length == weights.length, "!length");
-
-        // Restrict to lower than 10 dimensional
-        require(inputs.length < 10, "too big");
+        require(inputs.length == inputSigns.length, "!length");
+        require(weights.length == weightSigns.length, "!length");
 
         int128 inputX64;
         int128 weightX64;
@@ -67,7 +63,7 @@ library LinearRegression {
             biasX64 = biasX64.neg();
         }
         predX64 = predX64.add(biasX64);
-        predSign = !(predX64 < 0);  // false if negative
+        predSign = !(predX64 < 0); // false if negative
         if (!predSign) {
             predX64 = predX64.neg();
         }
