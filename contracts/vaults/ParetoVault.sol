@@ -625,10 +625,7 @@ contract ParetoVault is
      * @dev Writing 1 makes subsequent writes warm, reducing the gas from 20k to 5k
      * @param numRounds Number of rounds to initialize in the map
      */
-    function initRounds(uint256 numRounds)
-        external
-        nonReentrant
-    {
+    function initRounds(uint256 numRounds) external nonReentrant {
         require(numRounds > 0, "!numRounds");
         uint256 _round = vaultState.round;
         for (uint256 i = 0; i < numRounds; i++) {
@@ -647,11 +644,7 @@ contract ParetoVault is
      * @dev Emits `DepositEvent`
      * @param riskyAmount Amount of risky asset to deposit
      */
-    function deposit(uint256 riskyAmount)
-        external
-        override
-        nonReentrant
-    {
+    function deposit(uint256 riskyAmount) external override nonReentrant {
         require(riskyAmount > 0, "!riskyAmount");
         _processDeposit(riskyAmount, msg.sender);
         emit DepositEvent(msg.sender, riskyAmount, vaultState.round);
@@ -671,11 +664,7 @@ contract ParetoVault is
      * @dev Emits `WithdrawRequestEvent`
      * @param shares Number of shares to withdraw
      */
-    function requestWithdraw(uint256 shares)
-        external
-        override
-        nonReentrant
-    {
+    function requestWithdraw(uint256 shares) external override nonReentrant {
         _requestWithdraw(shares);
 
         // Update global variable caching shares queued for withdrawal
@@ -691,11 +680,7 @@ contract ParetoVault is
      * @dev Emits `WithdrawCompleteEvent`.
      *      Burns receipts, and transfers tokens to `msg.sender`
      */
-    function completeWithdraw()
-        external
-        override
-        nonReentrant
-    {
+    function completeWithdraw() external override nonReentrant {
         (uint256 riskyWithdrawn, uint256 stableWithdrawn) = _completeWithdraw();
 
         // Update globals caching withdrawal amounts from last round

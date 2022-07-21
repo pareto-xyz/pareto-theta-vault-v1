@@ -134,6 +134,12 @@ runTest("ParetoVault", function () {
     it("check share price in stable at start", async function () {
       expect(await vault.roundSharePriceInStable(1)).to.be.equal(1);
     });
+    it("check risky token address", async function () {
+      expect(await vault.risky()).to.be.equal(this.contracts.risky.address);
+    });
+    it("check stable token address", async function () {
+      expect(await vault.stable()).to.be.equal(this.contracts.stable.address);
+    });
     /**
      * @notice Checks that all the parameters inside vaultState are
      *  properly initialized
