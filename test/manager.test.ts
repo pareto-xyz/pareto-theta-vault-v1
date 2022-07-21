@@ -175,6 +175,7 @@ describe("ParetoManager contract", function () {
     it("correctly get next strike price - default", async function () {
       let spotPrice = await manager.getRiskyToStablePrice();
       let strikePrice = await manager.getNextStrikePrice(
+        toBn("1", 18),
         2000,
         8000,
         604800,
@@ -192,6 +193,7 @@ describe("ParetoManager contract", function () {
     it("correctly get next strike price - change delta", async function () {
       let spotPrice = await manager.getRiskyToStablePrice();
       let strikePrice = await manager.getNextStrikePrice(
+        toBn("1", 18),
         1000,
         8000,
         604800,
@@ -208,12 +210,14 @@ describe("ParetoManager contract", function () {
     });
     it("correctly get next strike price - check delta direction", async function () {
       let strikePrice1 = await manager.getNextStrikePrice(
+        toBn("1", 18),
         1000,
         8000,
         604800,
         stableDecimals
       );
       let strikePrice2 = await manager.getNextStrikePrice(
+        toBn("1", 18),
         1500,
         8000,
         604800,
@@ -227,6 +231,7 @@ describe("ParetoManager contract", function () {
     it("correctly get next strike price - check different tau", async function () {
       let spotPrice = await manager.getRiskyToStablePrice();
       let strikePrice = await manager.getNextStrikePrice(
+        toBn("1", 18),
         1000,
         8000,
         86400,
@@ -243,12 +248,14 @@ describe("ParetoManager contract", function () {
     });
     it("correctly get next strike price - check tau direction", async function () {
       let strikePrice1 = await manager.getNextStrikePrice(
+        toBn("1", 18),
         1000,
         8000,
         86400,
         stableDecimals
       );
       let strikePrice2 = await manager.getNextStrikePrice(
+        toBn("1", 18),
         1000,
         8000,
         604800,
@@ -262,6 +269,7 @@ describe("ParetoManager contract", function () {
     it("correctly get next strike price - check different sigma", async function () {
       let spotPrice = await manager.getRiskyToStablePrice();
       let strikePrice = await manager.getNextStrikePrice(
+        toBn("1", 18),
         1000,
         1000,
         604800,
@@ -278,12 +286,14 @@ describe("ParetoManager contract", function () {
     });
     it("correctly get next strike price - check sigma direction", async function () {
       let strikePrice1 = await manager.getNextStrikePrice(
+        toBn("1", 18),
         1000,
         8000,
         604800,
         stableDecimals
       );
       let strikePrice2 = await manager.getNextStrikePrice(
+        toBn("1", 18),
         1000,
         1000,
         604800,
@@ -304,6 +314,7 @@ describe("ParetoManager contract", function () {
       );
       let spotPrice = await manager.getRiskyToStablePrice();
       let strikePrice = await manager.getNextStrikePrice(
+        toBn("0.31847133758", 18),  // 1 / 3.14
         2000,
         8000,
         604800,

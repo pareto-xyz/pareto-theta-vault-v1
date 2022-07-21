@@ -36,6 +36,7 @@ interface IParetoManager {
      * @notice Computes the strike price for the next pool by back-deriving strike
      *         from a known delta, implied volatility, and spot price
      * @dev Uses the same decimals as the stable token
+     * @param spot Spot price for risky in terms of stable asset
      * @param delta Black Scholes delta
      * @param sigma Implied volatility
      * @param tau Time to maturity in seconds.
@@ -44,11 +45,12 @@ interface IParetoManager {
      * @return strikePrice Relative price of risky in stable
      */
     function getNextStrikePrice(
+        uint256 spot,
         uint32 delta,
         uint32 sigma,
         uint256 tau,
         uint8 stableDecimals
-    ) external view returns (uint128);
+    ) external pure returns (uint128);
 
     /**
      * @notice Computes the volatility for the next pool
@@ -60,11 +62,20 @@ interface IParetoManager {
 
     /**
      * @notice Computes the gamma (or 1 - fee) for the next pool
-     * @dev Currently hardcoded to 95% (or 5% fees).
-     *      Choosing gamma effects the quality of replication
+     * @dev Uses a pre-trained linear regression model to map (S/K, sigma) 
+     *      to prediction of optimal fee. Returns gamma as 1 - that fee
+     * @param spot Spot price for risky in terms of stable asset
+     * @param strike Strike price for risky in terms of stable asset
+     * @param sigma Implied volatility
+     * @param stableDecimals Decimals for the stable asset
      * @return gamma Gamma for the next pool
      */
-    function getNextGamma() external pure returns (uint32);
+    function getNextGamma(
+      uint256 spot,
+      uint128 strike,
+      uint32 sigma,
+      uint8 stableDecimals
+    ) external pure returns (uint32 gamma);
 
     /**
      * @notice Computes the Black Scholes delta value

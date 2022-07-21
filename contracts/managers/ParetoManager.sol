@@ -6,8 +6,10 @@ import {SafeMath} from "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {IParetoManager} from "../interfaces/IParetoManager.sol";
 import {Vault} from "../libraries/Vault.sol";
+import {VaultMath} from "../libraries/VaultMath.sol";
 import {IERC20} from "../interfaces/IERC20.sol";
 import {MoreReplicationMath} from "../libraries/MoreReplicationMath.sol";
+import {LinearRegression} from "../libraries/LinearRegression.sol";
 import {console} from "hardhat/console.sol";
 
 /**
@@ -46,11 +48,18 @@ contract ParetoManager is IParetoManager, Ownable {
     /// @notice Default value for implied volatility is 80%
     uint32 private constant DEFAULT_SIGMA = 8000;
 
-    /// @notice Default value for Primitive pool fees is 5%
-    uint32 private constant DEFAULT_GAMMA = 9500;
-
     /// @notice Default value for Black Scholes delta is 20%
     uint32 private constant DEFAULT_DELTA = 2000;
+
+    /// @notice Weight for optimal fee model
+    uint256 private constant OPTIMAL_FEE_W1 = 18858874190011780;
+    bool private constant OPTIMAL_FEE_W1_SIGN = true;
+    uint256 private constant OPTIMAL_FEE_W2 = 51058408355298930;
+    bool private constant OPTIMAL_FEE_W2_SIGN = true;
+    uint256 private constant OPTIMAL_FEE_B = 49412777624576010;
+    bool private constant OPTIMAL_FEE_B_SIGN = false;
+
+    uint8 private constant OPTIMAL_FEE_DECIMALS = 18;
 
     /************************************************
      * Constructor and initializers
@@ -177,6 +186,7 @@ contract ParetoManager is IParetoManager, Ownable {
      * @notice Computes the strike price for the next pool by back-deriving strike
      *         from a known delta, implied volatility, and spot price
      * @dev Uses the same decimals as the stable token
+     * @param spot Spot price for risky in terms of stable asset
      * @param sigma Implied volatility
      * @param tau Time to maturity in seconds.
      *            The conversion to years will happen within `MoreReplicationMath`
@@ -184,17 +194,16 @@ contract ParetoManager is IParetoManager, Ownable {
      * @return strikePrice Relative price of risky in stable
      */
     function getNextStrikePrice(
+        uint256 spot,
         uint32 delta,
         uint32 sigma,
         uint256 tau,
         uint8 stableDecimals
-    ) external view override returns (uint128 strikePrice) {
+    ) external pure override returns (uint128 strikePrice) {
         uint256 scaleFactorStable = 10**(18 - stableDecimals);
-        // Get price of risky in stable asset
-        uint256 spotPrice = _getOraclePrice(false);
         uint256 rawStrike = MoreReplicationMath.getStrikeGivenDelta(
             delta,
-            spotPrice,
+            spot,
             sigma,
             tau,
             scaleFactorStable
@@ -215,12 +224,40 @@ contract ParetoManager is IParetoManager, Ownable {
 
     /**
      * @notice Computes the gamma (or 1 - fee) for the next pool
-     * @dev Currently hardcoded to 95% (or 5% fees).
-     *      Choosing gamma effects the quality of replication
+     * @dev Uses a pre-trained linear regression model to map (S/K, sigma) 
+     *      to prediction of optimal fee. Returns gamma as 1 - that fee
+     * @param spot Spot price for risky in terms of stable asset
+     * @param strike Strike price for risky in terms of stable asset
+     * @param sigma Implied volatility
+     * @param stableDecimals Decimals for the stable asset
      * @return gamma Gamma for the next pool
      */
-    function getNextGamma() external pure override returns (uint32 gamma) {
-        return DEFAULT_GAMMA;
+    function getNextGamma(
+      uint256 spot,
+      uint128 strike,
+      uint32 sigma,
+      uint8 stableDecimals
+    ) external pure override returns (uint32 gamma) {
+        require(spot < uint256(strike), "spot >= strike");
+        uint256 scaleFactorModel = 10**(18 - OPTIMAL_FEE_DECIMALS);
+        uint256 scaleFactorStable = 10**(18 - stableDecimals);
+        uint256 one = 10**18;
+
+        uint256 ratio = spot.div(uint256(strike));
+        (uint256 fee,) = LinearRegression.predict(
+            [ratio, uint256(sigma)],
+            [OPTIMAL_FEE_W1, OPTIMAL_FEE_W2],
+            OPTIMAL_FEE_B,
+            [true, true],
+            [OPTIMAL_FEE_W1_SIGN, OPTIMAL_FEE_W2_SIGN],
+            OPTIMAL_FEE_B_SIGN,
+            scaleFactorStable,
+            scaleFactorModel
+        );
+        uint256 gamma256 = one.sub(fee);
+        VaultMath.assertUint32(gamma256);
+        gamma = uint32(gamma256);
+        return gamma;
     }
 
     /**
