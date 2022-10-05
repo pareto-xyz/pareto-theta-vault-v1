@@ -4,7 +4,7 @@
 ![Twitter Follow](https://img.shields.io/twitter/follow/Paretoxyz?style=social)
 [![Tests](https://github.com/pareto-xyz/pareto-theta-vault-v1/actions/workflows/ci.yaml/badge.svg)](https://github.com/pareto-xyz/pareto-theta-vault-v1/actions/workflows/ci.yaml)
 
-**Disclaimer: This repository is no longer being actively maintained. Proceed as your own risk.**
+**Disclaimer: This repository is no longer being actively maintained and has not been audited. Proceed as your own risk.**
 
 Pareto's Theta Vault v1 is a Replicating Theta Vault built on top of Primitive's RMM-01 pools. Pareto's vault generates yield for depositors by operating an automated weekly covered call selling strategy. This involves selling upside token volatility in return for a premium.
  
